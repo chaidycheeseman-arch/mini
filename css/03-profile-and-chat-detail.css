@@ -1,0 +1,644 @@
+﻿/* ====== 角色主页页面样式 (仿微信联系人资料页) ====== */
+#role-profile-app {
+    overflow: hidden;
+}
+.rp-back-btn {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 200;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.28);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    transition: background 0.2s;
+}
+.rp-back-btn:active { background: rgba(0,0,0,0.45); }
+/* 右上角三个点按钮 */
+.rp-more-btn {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 200;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.28);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    transition: background 0.2s;
+}
+.rp-more-btn:active { background: rgba(0,0,0,0.45); }
+/* 三个点下拉菜单项 */
+.rp-dropdown-item {
+    padding: 14px 18px;
+    font-size: 14px;
+    color: #333;
+    cursor: pointer;
+    border-bottom: 0.5px solid #f0f0f0;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+.rp-dropdown-item:last-child { border-bottom: none; }
+.rp-dropdown-item:active { background: #f5f5f5; }
+.rp-scroll-body {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 90px;
+}
+.rp-scroll-body::-webkit-scrollbar { display: none; }
+/* 封面区域 */
+.rp-cover-section {
+    position: relative;
+    width: 100%;
+    height: 240px;
+    overflow: hidden;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+.rp-cover-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    z-index: 0;
+    background-color: #667eea;
+    cursor: pointer;
+    filter: none;
+}
+.rp-cover-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.55) 100%);
+    z-index: 1;
+}
+.rp-identity-row {
+    position: absolute;
+    bottom: 22px;
+    left: 20px;
+    right: 20px;
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    z-index: 2;
+}
+.rp-avatar-ring {
+    width: 76px;
+    height: 76px;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1.5px solid rgba(255,255,255,0.85);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+    flex-shrink: 0;
+    background: #ccc;
+}
+.rp-avatar-ring img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.rp-identity-info {
+    flex: 1;
+    overflow: hidden;
+    padding-bottom: 2px;
+}
+.rp-name {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.4);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.rp-online-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 5px;
+}
+.rp-online-dot-small {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #4cd964;
+    box-shadow: 0 0 5px rgba(76,217,100,0.8);
+    flex-shrink: 0;
+}
+.rp-online-badge span {
+    font-size: 12px;
+    color: rgba(255,255,255,0.85);
+    font-weight: 500;
+}
+.rp-signature {
+    font-size: 12px;
+    color: rgba(255,255,255,0.7);
+    margin-top: 4px;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* 菜单列表区 */
+.rp-menu-section {
+    margin: 16px 14px 0;
+    background: #fff;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+.rp-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    background: #fff;
+    cursor: pointer;
+    border-bottom: 0.5px solid #f0f0f0;
+    transition: background 0.15s;
+}
+.rp-menu-item:last-child { border-bottom: none; }
+.rp-menu-item:active { background: #f5f5f5; }
+.rp-menu-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.rp-menu-label {
+    flex: 1;
+    font-size: 15px;
+    color: #1a1a1a;
+    font-weight: 400;
+}
+.rp-menu-arrow {
+    flex-shrink: 0;
+}
+/* 底部操作栏 */
+.rp-action-dock {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 76px;
+    background: rgba(255,255,255,0.97);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 0.5px solid #e5e5e5;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 20px;
+    padding-bottom: env(safe-area-inset-bottom);
+    z-index: 10;
+    gap: 14px;
+}
+.rp-action-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+.rp-action-item:active { opacity: 0.7; }
+.rp-action-item span {
+    font-size: 12px;
+    color: #555;
+    font-weight: 500;
+}
+.rp-action-icon-wrap {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s;
+}
+.rp-action-icon-wrap:active { transform: scale(0.9); }
+.rp-call-wrap {
+    background: linear-gradient(135deg, #8e9eab, #6e7f8d);
+    box-shadow: 0 4px 14px rgba(110,127,141,0.35);
+}
+.rp-chat-wrap {
+    background: linear-gradient(135deg, #07c160, #06ad56);
+    box-shadow: 0 4px 14px rgba(7,193,96,0.40);
+}
+
+/* ====== 理财股票页面样式（精美重制版） ====== */
+.stock-total-card {
+    background: #fff;
+    border-radius: 24px;
+    padding: 22px 22px 20px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.06), inset 0 0 0 1px rgba(0,0,0,0.03);
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 4px;
+    border: 1px solid #f0f0f0;
+}
+.stock-total-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(135deg, #f8f9ff 0%, #fff 60%, #f5f8ff 100%);
+    pointer-events: none;
+    z-index: 0;
+}
+.stock-total-card > * { position: relative; z-index: 1; }
+.stock-card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 16px 16px 14px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.04);
+    border: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.stock-card:active { transform: scale(0.98); box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.stock-card-left {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    overflow: hidden;
+}
+.stock-card-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    flex-shrink: 0;
+    margin-left: 10px;
+}
+
+/* ====== 聊天列表左滑操作样式 ====== */
+
+/* 父容器去掉 gap，改由 wrapper 自己控制间距 */
+#chat-list-container {
+    gap: 0 !important;
+}
+
+.chat-swipe-wrapper {
+    position: relative;
+    width: 100%;
+    flex-shrink: 0;
+    /* 关键：overflow:hidden + border-radius 一起裁剪，彻底消除露底 */
+    overflow: hidden;
+    border-radius: 16px;
+    /* 用 margin 代替 gap 控制间距，避免 overflow:hidden 被 gap 撑开露底 */
+    margin-bottom: 12px;
+}
+.chat-swipe-wrapper:last-child {
+    margin-bottom: 0;
+}
+
+/* 操作按钮区（绝对定位贴右，高度 100% 跟随 wrapper） */
+.chat-swipe-actions {
+    position: absolute;
+    right: 0;
+    top: 0;
+    height: 100%;
+    display: flex;
+    align-items: stretch;
+}
+
+.chat-swipe-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 65px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    letter-spacing: 0.3px;
+    padding: 0 10px;
+    transition: opacity 0.15s;
+    /* 不设 border-radius，由 wrapper 的 overflow:hidden 统一裁剪 */
+}
+.chat-swipe-btn:active { opacity: 0.75; }
+
+/* 置顶按钮 - 黄色系 */
+.chat-swipe-pin {
+    background: #f5a623;
+    color: #fff;
+}
+.chat-swipe-pin.pinned {
+    background: #aaa;
+    color: #fff;
+}
+
+/* 删除按钮 - 红色系 */
+.chat-swipe-delete {
+    background: #e74c3c;
+    color: #fff;
+}
+
+/* 主内容区（可滑动的那层，z-index 盖住 actions） */
+.chat-swipe-item {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    padding: 14px;
+    background: #fff;
+    /* 不设 border-radius，wrapper 已经裁剪 */
+    box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+    cursor: pointer;
+    will-change: transform;
+    /* 确保宽度撑满 wrapper */
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* 置顶状态背景色 */
+.chat-swipe-item.chat-item-pinned {
+    background: #fffbf0;
+}
+
+/* 置顶小标签 */
+.chat-pin-tag {
+    font-size: 9px;
+    font-weight: 600;
+    color: #f5a623;
+    background: #fff8ec;
+    border: 1px solid #fde8b8;
+    border-radius: 6px;
+    padding: 1px 5px;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
+}
+
+/* ====== 聊天详情页面样式 ====== */
+/* 头像行 */
+.cd-avatar-row {
+    display: flex;
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 28px;
+    padding: 28px 24px 20px;
+    background: #fff;
+    margin-bottom: 12px;
+}
+.cd-avatar-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+.cd-avatar-wrap {
+    width: 64px;
+    height: 64px;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #f0f0f0;
+    position: relative;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+}
+.cd-avatar-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.cd-avatar-edit-badge {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 20px;
+    height: 20px;
+    background: rgba(0,0,0,0.45);
+    border-radius: 6px 0 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.cd-avatar-label {
+    font-size: 12px;
+    color: #666;
+    font-weight: 500;
+}
+/* 设置区块 */
+.cd-section {
+    background: #fff;
+    border-radius: 0;
+    overflow: visible;
+    margin: 0 0 0 0;
+}
+.cd-section-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    cursor: pointer;
+    transition: background 0.15s;
+    min-height: 50px;
+}
+.cd-section-item:active { background: #f8f8f8; }
+.cd-item-label {
+    font-size: 14px;
+    color: #1a1a1a;
+    font-weight: 400;
+    flex: 1;
+}
+.cd-item-label-group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+}
+.cd-item-desc {
+    font-size: 11px;
+    color: #aaa;
+    font-weight: 400;
+}
+.cd-item-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.cd-item-value {
+    font-size: 13px;
+    color: #aaa;
+}
+.cd-wallpaper-preview {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    background: #f0f0f0;
+    background-size: cover;
+    background-position: center;
+    border: 1px solid #eee;
+    overflow: hidden;
+}
+.cd-divider {
+    height: 1px;
+    background: #f5f5f5;
+    margin: 0 20px;
+}
+/* 开关样式 */
+.cd-toggle {
+    width: 46px;
+    height: 26px;
+    border-radius: 13px;
+    background: #ddd;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.25s;
+    flex-shrink: 0;
+}
+.cd-toggle.on {
+    background: #4cd964;
+}
+.cd-toggle-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    transition: left 0.25s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+}
+.cd-toggle.on .cd-toggle-thumb {
+    left: 22px;
+}
+
+/* ====== 聊天详情：头像区垂直居中 ====== */
+.cd-avatar-row {
+    align-items: center !important;
+}
+
+/* ====== 聊天详情：记忆展开区平滑动画 ====== */
+.cd-memory-expand-box {
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+}
+.cd-memory-expand-box.open {
+    max-height: 400px;
+    opacity: 1;
+}
+
+/* ====== 聊天详情：数字输入框（回复条数 & 总结阈值） ====== */
+.cd-count-input {
+    width: 40px;
+    height: 28px;
+    border: 1px solid #e8e8e8;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: #444;
+    background: #f8f8f8;
+    outline: none;
+    padding: 0 4px;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+.cd-count-input::-webkit-inner-spin-button,
+.cd-count-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.cd-count-input:focus {
+    border-color: #bbb;
+    background: #fff;
+}
+
+/* ====== 聊天详情：记忆展开子项缩进样式 ====== */
+.cd-memory-sub-item {
+    padding-left: 32px !important;
+    background: #fafafa;
+}
+
+/* ====== 聊天详情：小尺寸开关（用于子项） ====== */
+.cd-toggle-sm {
+    width: 38px !important;
+    height: 22px !important;
+    border-radius: 11px !important;
+}
+.cd-toggle-sm .cd-toggle-thumb {
+    width: 18px !important;
+    height: 18px !important;
+    top: 2px !important;
+    left: 2px !important;
+}
+.cd-toggle-sm.on .cd-toggle-thumb {
+    left: 18px !important;
+}
+
+/* ====== 聊天详情：后台保活展开区平滑动画 ====== */
+.cd-keepalive-expand-box {
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+}
+.cd-keepalive-expand-box.open {
+    max-height: 500px;
+    opacity: 1;
+}
+
+/* ====== 聊天详情：主动发消息展开区平滑动画 ====== */
+.cd-proactive-expand-box {
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+}
+.cd-proactive-expand-box.open {
+    max-height: 300px;
+    opacity: 1;
+}
+
+/* ====== 聊天详情：时间段复选框标签样式 ====== */
+.cd-timeslot-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: #555;
+    cursor: pointer;
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 14px;
+    padding: 4px 10px;
+    transition: all 0.2s;
+    user-select: none;
+}
+.cd-timeslot-label:active {
+    background: #f5f5f5;
+}
+.cd-timeslot-label input[type="checkbox"] {
+    accent-color: #4cd964;
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+}
+.cd-timeslot-label input[type="checkbox"]:checked + span {
+    color: #333;
+    font-weight: 600;
+}
+
