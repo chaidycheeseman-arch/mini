@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="css/wallet/wallet-and-payment.css">
     <link rel="stylesheet" href="css/chat/profile-and-chat-detail.css">
     <link rel="stylesheet" href="css/device/sms-and-check-phone.css">
+    <link rel="stylesheet" href="css/device/music-app.css">
     <link rel="stylesheet" href="css/meetlove/meetlove-and-offline.css">
     <style>
         /* 性能优化：页面加载时手机壳先隐藏，等JS恢复完成后再显示，防止图标/壁纸闪烁 */
@@ -79,10 +80,10 @@
                             <div class="home-hero-avatar editable" id="hero-avatar">
                                 <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async">
                             </div>
-                            <div class="home-hero-name editable-text">兔兔丸</div>
-                            <div class="home-hero-id editable-text">ID: miffy-0206</div>
-                            <div class="home-hero-sign editable-text">喜欢风、花与温柔慢节奏</div>
-                            <div class="home-hero-loc editable-text">
+                            <div class="home-hero-name editable-text" id="text-hero-name">兔兔丸</div>
+                            <div class="home-hero-id editable-text" id="text-hero-id">ID: miffy-0206</div>
+                            <div class="home-hero-sign editable-text" id="text-hero-sign">喜欢风、花与温柔慢节奏</div>
+                            <div class="home-hero-loc editable-text" id="text-hero-loc">
                                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                                 <span>北京·朝阳</span>
                             </div>
@@ -188,7 +189,7 @@
     </div>
     <div class="temp-display" style="font-weight: 600; color: #666;">-1°</div>
 </div>
-                    <div style="display:flex; gap:18px; margin-top: 15px;">
+                    <div style="display:flex; gap:18px; margin-top: 0;">
                         <div class="polaroid-container editable" id="pl-1" style="width:160px; height:auto;">
                             <div class="polaroid-img-box"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div>
                             <p class="editable-text" id="text-polaroid" style="font-size:11px; color:#999; margin-top:10px; text-align:center;">叫我兔兔丸</p>
@@ -200,15 +201,15 @@
                             <div class="app-icon"><div class="icon-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></div><span>情侣空间</span></div>
                         </div>
                     </div>
-                    <div style="display:flex; justify-content:space-around; padding: 15px 0;">
+                    <div style="display:flex; justify-content:space-around; padding: 0;">
                         <div class="polaroid-container editable" id="pl-2" style="width:100px; height:auto; transform:rotate(-6deg);"><div class="polaroid-img-box"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div></div>
                         <div class="polaroid-container editable" id="pl-3" style="width:100px; height:auto; transform:rotate(4deg);"><div class="polaroid-img-box"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div></div>
                         <div class="polaroid-container editable" id="pl-4" style="width:100px; height:auto; transform:rotate(-2deg);"><div class="polaroid-img-box"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div></div>
                     </div>
-                    <div style="display:flex; gap:18px; align-items:flex-end; margin-top: 5px;">
+                    <div style="display:flex; gap:18px; align-items:flex-end; margin-top: 0;">
                         <div class="icon-grid" style="flex:1;">
                             <div class="app-icon" id="app-btn-sms"><div class="icon-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></div><span>信息</span></div>
-                            <div class="app-icon"><div class="icon-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></div><span>占位</span></div>
+                            <div class="app-icon" id="app-btn-music"><div class="icon-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></div><span>音乐</span></div>
                             <div class="app-icon"><div class="icon-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></div><span>占位</span></div>
                             <div class="app-icon"><div class="icon-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></div><span>占位</span></div>
                         </div>
@@ -510,36 +511,44 @@
     <!-- ====== WeChat 应用页面 (去除全局 padding-top 避免露出桌面) ====== -->
     <div id="wechat-app" class="full-app-page" style="background: #f7f7f7; padding-top: 0;">
         <!-- WeChat 底部导航 Dock (重制版：4个按钮，精美无emoji) -->
-        <div class="wechat-dock">
-            <!-- 消息 (替换为完美圆形气泡SVG，防止扭曲) -->
-            <div class="wechat-dock-btn active" onclick="switchWechatTab('msg')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 12c0 5.523-4.477 10-10 10-1.886 0-3.65-.52-5.15-1.414L2 22l1.414-4.85C2.52 15.65 2 13.886 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10z"></path>
-                </svg>
+        <div class="wechat-dock" role="tablist" aria-label="WeChat导航">
+            <div class="wechat-dock-btn active" data-tab="msg" onclick="switchWechatTab('msg')">
+                <span class="wechat-dock-btn-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 3.5c-4.9 0-8.9 3.6-8.9 8.1 0 1.8.7 3.5 2 4.9L4.1 20l3.5-1.3c1.3.6 2.8.9 4.4.9 4.9 0 8.9-3.6 8.9-8.1s-4-8-8.9-8z"></path>
+                    </svg>
+                </span>
+                <span class="wechat-dock-btn-label">消息</span>
             </div>
-            <!-- 联系人 -->
-            <div class="wechat-dock-btn" onclick="switchWechatTab('contacts')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="9" cy="7" r="4"></circle>
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                </svg>
+            <div class="wechat-dock-btn" data-tab="contacts" onclick="switchWechatTab('contacts')">
+                <span class="wechat-dock-btn-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="9" cy="8" r="3.5"></circle>
+                        <path d="M3.5 19v-.8a4.7 4.7 0 0 1 4.7-4.7h1.6"></path>
+                        <circle cx="17" cy="10" r="2.6"></circle>
+                        <path d="M14.4 19v-.5a3.6 3.6 0 0 1 3.6-3.6"></path>
+                    </svg>
+                </span>
+                <span class="wechat-dock-btn-label">联系人</span>
             </div>
-            <!-- 朋友圈 -->
-            <div class="wechat-dock-btn" onclick="switchWechatTab('moments')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <circle cx="12" cy="10" r="3"></circle>
-                    <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path>
-                </svg>
+            <div class="wechat-dock-btn" data-tab="moments" onclick="switchWechatTab('moments')">
+                <span class="wechat-dock-btn-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="8.5"></circle>
+                        <path d="M12 7.2v4.8"></path>
+                        <path d="M12 12.2l3.2 3"></path>
+                    </svg>
+                </span>
+                <span class="wechat-dock-btn-label">朋友圈</span>
             </div>
-            <!-- 我 -->
-            <div class="wechat-dock-btn" onclick="switchWechatTab('me')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="12" cy="7" r="4"></circle>
-                </svg>
+            <div class="wechat-dock-btn" data-tab="me" onclick="switchWechatTab('me')">
+                <span class="wechat-dock-btn-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="8" r="3.6"></circle>
+                        <path d="M5 19.4a7 7 0 0 1 14 0"></path>
+                    </svg>
+                </span>
+                <span class="wechat-dock-btn-label">我</span>
             </div>
         </div>
         <!-- 消息页面 (解决顶部灰色缝隙) -->
@@ -591,15 +600,16 @@
             <div class="moments-container">
                     <div class="moments-cover editable" id="wechat-moments-bg">
                         <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async">
-                    <div class="moments-float-btn" style="left:20px;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg></div>
-                    <div class="moments-float-btn" style="right:20px;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></div>
+                    <div class="moments-float-btn moments-float-btn-refresh" id="moments-refresh-btn" style="left:20px;" onclick="event.stopPropagation();openMomentsAutoModal()" oncontextmenu="event.preventDefault();event.stopPropagation();openMomentsAutoModal()" title="打开朋友圈控制台"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="4" y1="7" x2="20" y2="7"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="17" x2="20" y2="17"></line><circle cx="9" cy="7" r="1.8" fill="currentColor" stroke="none"></circle><circle cx="15" cy="12" r="1.8" fill="currentColor" stroke="none"></circle><circle cx="11" cy="17" r="1.8" fill="currentColor" stroke="none"></circle></svg></div>
+                    <div class="moments-float-btn moments-float-btn-compose" style="right:20px;" onclick="event.stopPropagation();openMomentsComposer(event)" title="发朋友圈"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></div>
                     <div class="moments-user-info">
                         <span class="moments-nickname editable-text" id="text-wechat-nick">兔兔丸</span>
                         <div class="moments-avatar-sq editable" id="wechat-avatar-sq"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div>
                     </div>
                 </div>
-                <div class="moments-feed">
-                    ———— 只能查看近三天的内容 ————
+                <div class="moments-feed" id="moments-feed">
+                    <div id="moments-empty-tip">———— 只能查看近三天的内容 ————</div>
+                    <div id="moments-post-list" class="moments-post-list"></div>
                 </div>
             </div>
         </div>
@@ -1577,6 +1587,155 @@
             <div id="sms-new-chat-list" style="padding:15px; display:flex; flex-direction:column; gap:10px;"></div>
         </div>
     </div>
+    <div id="music-app" class="full-app-page music-app-shell" style="padding-top:0;">
+        <div class="music-home-scroll">
+            <div class="music-status-bar">
+                <div class="music-status-time" id="music-status-time">21:09</div>
+                <div class="music-status-icons">
+                    <span class="music-status-dot"></span>
+                    <span class="music-status-dot"></span>
+                    <span class="music-status-dot music-status-dot--active"></span>
+                    <span class="music-status-dot"></span>
+                </div>
+                <div class="music-status-signal">
+                    <span>4G</span>
+                    <div class="music-status-bars">
+                        <i></i><i></i><i></i><i></i>
+                    </div>
+                    <div class="music-status-battery">
+                        <div class="music-status-battery-level">12</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="music-top-row">
+                <div class="music-search-pill">
+                    <div class="music-search-avatar"></div>
+                    <div class="music-search-copy">
+                        <span class="music-search-title">一个人想着一个人</span>
+                        <span class="music-search-sub">本周飙升黑马</span>
+                    </div>
+                </div>
+                <div class="music-top-actions">
+                    <div class="music-note-logo">
+                        <span></span>
+                    </div>
+                    <div class="music-rabbit-logo">兔</div>
+                </div>
+            </div>
+
+            <div class="music-tab-row">
+                <div class="music-tab-pill music-tab-pill--active">推荐</div>
+                <div class="music-tab-pill">乐馆</div>
+                <div class="music-tab-pill">儿童</div>
+                <div class="music-tab-pill">雷达</div>
+                <div class="music-tab-pill">AI作歌</div>
+                <div class="music-tab-pill">金币</div>
+                <div class="music-tab-pill">听书</div>
+                <div class="music-tab-pill">会员</div>
+            </div>
+
+            <div class="music-feature-row">
+                <div class="music-feature-card music-feature-card--for-you">
+                    <div class="music-feature-title">For<br>You</div>
+                    <div class="music-feature-cover music-feature-cover--group">
+                        <div class="music-cover-people">
+                            <span></span><span></span><span></span><span></span><span></span>
+                        </div>
+                    </div>
+                    <div class="music-feature-meta">
+                        <div class="music-feature-tag">猜你喜欢</div>
+                        <div class="music-feature-song">咳看 - 七朵组合</div>
+                    </div>
+                    <div class="music-feature-play">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    </div>
+                </div>
+                <div class="music-feature-card music-feature-card--daily">
+                    <div class="music-feature-title">Daily<br>30</div>
+                    <div class="music-feature-cover music-feature-cover--dear">
+                        <div class="music-cover-tree"><span>Dear D</span></div>
+                    </div>
+                    <div class="music-feature-meta">
+                        <div class="music-feature-tag">每日30首</div>
+                        <div class="music-feature-song">Dear D《亲爱的告诉你》- 项薇萌</div>
+                    </div>
+                    <div class="music-feature-play music-feature-play--square">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="music-section-head">
+                <div class="music-section-title">一键重温, 我の音乐收藏</div>
+                <div class="music-section-actions">
+                    <div class="music-circle-btn">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M7 5h3v14H7zm7 0h3v14h-3z"/></svg>
+                    </div>
+                    <div class="music-section-close">×</div>
+                </div>
+            </div>
+
+            <div class="music-member-banner">
+                <div class="music-member-icon">⚡</div>
+                <div class="music-member-text">开通绿钻畅听30首精选好歌</div>
+                <div class="music-member-cta">限时9.9元开通</div>
+            </div>
+
+            <div class="music-list" id="music-replay-list"></div>
+
+            <div class="music-section-head music-section-head--secondary">
+                <div class="music-section-title">今日专属精彩内容</div>
+                <div class="music-section-actions">
+                    <div class="music-circle-btn">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    </div>
+                    <div class="music-section-close">×</div>
+                </div>
+            </div>
+
+            <div class="music-list music-list--special" id="music-special-list"></div>
+        </div>
+
+        <div class="music-mini-player">
+            <div class="music-mini-cover"></div>
+            <div class="music-mini-copy">
+                <div class="music-mini-title">一点点喜欢 - 程嘉敏</div>
+            </div>
+            <button class="music-mini-btn music-mini-btn--like" type="button" aria-label="喜欢">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            </button>
+            <button class="music-mini-btn" type="button" aria-label="暂停">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M7 5h3v14H7zm7 0h3v14h-3z"/></svg>
+            </button>
+            <button class="music-mini-btn music-mini-btn--menu" type="button" aria-label="菜单">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
+            </button>
+        </div>
+
+        <div class="music-bottom-nav">
+            <button class="music-bottom-item music-bottom-item--active" type="button" onclick="closeMusicApp()">
+                <svg viewBox="0 0 24 24" width="29" height="29" fill="currentColor"><path d="M12 3l8 6.5V21a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1V9.5L12 3z"/></svg>
+                <span>首页</span>
+            </button>
+            <button class="music-bottom-item" type="button">
+                <svg viewBox="0 0 24 24" width="29" height="29" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="4"></rect><path d="M10 8l6 4-6 4z"/></svg>
+                <span>视频</span>
+            </button>
+            <button class="music-bottom-item" type="button">
+                <svg viewBox="0 0 24 24" width="29" height="29" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"></circle><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>
+                <span>雷达</span>
+            </button>
+            <button class="music-bottom-item" type="button">
+                <svg viewBox="0 0 24 24" width="29" height="29" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.8 5.66 6.25.91-4.52 4.41 1.07 6.23L12 17.77 6.4 20.21l1.07-6.23L2.95 9.57l6.25-.91L12 3z"/></svg>
+                <span>星光</span>
+            </button>
+            <button class="music-bottom-item" type="button">
+                <svg viewBox="0 0 24 24" width="29" height="29" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c1.6-4 5-6 8-6s6.4 2 8 6"></path></svg>
+                <span>我的</span>
+            </button>
+        </div>
+    </div>
 <!-- ====== 小说应用页面 ====== -->
     <div id="novel-app" class="full-app-page">
         <div class="app-header">
@@ -1709,7 +1868,7 @@
                 </svg>
             </div>
             <div class="chat-input-container">
-                <input type="text" id="chat-input-main" class="chat-input-field" placeholder="输入消息..." onfocus="hideChatExtPanel()">
+                <textarea id="chat-input-main" class="chat-input-field" placeholder="输入消息..." rows="1" onfocus="hideChatExtPanel()"></textarea>
             </div>
             <div class="icon-btn-line" id="chat-emoji-btn" onclick="toggleChatEmojiPanel()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -1895,14 +2054,103 @@
         </div>
     </div>
     <!-- 相机拍摄弹窗 -->
-    <div id="camera-modal" onclick="if(event.target === this) closeCameraModal()" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 200; backdrop-filter: blur(5px); justify-content: center; align-items: center;">
+    <div id="camera-modal" onclick="if(event.target === this) closeCameraModal()" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 340; backdrop-filter: blur(5px); justify-content: center; align-items: center;">
         <div class="preset-card" style="width: 85%;">
             <div class="preset-header" style="justify-content: center;"><span>拍摄相片</span></div>
             <div style="padding: 20px; display: flex; flex-direction: column; gap: 15px;">
                 <textarea id="camera-desc-input" class="settings-input" style="height: 100px; resize: none;" placeholder="描述拍摄的内容与场景..."></textarea>
                 <div class="action-buttons" style="margin-top: 5px;">
-                    <div class="btn-restore" onclick="sendCameraPhoto()">发送</div>
+                    <div class="btn-restore" onclick="handleCameraModalSend()">发送</div>
                 </div>
+            </div>
+        </div>
+    </div>
+    <!-- 朋友圈发布页 -->
+    <div id="moments-compose-modal" onclick="if(event.target === this) closeMomentsComposer()" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;z-index:320;flex-direction:column;">
+        <div class="app-header moments-compose-header">
+            <div class="app-back" onclick="closeMomentsComposer()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </div>
+            <div class="app-title">发朋友圈</div>
+            <div class="moments-compose-submit-btn" onclick="submitMomentsPost()">发表</div>
+        </div>
+        <div class="app-body moments-compose-body">
+            <div class="moments-compose-card">
+                <textarea id="moments-compose-text" class="settings-input moments-compose-textarea" placeholder="这一刻想说点什么..."></textarea>
+                <div class="moments-compose-tip-row">
+                    <div class="moments-compose-tip">支持文字 / 图片 / 相机（可混合，最多9张）</div>
+                    <div class="moments-compose-count" id="moments-image-count">0/9</div>
+                </div>
+                <div id="moments-compose-preview" class="moments-compose-preview"></div>
+                <div class="moments-compose-media-actions">
+                    <input type="file" id="moments-compose-file-input" accept="image/*" multiple style="display:none;" onchange="handleMomentsImagePick(event)">
+                    <div class="moments-compose-media-btn" onclick="triggerMomentsImagePicker()" title="添加图片">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="8.5" cy="10.5" r="1.5"></circle><path d="M21 15l-4-4-5 5-2-2-5 5"></path></svg>
+                        <span>图片</span>
+                    </div>
+                    <div class="moments-compose-media-btn" onclick="openMomentsCameraModal()" title="拍照">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 8a2 2 0 0 1 2-2h3l1.2-2h5.6L16 6h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                        <span>相机</span>
+                    </div>
+                </div>
+            </div>
+            <div class="moments-compose-role-section moments-compose-card moments-compose-mention-section">
+                <div class="moments-compose-role-title">提到角色</div>
+                <div id="moments-mention-list" class="moments-role-chip-wrap"></div>
+            </div>
+            <div class="moments-compose-role-section moments-compose-card moments-compose-block-section">
+                <div class="moments-compose-role-title">屏蔽角色</div>
+                <div id="moments-block-list" class="moments-role-chip-wrap"></div>
+            </div>
+        </div>
+    </div>
+    <!-- 朋友圈自动化设置弹窗 -->
+    <div id="moments-auto-modal" onclick="if(event.target===this)closeMomentsAutoModal()" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.42); z-index:336; backdrop-filter:blur(6px); justify-content:center; align-items:center;">
+        <div class="moments-auto-card">
+            <div class="moments-auto-title">朋友圈控制台</div>
+            <div class="moments-auto-row">
+                <span>开启自动生成</span>
+                <label class="moments-auto-switch">
+                    <input type="checkbox" id="moments-auto-enabled" onchange="saveMomentsAutoSettingsFromModal()">
+                    <span></span>
+                </label>
+            </div>
+            <div class="moments-auto-row moments-auto-row-stack">
+                <span>生成频率（分钟）</span>
+                <input type="number" id="moments-auto-frequency" class="settings-input moments-auto-input" min="1" max="1440" value="30" oninput="saveMomentsAutoSettingsFromModal()">
+            </div>
+            <div class="moments-auto-row moments-auto-row-stack">
+                <span>朋友圈文风</span>
+                <textarea id="moments-auto-style" class="settings-input moments-auto-textarea" placeholder="例如：口语化、轻松、有画面感，贴近真实社交动态..." oninput="saveMomentsAutoSettingsFromModal()"></textarea>
+            </div>
+            <div class="moments-auto-row">
+                <span>NCP/NPC扩展互动</span>
+                <label class="moments-auto-switch">
+                    <input type="checkbox" id="moments-auto-npc-enabled" onchange="saveMomentsAutoSettingsFromModal()">
+                    <span></span>
+                </label>
+            </div>
+            <div class="moments-auto-row moments-auto-row-stack">
+                <span>允许发朋友圈的联系人</span>
+                <div id="moments-auto-contact-list" class="moments-auto-contact-list"></div>
+                <div class="moments-auto-actions">
+                    <button type="button" class="moments-auto-btn" onclick="momentsAutoSelectAllContacts(true)">全选</button>
+                    <button type="button" class="moments-auto-btn" onclick="momentsAutoSelectAllContacts(false)">清空</button>
+                </div>
+            </div>
+            <div class="moments-auto-actions moments-auto-actions-send">
+                <button type="button" class="moments-auto-btn moments-auto-btn-send-all" onclick="momentsAutoSendAllNow()">所有联系人立即发送朋友圈</button>
+            </div>
+        </div>
+    </div>
+    <!-- 朋友圈评论弹窗 -->
+    <div id="moments-comment-modal" onclick="if(event.target === this) closeMomentsCommentModal()" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.42); z-index:335; backdrop-filter:blur(5px); justify-content:center; align-items:center;">
+        <div class="moments-comment-card">
+            <div class="moments-comment-title">写评论</div>
+            <textarea id="moments-comment-input" class="settings-input moments-comment-input" placeholder="输入评论内容..."></textarea>
+            <div class="moments-comment-actions">
+                <div class="moments-comment-btn" onclick="closeMomentsCommentModal()">取消</div>
+                <div class="moments-comment-btn primary" onclick="submitMomentComment()">发送</div>
             </div>
         </div>
     </div>
@@ -2479,18 +2727,29 @@
                     </div>
                 </div>
                 <div class="cd-divider"></div>
-                <!-- 记忆与总结 -->
+                <!-- 记忆设置 -->
                 <div class="cd-section-item">
                     <div class="cd-item-label-group">
-                        <span class="cd-item-label">记忆与总结</span>
-                        <span class="cd-item-desc">自动总结聊天内容作为记忆</span>
+                        <span class="cd-item-label">记忆总结</span>
+                        <span class="cd-item-desc">将聊天摘要写入长期记忆</span>
                     </div>
                     <div class="cd-toggle" id="cd-toggle-memory" onclick="cdToggle('memory')">
                         <div class="cd-toggle-thumb"></div>
                     </div>
                 </div>
-                <!-- 记忆与总结展开区 -->
+                <!-- 记忆设置区 -->
                 <div id="cd-memory-expand" class="cd-memory-expand-box">
+                    <div class="cd-divider"></div>
+                    <!-- 跨模式记忆开关 -->
+                    <div class="cd-section-item cd-memory-sub-item">
+                        <div class="cd-item-label-group">
+                            <span class="cd-item-label" style="font-size:13px; color:#555;">跨模式记忆</span>
+                            <span class="cd-item-desc">线上与线下共享最近对话上下文</span>
+                        </div>
+                        <div class="cd-toggle cd-toggle-sm" id="cd-toggle-cross-mode-memory" onclick="cdToggle('cross_mode_memory')">
+                            <div class="cd-toggle-thumb"></div>
+                        </div>
+                    </div>
                     <div class="cd-divider"></div>
                     <!-- 自动总结开关 -->
                     <div class="cd-section-item cd-memory-sub-item">
@@ -2543,7 +2802,7 @@
                 <div class="cd-section-item">
                     <div class="cd-item-label-group">
                         <span class="cd-item-label">后台保活</span>
-                        <span class="cd-item-desc">角色在后台主动发送消息</span>
+                        <span class="cd-item-desc">按设定间隔在后台触发角色回复</span>
                     </div>
                     <div class="cd-toggle" id="cd-toggle-keepalive" onclick="cdToggle('keepalive')">
                         <div class="cd-toggle-thumb"></div>
@@ -2552,51 +2811,41 @@
                 <!-- 后台保活展开区 -->
                 <div id="cd-keepalive-expand" class="cd-keepalive-expand-box">
                     <div class="cd-divider"></div>
-                    <!-- 发消息间隔 -->
                     <div class="cd-section-item cd-memory-sub-item" style="cursor:default;">
                         <div class="cd-item-label-group">
-                            <span class="cd-item-label" style="font-size:13px; color:#555;">发消息间隔</span>
-                            <span class="cd-item-desc">随机间隔（分钟），0=使用默认</span>
+                            <span class="cd-item-label" style="font-size:13px; color:#555;">保活间隔</span>
+                            <span class="cd-item-desc">随机间隔（分钟）</span>
                         </div>
                         <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
-                            <input type="number" id="cd-keepalive-min" class="cd-count-input" min="1" max="120" value="5" placeholder="5" oninput="cdSaveKeepaliveInterval()" style="width:36px;">
+                            <input type="number" id="cd-keepalive-min" class="cd-count-input" min="1" max="180" value="5" placeholder="5" oninput="cdSaveKeepaliveInterval()" style="width:36px;">
                             <span style="font-size:11px; color:#aaa;">~</span>
-                            <input type="number" id="cd-keepalive-max" class="cd-count-input" min="1" max="120" value="20" placeholder="20" oninput="cdSaveKeepaliveInterval()" style="width:36px;">
+                            <input type="number" id="cd-keepalive-max" class="cd-count-input" min="1" max="180" value="20" placeholder="20" oninput="cdSaveKeepaliveInterval()" style="width:36px;">
                             <span style="font-size:11px; color:#aaa;">分钟</span>
                         </div>
                     </div>
                     <div class="cd-divider"></div>
-                    <!-- 每日时间段 -->
-                    <div class="cd-section-item cd-memory-sub-item" style="cursor:default; flex-direction:column; align-items:flex-start; gap:10px;">
+                    <div class="cd-section-item cd-memory-sub-item" style="cursor:default;">
                         <div class="cd-item-label-group">
-                            <span class="cd-item-label" style="font-size:13px; color:#555;">每日活跃时间段</span>
-                            <span class="cd-item-desc">仅在勾选的时间段内发消息</span>
+                            <span class="cd-item-label" style="font-size:13px; color:#555;">每日活跃范围</span>
+                            <span class="cd-item-desc">只在该时段触发后台回复</span>
                         </div>
-                        <div id="cd-timeslot-checkboxes" style="display:flex; flex-wrap:wrap; gap:8px; width:100%;">
-                            <label class="cd-timeslot-label"><input type="checkbox" class="cd-timeslot-cb" value="morning" onchange="cdSaveTimeslots()"> <span>早上(7-9)</span></label>
-                            <label class="cd-timeslot-label"><input type="checkbox" class="cd-timeslot-cb" value="noon" onchange="cdSaveTimeslots()"> <span>中午(12-13)</span></label>
-                            <label class="cd-timeslot-label"><input type="checkbox" class="cd-timeslot-cb" value="afternoon" onchange="cdSaveTimeslots()"> <span>下午(15-17)</span></label>
-                            <label class="cd-timeslot-label"><input type="checkbox" class="cd-timeslot-cb" value="evening" onchange="cdSaveTimeslots()"> <span>晚上(20-22)</span></label>
-                            <label class="cd-timeslot-label"><input type="checkbox" class="cd-timeslot-cb" value="night" onchange="cdSaveTimeslots()"> <span>深夜(23-24)</span></label>
+                        <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+                            <input type="time" id="cd-keepalive-start" class="cd-time-input" value="00:00" oninput="cdSaveKeepaliveActiveRange()" onchange="cdSaveKeepaliveActiveRange()">
+                            <span style="font-size:11px; color:#aaa;">~</span>
+                            <input type="time" id="cd-keepalive-end" class="cd-time-input" value="23:59" oninput="cdSaveKeepaliveActiveRange()" onchange="cdSaveKeepaliveActiveRange()">
                         </div>
                     </div>
                     <div class="cd-divider"></div>
-                    <!-- 指定时间后台 -->
-                    <div class="cd-section-item cd-memory-sub-item" style="cursor:default; flex-direction:column; align-items:flex-start; gap:10px;">
-                        <div class="cd-item-label-group">
-                            <span class="cd-item-label" style="font-size:13px; color:#555;">指定时间后台</span>
-                            <span class="cd-item-desc">在指定时刻触发一次主动消息</span>
-                        </div>
-                        <div id="cd-scheduled-times-list" style="display:flex; flex-wrap:wrap; gap:8px; width:100%;"></div>
-                        <div style="display:flex; align-items:center; gap:8px; width:100%;">
-                            <input type="time" id="cd-scheduled-time-picker" style="border:1px solid #eee; border-radius:12px; padding:5px 10px; font-size:12px; color:#555; background:#fff; outline:none; cursor:pointer; flex:1; min-width:0;">
-                            <div onclick="cdAddScheduledTime()" style="padding:5px 14px; background:#fff; border:1px solid #eee; border-radius:12px; font-size:12px; color:#555; cursor:pointer; white-space:nowrap; box-shadow:0 1px 4px rgba(0,0,0,0.04); flex-shrink:0;">+ 添加</div>
-                        </div>
-                    </div>
-                    <div class="cd-divider"></div>
-                    <!-- 立即触发一次 -->
                     <div class="cd-section-item cd-memory-sub-item" onclick="cdTriggerKeepaliveNow()">
-                        <span class="cd-item-label" style="font-size:13px; color:#555;">立即触发一次</span>
+                        <span class="cd-item-label" id="cd-keepalive-trigger-label" style="font-size:13px; color:#555;">立即触发一次</span>
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#c8c8c8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                    </div>
+                    <div class="cd-divider"></div>
+                    <div class="cd-section-item cd-memory-sub-item" onclick="cdEnableBrowserNotification()">
+                        <div class="cd-item-label-group">
+                            <span class="cd-item-label" style="font-size:13px; color:#555;">通知权限与测试</span>
+                            <span class="cd-item-desc">点击授权并发送测试横幅</span>
+                        </div>
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#c8c8c8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
                     </div>
                 </div>
@@ -3077,6 +3326,7 @@
 <script src="js/wallet/wallet-and-wechat.js"></script>
 <script src="js/messaging/sms-and-notify.js"></script>
 <script src="js/device/check-phone.js"></script>
+<script src="js/device/music-home.js"></script>
 <script src="js/meetlove/meetlove-and-offline.js"></script>
 
 <!-- 注册 Service Worker，用于触发 Edge 安装为应用 -->

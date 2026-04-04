@@ -81,7 +81,7 @@ function _buildBankCardElement(cardData) {
     tempDiv.innerHTML = html;
     return tempDiv.firstChild;
 }
-const appIconNames = ["小说", "日记", "购物", "论坛", "WeChat", "纪念日", "遇恋", "世界书", "占位1", "闲鱼", "查手机", "情侣空间", "信息", "占位3", "占位4", "占位5", "主题", "设置"];
+const appIconNames = ["小说", "日记", "购物", "论坛", "WeChat", "纪念日", "遇恋", "世界书", "占位1", "闲鱼", "查手机", "情侣空间", "信息", "音乐", "占位4", "占位5", "主题", "设置"];
 const themeIconGrid = document.getElementById('icon-theme-grid');
 const mainIcons = document.querySelectorAll('.icon-img img, .dock-icon img');
     // 修复电脑端：打开任意全屏应用前，先关闭其他所有全屏应用，防止多个 full-app-page 同时可见互相遮挡
@@ -160,14 +160,24 @@ if(rw) rw.textContent = week;
             openImageMenuAtEvent(e, el.id);
         });
     });
+    function getEditableTextStorageKey(el, fallbackIndex) {
+        if (!el) return null;
+        if (el.id) return 'miffy_text_' + el.id;
+        if (!el.dataset.editKey) {
+            const idx = (fallbackIndex !== undefined && fallbackIndex !== null) ? fallbackIndex : 0;
+            el.dataset.editKey = 'auto_' + idx;
+        }
+        return 'miffy_text_' + el.dataset.editKey;
+    }
     // 交互与持久化 (文字)
-    document.querySelectorAll('.editable-text').forEach(el => {
+    document.querySelectorAll('.editable-text').forEach((el, idx) => {
         el.addEventListener('click', async (e) => {
             e.stopPropagation();
             const newText = prompt('请输入新内容:', el.textContent);
             if(newText !== null && newText.trim() !== "") {
                 el.textContent = newText;
-                await localforage.setItem('miffy_text_' + el.id, newText);
+                const textKey = getEditableTextStorageKey(el, idx);
+                if (textKey) await localforage.setItem(textKey, newText);
             }
         });
     });
@@ -277,8 +287,8 @@ window.addEventListener('DOMContentLoaded', async () => {
         // ===== 性能优化：批量并行读取所有持久化数据，消除顺序 await 阻塞 =====
 
         // 1. 并行读取所有 editable-text 的 key
-        const textElements = document.querySelectorAll('.editable-text');
-        const textKeys = Array.from(textElements).map(el => 'miffy_text_' + el.id);
+        const textElements = Array.from(document.querySelectorAll('.editable-text'));
+        const textKeys = textElements.map((el, idx) => getEditableTextStorageKey(el, idx));
         const textValues = await Promise.all(textKeys.map(k => localforage.getItem(k)));
         textElements.forEach((el, i) => {
             if (textValues[i]) el.textContent = textValues[i];
@@ -788,9 +798,10 @@ window.addEventListener('DOMContentLoaded', async () => {
         document.querySelectorAll('.wechat-tab-page').forEach(page => page.classList.remove('active'));
         document.getElementById('wechat-tab-' + tabName).classList.add('active');
         const btns = document.querySelectorAll('.wechat-dock-btn');
-        btns.forEach(btn => btn.classList.remove('active'));
-        const indexMap = {'msg': 0, 'contacts': 1, 'moments': 2, 'me': 3};
-        btns[indexMap[tabName]].classList.add('active');
+        btns.forEach(btn => {
+            const currentTab = btn.getAttribute('data-tab');
+            btn.classList.toggle('active', currentTab === tabName);
+        });
         if (tabName === 'contacts' && typeof renderContacts === 'function') {
             renderContacts();
         }
@@ -1016,9 +1027,9 @@ window.addEventListener('DOMContentLoaded', async () => {
             '',
             '/* --- 图标大小（桌面应用图标） --- */',
             '.icon-img {',
-            '    width: 72px;',
-            '    height: 72px;',
-            '    border-radius: 20px;',
+            '    width: 63px;',
+            '    height: 63px;',
+            '    border-radius: 17px;',
             '}',
             '',
             '/* --- 图标名称字体大小 --- */',
@@ -1029,9 +1040,9 @@ window.addEventListener('DOMContentLoaded', async () => {
             '',
             '/* --- Dock栏图标大小 --- */',
             '.dock-icon {',
-            '    width: 72px;',
-            '    height: 72px;',
-            '    border-radius: 20px;',
+            '    width: 63px;',
+            '    height: 63px;',
+            '    border-radius: 17px;',
             '}',
             '',
             '/* --- Dock栏背景 --- */',
@@ -1980,23 +1991,33 @@ document.getElementById('contact-edit-id').value = '';
             console.error("创建聊天失败", e);
         }
     }
+    let chatListRenderToken = 0;
     async function renderChatList() {
+        const renderToken = ++chatListRenderToken;
         const container = document.getElementById('chat-list-container');
         if (!container) return;
         try {
             let chats = await chatListDb.chats.toArray();
+            if (renderToken !== chatListRenderToken) return;
             if (chats.length === 0) {
                 container.innerHTML = '<div id="no-msg-tip" style="color:#bbb; font-size:13px; margin-top:100px; text-align:center;">暂无新消息</div>';
                 return;
             }
-            container.innerHTML = '';
             // 置顶的排前面，其余保持原始顺序（倒序）
             chats.reverse();
+            const seenContactIds = new Set();
+            chats = chats.filter(chat => {
+                if (!chat || !chat.contactId) return false;
+                if (seenContactIds.has(chat.contactId)) return false;
+                seenContactIds.add(chat.contactId);
+                return true;
+            });
             chats.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
 
             const fragment = document.createDocumentFragment();
 
             for (let chat of chats) {
+                if (renderToken !== chatListRenderToken) return;
                 const contact = await contactDb.contacts.get(chat.contactId);
                 if (!contact) continue;
                 const msgs = await chatListDb.messages.where('contactId').equals(contact.id).toArray();
@@ -2018,6 +2039,7 @@ document.getElementById('contact-edit-id').value = '';
                 // 外层滑动容器
                 const wrapper = document.createElement('div');
                 wrapper.className = 'chat-swipe-wrapper';
+                if (isPinned) wrapper.classList.add('chat-item-pinned-wrap');
                 wrapper.setAttribute('data-chat-id', chat.id);
                 wrapper.setAttribute('data-contact-id', contact.id);
 
@@ -2067,11 +2089,12 @@ document.getElementById('contact-edit-id').value = '';
                 fragment.appendChild(wrapper);
             }
 
-            container.appendChild(fragment);
-
-            if (container.innerHTML === '') {
+            if (renderToken !== chatListRenderToken) return;
+            if (!fragment.childNodes.length) {
                 container.innerHTML = '<div id="no-msg-tip" style="color:#bbb;font-size:13px;margin-top:100px;text-align:center;">暂无新消息</div>';
+                return;
             }
+            container.replaceChildren(fragment);
         } catch (e) {
             console.error("加载聊天列表失败", e);
         }

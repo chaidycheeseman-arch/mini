@@ -4,6 +4,7 @@
     // activeSmsContact: 当前信息聊天的联系人
     var activeSmsContact = null;
     var smsIsReplying = false;
+    var smsListRenderToken = 0;
 
     // 获取12小时制时间字符串（与WeChat一致）
     function getSmsTime() {
@@ -39,19 +40,22 @@
     // 渲染信息列表：直接显示所有联系人，不需要手动添加
     // 每个联系人显示其 SMS 消息预览（严格隔离 WeChat 消息）
     async function renderSmsList() {
+        var renderToken = ++smsListRenderToken;
         var container = document.getElementById('sms-list-container');
         if (!container) return;
         try {
             // 直接读取所有联系人，不依赖 chats 表过滤
             var contacts = await contactDb.contacts.toArray();
+            if (renderToken !== smsListRenderToken) return;
 
             if (contacts.length === 0) {
                 container.innerHTML = '<div id="sms-no-msg-tip" style="color:#bbb; font-size:13px; margin-top:120px; text-align:center;">暂无联系人，请先在 WeChat 中添加</div>';
                 return;
             }
-            container.innerHTML = '';
+            var fragment = document.createDocumentFragment();
 
             for (var i = 0; i < contacts.length; i++) {
+                if (renderToken !== smsListRenderToken) return;
                 var contact = contacts[i];
                 // 只取 SMS 消息（source === 'sms'）作为预览，严格排除 WeChat 消息
                 var allMsgs = await chatListDb.messages.where('contactId').equals(contact.id).toArray();
@@ -112,8 +116,14 @@
                         }
                     };
                 })(contact.id);
-                container.appendChild(item);
+                fragment.appendChild(item);
             }
+            if (renderToken !== smsListRenderToken) return;
+            if (!fragment.childNodes.length) {
+                container.innerHTML = '<div id="sms-no-msg-tip" style="color:#bbb; font-size:13px; margin-top:120px; text-align:center;">暂无短信</div>';
+                return;
+            }
+            container.replaceChildren(fragment);
         } catch(e) {
             console.error('渲染信息列表失败', e);
         }
@@ -171,7 +181,11 @@
 
         // 清空输入框
         var inputEl = document.getElementById('sms-input-field');
-        if (inputEl) inputEl.value = '';
+        if (inputEl) {
+            inputEl.value = '';
+            if (typeof autoGrowTextarea === 'function') autoGrowTextarea(inputEl);
+            else inputEl.style.height = 'auto';
+        }
 
         // 滚动到底部
         requestAnimationFrame(function() { container.scrollTop = container.scrollHeight; });
@@ -489,7 +503,11 @@
         container.appendChild(rowEl);
 
         // 清空输入框
-        if (inputEl) inputEl.value = '';
+        if (inputEl) {
+            inputEl.value = '';
+            if (typeof autoGrowTextarea === 'function') autoGrowTextarea(inputEl);
+            else inputEl.style.height = 'auto';
+        }
         container.scrollTop = container.scrollHeight;
 
         // 触发角色回复
@@ -515,8 +533,7 @@
     });
 
     // 信息应用：触发角色回复（调用API，纯文本，简洁风格）
-    // ====== 后台保活：触发角色主动回复（供保活系统调用） ======
-    // 注意：此函数在 SMS IIFE 内部，仅供外部通过 window._smsTriggerRoleReplyExternal 调用
+    // 注意：此函数在 SMS IIFE 内部，仅供外部调度通过 window._smsTriggerRoleReplyExternal 调用
     window._smsTriggerRoleReplyExternal = async function(lockedContact, userText) {
         await _smsTriggerRoleReply(lockedContact, userText, getSmsTime());
     };
@@ -1176,7 +1193,7 @@
     };
 
     /**
-     * 对外暴露检测函数，供后台保活系统调用
+     * 对外暴露检测函数，供外部调度调用
      */
     window._checkShuraModeHijack = checkShuraModeHijack;
 
@@ -1205,9 +1222,15 @@
     window._shuraCheckAfterRoleReply = _shuraCheckAfterRoleReply;
 })();
 
-// ====== 后台保活 & 主动发消息 & 每天时间段发消息 & Web Push 通知系统 ======
+// ====== 后台保活 & 主动发消息 & 浏览器通知系统 ======
 (function() {
     'use strict';
+
+    var _notifySeq = 0;
+    var _keepaliveTimers = {}; // contactId -> timerId | 'PENDING'
+    var _proactiveTimers = {}; // contactId -> timerId
+    var _bgNotifQueue = []; // { contactId, text }
+    var _bgNotifBusy = false;
 
     // ---- 工具：获取联系人备注显示名 ----
     async function _getDisplayName(contact) {
@@ -1223,59 +1246,227 @@
         return !document.hidden;
     }
 
-    // ---- 工具：判断 WeChat 聊天窗口是否正打开且对应该联系人 ----
-    function _isChatOpen(contactId) {
-        var chatWin = document.getElementById('chat-window');
-        return chatWin && chatWin.style.display === 'flex' && activeChatContact && activeChatContact.id === contactId;
+    function _safeInt(raw, fallbackVal) {
+        var n = parseInt(raw, 10);
+        return isNaN(n) ? fallbackVal : n;
+    }
+
+    function _parseClockToMinutes(val, fallbackVal) {
+        if (typeof val !== 'string') return fallbackVal;
+        var m = /^(\d{1,2}):(\d{1,2})$/.exec(val.trim());
+        if (!m) return fallbackVal;
+        var hh = parseInt(m[1], 10);
+        var mm = parseInt(m[2], 10);
+        if (isNaN(hh) || isNaN(mm)) return fallbackVal;
+        if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return fallbackVal;
+        return hh * 60 + mm;
+    }
+
+    async function _getKeepaliveRangeConfig(contactId) {
+        var min = _safeInt(await localforage.getItem('cd_settings_' + contactId + '_keepalive_min'), 5);
+        var max = _safeInt(await localforage.getItem('cd_settings_' + contactId + '_keepalive_max'), 20);
+        if (min < 1) min = 1;
+        if (max < min) max = min;
+        return { min: min, max: max };
+    }
+
+    async function _isInKeepaliveActiveRange(contactId) {
+        var startStr = await localforage.getItem('cd_settings_' + contactId + '_keepalive_active_start');
+        var endStr = await localforage.getItem('cd_settings_' + contactId + '_keepalive_active_end');
+        var startMin = _parseClockToMinutes(startStr, 0);
+        var endMin = _parseClockToMinutes(endStr, 23 * 60 + 59);
+        var now = new Date();
+        var nowMin = now.getHours() * 60 + now.getMinutes();
+
+        if (startMin === endMin) return true;
+        if (startMin < endMin) return nowMin >= startMin && nowMin <= endMin;
+        return nowMin >= startMin || nowMin <= endMin;
     }
 
     // ====== Web Push 通知：申请权限 & 发送系统推送 ======
-    async function _requestNotificationPermission() {
-        if (!('Notification' in window)) return false;
-        if (Notification.permission === 'granted') return true;
-        if (Notification.permission === 'denied') return false;
-        var result = await Notification.requestPermission();
-        return result === 'granted';
+    async function _ensureBrowserNotificationPermission() {
+        if (!('Notification' in window)) {
+            return { ok: false, reason: 'unsupported' };
+        }
+        if (!window.isSecureContext) {
+            return { ok: false, reason: 'insecure_context' };
+        }
+        if (Notification.permission === 'granted') {
+            return { ok: true, reason: 'granted' };
+        }
+        if (Notification.permission === 'denied') {
+            return { ok: false, reason: 'denied' };
+        }
+        try {
+            var result = await Notification.requestPermission();
+            if (result === 'granted') return { ok: true, reason: 'granted' };
+            return { ok: false, reason: result || 'default' };
+        } catch (e) {
+            return { ok: false, reason: 'request_failed', error: e && e.message ? e.message : String(e) };
+        }
     }
 
-    // 发送浏览器横幅通知（页面不可见时用系统通知，可见时用页内横幅）
-    async function _sendNotification(contact, msgText) {
-        var displayName = await _getDisplayName(contact);
-        var avatarSrc = contact.roleAvatar || '';
-        var timeStr = getAmPmTime();
+    async function _requestNotificationPermission() {
+        var perm = await _ensureBrowserNotificationPermission();
+        return !!perm.ok;
+    }
 
-        if (_isPageVisible()) {
-            // 页面可见：使用页内横幅
-            showNotificationBanner(avatarSrc, displayName, msgText, timeStr, contact.id);
-        } else {
-            // 页面不可见：优先使用 Service Worker 推送系统通知
-            var granted = await _requestNotificationPermission();
-            if (granted && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                navigator.serviceWorker.controller.postMessage({
-                    type: 'SHOW_NOTIFICATION',
-                    title: displayName,
-                    body: msgText,
-                    icon: avatarSrc || 'icon-192.png',
-                    contactId: contact.id,
-                    tag: 'mini-msg-' + contact.id,
-                    url: window.location.href
+    window._getNotificationDebugInfo = function() {
+        return {
+            secureContext: !!window.isSecureContext,
+            notificationSupported: ('Notification' in window),
+            notificationPermission: ('Notification' in window) ? Notification.permission : 'unsupported',
+            serviceWorkerSupported: ('serviceWorker' in navigator)
+        };
+    };
+
+    window._ensureBrowserNotificationPermission = async function(options) {
+        var opts = options || {};
+        var perm = await _ensureBrowserNotificationPermission();
+        if (!perm.ok) return perm;
+        if (!opts.test) return perm;
+
+        var testTitle = 'Mini 通知测试';
+        var testBody = '通知已启用，后台消息会逐条弹出。';
+        var testTag = 'mini-notify-test-' + Date.now();
+        try {
+            if ('serviceWorker' in navigator) {
+                var reg = await navigator.serviceWorker.getRegistration();
+                if (reg) {
+                    await reg.showNotification(testTitle, {
+                        body: testBody,
+                        icon: 'icon-192.png',
+                        tag: testTag,
+                        renotify: false,
+                        data: { contactId: '', url: window.location.href }
+                    });
+                    return { ok: true, reason: 'granted' };
+                }
+            }
+            var n = new Notification(testTitle, {
+                body: testBody,
+                icon: 'icon-192.png',
+                tag: testTag,
+                renotify: false
+            });
+            n.onclick = function() {
+                window.focus();
+                n.close();
+            };
+            return { ok: true, reason: 'granted' };
+        } catch (e2) {
+            return { ok: false, reason: 'show_failed', error: e2 && e2.message ? e2.message : String(e2) };
+        }
+    };
+
+    async function _showOneBackgroundRoleNotification(contact, msgText) {
+        if (!contact || !msgText || _isPageVisible()) return;
+        var granted = await _requestNotificationPermission();
+        if (!granted) return;
+
+        var displayName = await _getDisplayName(contact);
+        var avatarSrc = contact.roleAvatar || 'icon-192.png';
+        var uniqueTag = 'mini-bgseq-' + contact.id + '-' + Date.now() + '-' + (++_notifySeq);
+
+        if ('serviceWorker' in navigator) {
+            try {
+                var reg = await navigator.serviceWorker.getRegistration();
+                if (reg) {
+                    // 先主动关闭上一条同类通知，避免桌面端需要手动点掉才显示下一条
+                    var oldNotifs = await reg.getNotifications();
+                    for (var i = 0; i < oldNotifs.length; i++) {
+                        var t = oldNotifs[i].tag || '';
+                        if (t.indexOf('mini-bgseq-') === 0) {
+                            oldNotifs[i].close();
+                        }
+                    }
+
+                    await reg.showNotification(displayName, {
+                        body: msgText,
+                        icon: avatarSrc,
+                        tag: uniqueTag,
+                        renotify: false,
+                        data: { contactId: contact.id, url: window.location.href }
+                    });
+
+                    // 自动关闭本条，保证后续队列无需点击也能继续
+                    setTimeout(async function() {
+                        try {
+                            var reg2 = await navigator.serviceWorker.getRegistration();
+                            if (!reg2) return;
+                            var sameTag = await reg2.getNotifications({ tag: uniqueTag });
+                            for (var k = 0; k < sameTag.length; k++) {
+                                sameTag[k].close();
+                            }
+                        } catch (eClose) {}
+                    }, 2200);
+                    return;
+                }
+            } catch (swErr) {
+                console.error('[通知] ServiceWorker showNotification失败', swErr);
+            }
+        }
+
+        if ('Notification' in window && Notification.permission === 'granted') {
+            var notif = new Notification(displayName, {
+                body: msgText,
+                icon: avatarSrc,
+                tag: uniqueTag,
+                renotify: false
+            });
+            notif.onclick = function() {
+                window.focus();
+                document.getElementById('wechat-app').style.display = 'flex';
+                enterChatWindow(contact.id);
+                notif.close();
+            };
+            setTimeout(function() {
+                try { notif.close(); } catch (e2) {}
+            }, 2200);
+        }
+    }
+
+    async function _drainBackgroundNotificationQueue() {
+        if (_bgNotifBusy) return;
+        _bgNotifBusy = true;
+        try {
+            while (_bgNotifQueue.length > 0) {
+                var item = _bgNotifQueue.shift();
+                var cid = item.contactId;
+                var msgText = item.text;
+                var fresh = await contactDb.contacts.get(cid);
+                if (fresh && msgText) {
+                    await _showOneBackgroundRoleNotification(fresh, msgText);
+                }
+                // 每条间隔一点时间，避免系统合并或吞通知
+                await new Promise(function(res) { setTimeout(res, 900); });
+            }
+        } finally {
+            _bgNotifBusy = false;
+            if (_bgNotifQueue.length > 0) {
+                _drainBackgroundNotificationQueue().catch(function(e) {
+                    console.error('[通知] 后台通知队列重试失败', e);
                 });
-            } else if (granted) {
-                // 降级：直接用 Notification API
-                var notif = new Notification(displayName, {
-                    body: msgText,
-                    icon: avatarSrc || 'icon-192.png',
-                    tag: 'mini-msg-' + contact.id
-                });
-                notif.onclick = function() {
-                    window.focus();
-                    document.getElementById('wechat-app').style.display = 'flex';
-                    enterChatWindow(contact.id);
-                    notif.close();
-                };
             }
         }
     }
+
+    // 页面处于后台时发送浏览器系统横幅（串行队列，确保一条不漏）
+    async function _sendBackgroundRoleNotification(contact, msgText) {
+        if (!contact || !msgText || _isPageVisible()) return;
+        _bgNotifQueue.push({ contactId: contact.id, text: msgText });
+        _drainBackgroundNotificationQueue().catch(function(e) {
+            console.error('[通知] 后台通知队列失败', e);
+        });
+    }
+
+    // 兼容旧调用：仅后台发送系统通知，前台不发浏览器横幅
+    async function _sendNotification(contact, msgText) {
+        await _sendBackgroundRoleNotification(contact, msgText);
+    }
+
+    // 暴露给 appendRoleMessage：后台每条角色消息都调用一次
+    window._sendBackgroundRoleNotification = _sendBackgroundRoleNotification;
 
     // ====== Service Worker 消息监听：点击通知后打开对应聊天 ======
     if ('serviceWorker' in navigator) {
@@ -1287,20 +1478,16 @@
         });
     }
 
-    // ====== 后台保活：角色主动在 WeChat 发送消息 ======
-    // 调用 triggerRoleReply 的轻量版本（后台触发，不依赖 activeChatContact）
+    // ====== 触发 WeChat 角色回复（后台安全调用） ======
     async function _bgTriggerWechatReply(contact) {
-        // 暂存当前 activeChatContact，执行后恢复
         var prevActive = activeChatContact;
         activeChatContact = contact;
         try {
-            // 重置 isReplying 防止卡死
             isReplying = false;
             await triggerRoleReply();
         } catch(e) {
-            console.error('[保活] WeChat回复失败', e);
+            console.error('[后台触发] WeChat回复失败', e);
         } finally {
-            // 恢复 activeChatContact（如果用户此时切换了聊天，不要覆盖）
             if (activeChatContact && activeChatContact.id === contact.id) {
                 activeChatContact = prevActive;
             }
@@ -1308,58 +1495,56 @@
         }
     }
 
-    // ====== 后台保活定时器管理 ======
-    var _keepaliveTimers = {}; // contactId -> timer
-
-    // 启动某联系人的后台保活（随机间隔 5~20 分钟触发一次）
+    // ====== 后台保活：按自定义间隔 + 每日活跃范围 ======
     function _startKeepalive(contact) {
-        if (_keepaliveTimers[contact.id]) return; // 已启动
-        _scheduleNextKeepalive(contact);
+        if (_keepaliveTimers[contact.id]) return;
+        _keepaliveTimers[contact.id] = 'PENDING';
+        _scheduleNextKeepalive(contact).catch(function(e) {
+            console.error('[保活] 调度失败', e);
+            delete _keepaliveTimers[contact.id];
+        });
     }
 
     function _stopKeepalive(contactId) {
-        if (_keepaliveTimers[contactId]) {
-            clearTimeout(_keepaliveTimers[contactId]);
-            delete _keepaliveTimers[contactId];
+        var timer = _keepaliveTimers[contactId];
+        if (timer && timer !== 'PENDING') {
+            clearTimeout(timer);
         }
+        delete _keepaliveTimers[contactId];
     }
 
-    function _scheduleNextKeepalive(contact) {
-        // 随机 5~20 分钟
-        var delayMs = (Math.floor(Math.random() * 16) + 5) * 60 * 1000;
+    async function _scheduleNextKeepalive(contact) {
+        if (!_keepaliveTimers[contact.id]) return;
+        var cfg = await _getKeepaliveRangeConfig(contact.id);
+        var delayMin = cfg.min === cfg.max ? cfg.min : (Math.floor(Math.random() * (cfg.max - cfg.min + 1)) + cfg.min);
+        var delayMs = delayMin * 60 * 1000;
+
+        if (!_keepaliveTimers[contact.id]) return;
         _keepaliveTimers[contact.id] = setTimeout(async function() {
             delete _keepaliveTimers[contact.id];
             try {
-                // 重新从 DB 读取联系人，确保数据最新
                 var fresh = await contactDb.contacts.get(contact.id);
                 if (!fresh) return;
-                // 检查开关是否仍然开启
                 var keepaliveOn = await localforage.getItem('cd_settings_' + fresh.id + '_toggle_keepalive');
                 if (!keepaliveOn) return;
-                // 触发角色主动发消息
-                await _bgTriggerWechatReply(fresh);
-                // 发送通知
-                var msgs = await chatListDb.messages.where('contactId').equals(fresh.id).toArray();
-                if (msgs.length > 0) {
-                    var lastMsg = msgs[msgs.length - 1];
-                    if (lastMsg.sender === 'role') {
-                        var msgText = extractMsgPureText(lastMsg.content);
-                        if (msgText) await _sendNotification(fresh, msgText);
-                    }
+
+                var inRange = await _isInKeepaliveActiveRange(fresh.id);
+                if (inRange) {
+                    await _bgTriggerWechatReply(fresh);
                 }
-            } catch(e) { console.error('[保活] 执行失败', e); }
-            // 继续调度下一次
-            var freshContact = await contactDb.contacts.get(contact.id).catch(() => null);
+            } catch (e) {
+                console.error('[保活] 执行失败', e);
+            }
+
+            var freshContact = await contactDb.contacts.get(contact.id).catch(function() { return null; });
             if (freshContact) {
-                var stillOn = await localforage.getItem('cd_settings_' + freshContact.id + '_toggle_keepalive').catch(() => false);
-                if (stillOn) _scheduleNextKeepalive(freshContact);
+                var stillOn = await localforage.getItem('cd_settings_' + freshContact.id + '_toggle_keepalive').catch(function() { return false; });
+                if (stillOn) _startKeepalive(freshContact);
             }
         }, delayMs);
     }
 
-    // ====== 主动发消息：角色主动发起对话（proactive 开关） ======
-    var _proactiveTimers = {}; // contactId -> timer
-
+    // ====== 主动发消息（proactive） ======
     function _startProactive(contact) {
         if (_proactiveTimers[contact.id]) return;
         _scheduleNextProactive(contact);
@@ -1382,136 +1567,34 @@
                 if (!fresh) return;
                 var proactiveOn = await localforage.getItem('cd_settings_' + fresh.id + '_toggle_proactive');
                 if (!proactiveOn) return;
-                // 构造一条"主动发起"的提示给 API
-                var prevActive = activeChatContact;
-                activeChatContact = fresh;
-                isReplying = false;
-                // 临时注入一条系统提示消息（不存库，仅用于触发 API 主动发起）
-                // 直接调用 triggerRoleReply，它会读取最近上下文并生成回复
-                await triggerRoleReply();
-                if (activeChatContact && activeChatContact.id === fresh.id) {
-                    activeChatContact = prevActive;
-                }
-                isReplying = false;
-                // 通知
-                var msgs = await chatListDb.messages.where('contactId').equals(fresh.id).toArray();
-                if (msgs.length > 0) {
-                    var lastMsg = msgs[msgs.length - 1];
-                    if (lastMsg.sender === 'role') {
-                        var msgText = extractMsgPureText(lastMsg.content);
-                        if (msgText) await _sendNotification(fresh, msgText);
-                    }
-                }
-            } catch(e) { console.error('[主动发消息] 执行失败', e); }
-            var freshContact = await contactDb.contacts.get(contact.id).catch(() => null);
+                await _bgTriggerWechatReply(fresh);
+            } catch(e) {
+                console.error('[主动发消息] 执行失败', e);
+            }
+            var freshContact = await contactDb.contacts.get(contact.id).catch(function() { return null; });
             if (freshContact) {
-                var stillOn = await localforage.getItem('cd_settings_' + freshContact.id + '_toggle_proactive').catch(() => false);
+                var stillOn = await localforage.getItem('cd_settings_' + freshContact.id + '_toggle_proactive').catch(function() { return false; });
                 if (stillOn) _scheduleNextProactive(freshContact);
             }
         }, delayMs);
     }
 
-    // ====== 每天时间段发消息系统 ======
-    // 时间段定义：早上(7-9), 中午(12-13), 下午(15-17), 晚上(20-22), 深夜(23-24)
-    var _timeSlots = [
-        { name: '早上', startH: 7, endH: 9 },
-        { name: '中午', startH: 12, endH: 13 },
-        { name: '下午', startH: 15, endH: 17 },
-        { name: '晚上', startH: 20, endH: 22 },
-        { name: '深夜', startH: 23, endH: 24 }
-    ];
-
-    var _timeslotTimer = null;
-    var _timeslotLastFired = {}; // contactId_slotName -> date string
-
-    function _startTimeslotScheduler() {
-        if (_timeslotTimer) return;
-        // 每分钟检查一次当前时间段
-        _timeslotTimer = setInterval(_checkTimeslots, 60 * 1000);
-        // 立即检查一次
-        setTimeout(_checkTimeslots, 3000);
-    }
-
-    async function _checkTimeslots() {
-        var now = new Date();
-        var hour = now.getHours();
-        var dateStr = now.getFullYear() + '-' + (now.getMonth()+1) + '-' + now.getDate();
-
-        // 找到当前所在时间段
-        var currentSlot = null;
-        for (var i = 0; i < _timeSlots.length; i++) {
-            var slot = _timeSlots[i];
-            var endH = slot.endH === 24 ? 24 : slot.endH;
-            if (hour >= slot.startH && hour < endH) {
-                currentSlot = slot;
-                break;
-            }
-        }
-        if (!currentSlot) return;
-
-        try {
-            var contacts = await contactDb.contacts.toArray();
-            for (var j = 0; j < contacts.length; j++) {
-                var contact = contacts[j];
-                // 检查该联系人是否开启了后台保活或主动发消息
-                var keepaliveOn = await localforage.getItem('cd_settings_' + contact.id + '_toggle_keepalive');
-                var proactiveOn = await localforage.getItem('cd_settings_' + contact.id + '_toggle_proactive');
-                if (!keepaliveOn && !proactiveOn) continue;
-
-                var fireKey = contact.id + '_' + currentSlot.name;
-                var lastFired = _timeslotLastFired[fireKey];
-                if (lastFired === dateStr) continue; // 今天该时间段已触发过
-
-                // 在时间段内随机触发（约 30% 概率每分钟触发，确保不是每分钟都发）
-                if (Math.random() > 0.3) continue;
-
-                _timeslotLastFired[fireKey] = dateStr;
-
-                // 异步触发，不阻塞循环
-                (async function(c) {
-                    try {
-                        var fresh = await contactDb.contacts.get(c.id);
-                        if (!fresh) return;
-                        var prevActive = activeChatContact;
-                        activeChatContact = fresh;
-                        isReplying = false;
-                        await triggerRoleReply();
-                        if (activeChatContact && activeChatContact.id === fresh.id) {
-                            activeChatContact = prevActive;
-                        }
-                        isReplying = false;
-                        // 通知
-                        var msgs = await chatListDb.messages.where('contactId').equals(fresh.id).toArray();
-                        if (msgs.length > 0) {
-                            var lastMsg = msgs[msgs.length - 1];
-                            if (lastMsg.sender === 'role') {
-                                var msgText = extractMsgPureText(lastMsg.content);
-                                if (msgText) await _sendNotification(fresh, msgText);
-                            }
-                        }
-                    } catch(e2) { console.error('[时间段发消息] 失败', e2); }
-                })(contact);
-            }
-        } catch(e) { console.error('[时间段检查] 失败', e); }
-    }
-
-    // ====== 监听聊天详情开关变化，动态启停保活/主动发消息 ======
-    // 劫持 cdToggle，在切换后检查是否需要启停定时器
+    // ====== 监听聊天详情开关变化，动态启停 ======
     var _origCdToggle = window.cdToggle;
     window.cdToggle = async function(name) {
         if (_origCdToggle) await _origCdToggle(name);
         if (!activeChatContact) return;
         var contact = activeChatContact;
         if (name === 'keepalive') {
-            var isOn = await localforage.getItem('cd_settings_' + contact.id + '_toggle_keepalive');
-            if (isOn) {
+            var keepaliveOn = await localforage.getItem('cd_settings_' + contact.id + '_toggle_keepalive');
+            if (keepaliveOn) {
                 _startKeepalive(contact);
             } else {
                 _stopKeepalive(contact.id);
             }
         } else if (name === 'proactive') {
-            var isOn2 = await localforage.getItem('cd_settings_' + contact.id + '_toggle_proactive');
-            if (isOn2) {
+            var proactiveOn = await localforage.getItem('cd_settings_' + contact.id + '_toggle_proactive');
+            if (proactiveOn) {
                 _startProactive(contact);
             } else {
                 _stopProactive(contact.id);
@@ -1519,7 +1602,26 @@
         }
     };
 
-    // ====== 页面加载时恢复所有已开启的保活/主动发消息定时器 ======
+    // 聊天详情页“立即触发一次”调用
+    window._manualKeepaliveTrigger = async function(contactId) {
+        var cid = parseInt(contactId, 10);
+        var fresh = await contactDb.contacts.get(isNaN(cid) ? contactId : cid);
+        if (!fresh) return false;
+        await _bgTriggerWechatReply(fresh);
+        return true;
+    };
+
+    // 聊天详情页修改保活配置后，立即重排当前联系人的保活定时器
+    window._refreshKeepaliveTimer = async function(contactId) {
+        var cid = parseInt(contactId, 10);
+        var fresh = await contactDb.contacts.get(isNaN(cid) ? contactId : cid);
+        if (!fresh) return;
+        _stopKeepalive(fresh.id);
+        var keepaliveOn = await localforage.getItem('cd_settings_' + fresh.id + '_toggle_keepalive');
+        if (keepaliveOn) _startKeepalive(fresh);
+    };
+
+    // ====== 页面加载时恢复所有定时器 ======
     async function _restoreAllTimers() {
         try {
             var contacts = await contactDb.contacts.toArray();
@@ -1527,172 +1629,38 @@
                 var contact = contacts[i];
                 var keepaliveOn = await localforage.getItem('cd_settings_' + contact.id + '_toggle_keepalive');
                 if (keepaliveOn) _startKeepalive(contact);
+
                 var proactiveOn = await localforage.getItem('cd_settings_' + contact.id + '_toggle_proactive');
                 if (proactiveOn) _startProactive(contact);
 
-                // ====== 打开页面立即发：若开启则在页面加载后随机延迟触发一次 ======
+                // 打开页面立即发：若开启则在页面加载后随机延迟触发一次
                 var proactiveOnOpenOn = await localforage.getItem('cd_settings_' + contact.id + '_toggle_proactive_onopen');
                 if (proactiveOnOpenOn) {
-                    // 随机延迟 3~15 秒，避免多个角色同时触发
                     var openDelay = (Math.floor(Math.random() * 13) + 3) * 1000;
                     (function(c) {
                         setTimeout(async function() {
                             try {
                                 var fresh = await contactDb.contacts.get(c.id);
                                 if (!fresh) return;
-                                // 再次检查开关，防止用户关闭后还触发
                                 var stillOn = await localforage.getItem('cd_settings_' + fresh.id + '_toggle_proactive_onopen');
                                 if (!stillOn) return;
-                                var prevActive = activeChatContact;
-                                activeChatContact = fresh;
-                                isReplying = false;
-                                await triggerRoleReply();
-                                if (activeChatContact && activeChatContact.id === fresh.id) {
-                                    activeChatContact = prevActive;
-                                }
-                                isReplying = false;
-                                // 发送通知
-                                var msgs = await chatListDb.messages.where('contactId').equals(fresh.id).toArray();
-                                if (msgs.length > 0) {
-                                    var lastMsg = msgs[msgs.length - 1];
-                                    if (lastMsg.sender === 'role') {
-                                        var msgText = extractMsgPureText(lastMsg.content);
-                                        if (msgText) await _sendNotification(fresh, msgText);
-                                    }
-                                }
-                            } catch(e2) { console.error('[打开页面立即发] 失败', e2); }
+                                await _bgTriggerWechatReply(fresh);
+                            } catch(e2) {
+                                console.error('[打开页面立即发] 失败', e2);
+                            }
                         }, openDelay);
                     })(contact);
                 }
             }
-        } catch(e) { console.error('[恢复定时器] 失败', e); }
-        // 启动时间段调度器
-        _startTimeslotScheduler();
-        // 申请通知权限（静默申请，不打扰用户）
-        _requestNotificationPermission().catch(() => {});
-    }
-
-    // ====== 指定时间后台：精确时刻触发系统 ======
-    var _scheduledTimeLastFired = {}; // contactId_HH:MM -> date string
-
-    // 每分钟检查一次是否到达指定时刻
-    async function _checkScheduledTimes() {
-        var now = new Date();
-        var hh = String(now.getHours()).padStart(2, '0');
-        var mm = String(now.getMinutes()).padStart(2, '0');
-        var currentTimeStr = hh + ':' + mm;
-        var dateStr = now.getFullYear() + '-' + (now.getMonth()+1) + '-' + now.getDate();
-
-        try {
-            var contacts = await contactDb.contacts.toArray();
-            for (var i = 0; i < contacts.length; i++) {
-                var contact = contacts[i];
-                // 指定时间独立触发：只要该联系人设置了指定时间，无需开启保活或主动发消息
-                var scheduledTimesKey = 'cd_settings_' + contact.id + '_scheduled_times';
-                var scheduledTimes = await localforage.getItem(scheduledTimesKey) || [];
-                if (!scheduledTimes.includes(currentTimeStr)) continue;
-
-                var fireKey = contact.id + '_' + currentTimeStr;
-                var lastFired = _scheduledTimeLastFired[fireKey];
-                if (lastFired === dateStr) continue; // 今天这个时刻已触发过
-
-                _scheduledTimeLastFired[fireKey] = dateStr;
-
-                // 异步触发
-                (async function(c) {
-                    try {
-                        var fresh = await contactDb.contacts.get(c.id);
-                        if (!fresh) return;
-                        var prevActive = activeChatContact;
-                        activeChatContact = fresh;
-                        isReplying = false;
-                        await triggerRoleReply();
-                        if (activeChatContact && activeChatContact.id === fresh.id) {
-                            activeChatContact = prevActive;
-                        }
-                        isReplying = false;
-                        var msgs = await chatListDb.messages.where('contactId').equals(fresh.id).toArray();
-                        if (msgs.length > 0) {
-                            var lastMsg = msgs[msgs.length - 1];
-                            if (lastMsg.sender === 'role') {
-                                var msgText = extractMsgPureText(lastMsg.content);
-                                if (msgText) await _sendNotification(fresh, msgText);
-                            }
-                        }
-                    } catch(e2) { console.error('[指定时间触发] 失败', e2); }
-                })(contact);
-            }
-        } catch(e) { console.error('[指定时间检查] 失败', e); }
+        } catch(e) {
+            console.error('[恢复定时器] 失败', e);
+        }
+        _requestNotificationPermission().catch(function() {});
     }
 
     // 页面加载完成后启动
     document.addEventListener('DOMContentLoaded', function() {
         setTimeout(_restoreAllTimers, 2000);
-        // 启动指定时间检查器（每分钟检查一次）
-        setInterval(_checkScheduledTimes, 60 * 1000);
-        // 页面加载后立即检查一次（可能刚好到达某个指定时刻）
-        setTimeout(_checkScheduledTimes, 5000);
     });
-
-    // ====== appendRoleMessage 增强：后台发消息时也触发系统通知 ======
-    // 页面不可见时，在 showNotificationBanner 显示横幅的同时，也发送系统级推送通知
-    // 通过 visibilitychange 事件配合 Service Worker postMessage 实现
-    // 核心：覆盖 window.showNotificationBanner 为增强版（同时支持页内横幅 + 系统推送）
-    var _origShowBanner = showNotificationBanner;
-    // 将增强版横幅函数挂载到 window，供 appendRoleMessage 内部的 else 分支调用
-    // appendRoleMessage 内部调用的是局部变量 showNotificationBanner，
-    // 因此这里通过在 appendRoleMessage 的 else 分支后追加系统推送逻辑来实现
-    // 实现方式：监听 DOMContentLoaded 后，将系统推送逻辑注入到 appendRoleMessage 的 else 路径
-    // 最终解决方案：在 appendRoleMessage 调用 showNotificationBanner 之后，
-    // 通过 MutationObserver 检测横幅出现并发系统推送（页面不可见时）
-    var _notifBannerObserver = null;
-    document.addEventListener('DOMContentLoaded', function() {
-        var banner = document.getElementById('notification-banner');
-        if (!banner) return;
-        // 监听横幅的 class 变化（show 类添加时说明有新通知）
-        _notifBannerObserver = new MutationObserver(async function(mutations) {
-            for (var m of mutations) {
-                if (m.type === 'attributes' && m.attributeName === 'class') {
-                    if (banner.classList.contains('show') && !_isPageVisible()) {
-                        // 页面不可见时，把横幅内容也发为系统推送
-                        var name = document.getElementById('notif-name-text').textContent;
-                        var msg = document.getElementById('notif-msg-text').textContent;
-                        var contactId = banner.getAttribute('data-contact-id');
-                        var avatarSrc = document.getElementById('notif-avatar-img').src;
-                        var granted = await _requestNotificationPermission();
-                        if (granted && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                            navigator.serviceWorker.controller.postMessage({
-                                type: 'SHOW_NOTIFICATION',
-                                title: name,
-                                body: msg,
-                                icon: avatarSrc || 'icon-192.png',
-                                contactId: contactId || '',
-                                tag: 'mini-msg-' + (contactId || Date.now()),
-                                url: window.location.href
-                            });
-                        } else if (granted && 'Notification' in window && Notification.permission === 'granted') {
-                            var notif = new Notification(name, {
-                                body: msg,
-                                icon: avatarSrc || 'icon-192.png',
-                                tag: 'mini-msg-' + (contactId || Date.now())
-                            });
-                            (function(cid) {
-                                notif.onclick = function() {
-                                    window.focus();
-                                    if (cid) {
-                                        document.getElementById('wechat-app').style.display = 'flex';
-                                        enterChatWindow(cid);
-                                    }
-                                    notif.close();
-                                };
-                            })(contactId);
-                        }
-                    }
-                }
-            }
-        });
-        _notifBannerObserver.observe(banner, { attributes: true });
-    });
-
 })();
 

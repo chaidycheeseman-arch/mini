@@ -304,8 +304,12 @@
     /* 关键：overflow:hidden + border-radius 一起裁剪，彻底消除露底 */
     overflow: hidden;
     border-radius: 16px;
+    background: #fff;
     /* 用 margin 代替 gap 控制间距，避免 overflow:hidden 被 gap 撑开露底 */
     margin-bottom: 12px;
+}
+.chat-swipe-wrapper.chat-item-pinned-wrap {
+    background: #fffbf0;
 }
 .chat-swipe-wrapper:last-child {
     margin-bottom: 0;
@@ -315,10 +319,12 @@
 .chat-swipe-actions {
     position: absolute;
     right: 0;
-    top: 0;
-    height: 100%;
+    top: 1px;
+    bottom: 1px;
     display: flex;
     align-items: stretch;
+    overflow: hidden;
+    border-radius: 0 15px 15px 0;
 }
 
 .chat-swipe-btn {
@@ -368,6 +374,10 @@
     /* 确保宽度撑满 wrapper */
     width: 100%;
     box-sizing: border-box;
+    border-radius: 16px;
+    transform: translateX(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
 }
 
 /* 置顶状态背景色 */
@@ -563,6 +573,23 @@
     margin: 0;
 }
 .cd-count-input:focus {
+    border-color: #bbb;
+    background: #fff;
+}
+
+.cd-time-input {
+    width: 72px;
+    height: 26px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #444;
+    background: #f8f8f8;
+    outline: none;
+    padding: 0 6px;
+}
+.cd-time-input:focus {
     border-color: #bbb;
     background: #fff;
 }

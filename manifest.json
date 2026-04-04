@@ -1,24 +1,33 @@
 {
-  "name": "mini",
-  "short_name": "mini",
-  "description": "A Progressive Web App",
-  "start_url": "/minini/",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000",
-  "orientation": "portrait",
-  "scope": "/minini/",
+  "id": "./",
+  "name": "Mini Phone",
+  "short_name": "Mini Phone",
+  "description": "Mini Phone 桌面应用",
   "lang": "zh-CN",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "icon-192x192.png",
+      "src": "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='192'%20height='192'%20viewBox='0%200%20192%20192'%3E%3Crect%20width='192'%20height='192'%20rx='42'%20fill='%23f7f7f7'/%3E%3Crect%20x='36'%20y='20'%20width='120'%20height='152'%20rx='28'%20fill='%23111827'/%3E%3Crect%20x='48'%20y='36'%20width='96'%20height='120'%20rx='20'%20fill='white'/%3E%3Ccircle%20cx='96'%20cy='136'%20r='8'%20fill='%23e5e7eb'/%3E%3Ctext%20x='96'%20y='94'%20text-anchor='middle'%20font-size='32'%20font-family='Segoe%20UI,%20Arial,%20sans-serif'%20fill='%23111827'%3EMP%3C/text%3E%3C/svg%3E",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     },
     {
-      "src": "icon-512x512.png",
+      "src": "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='512'%20height='512'%20viewBox='0%200%20512%20512'%3E%3Crect%20width='512'%20height='512'%20rx='112'%20fill='%23f7f7f7'/%3E%3Crect%20x='96'%20y='54'%20width='320'%20height='404'%20rx='74'%20fill='%23111827'/%3E%3Crect%20x='128'%20y='96'%20width='256'%20height='320'%20rx='54'%20fill='white'/%3E%3Ccircle%20cx='256'%20cy='360'%20r='22'%20fill='%23e5e7eb'/%3E%3Ctext%20x='256'%20y='252'%20text-anchor='middle'%20font-size='86'%20font-family='Segoe%20UI,%20Arial,%20sans-serif'%20fill='%23111827'%3EMP%3C/text%3E%3C/svg%3E",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }

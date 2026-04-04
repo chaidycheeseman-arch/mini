@@ -10,9 +10,31 @@
     var _cpAsking = false;
     // 锁屏时间更新定时器
     var _cpTimeTimer = null;
+    // 当前联系人显示名（备注优先）
+    var _cpDisplayName = '';
+
+    async function _cpGetDisplayName(contact) {
+        if (!contact) return '未命名';
+        var roleName = contact.roleName || '未命名';
+        try {
+            var remark = await localforage.getItem('cd_settings_' + contact.id + '_remark');
+            if (remark && remark !== '未设置') return remark;
+        } catch (e) {}
+        return roleName;
+    }
+
+    function _cpEnsureInnerAppInsidePhone() {
+        var phoneScreen = document.getElementById('cp-phone-screen');
+        var innerApp = document.getElementById('cp-inner-app');
+        if (!phoneScreen || !innerApp) return;
+        if (innerApp.parentElement !== phoneScreen) {
+            phoneScreen.appendChild(innerApp);
+        }
+    }
 
     // ---- 绑定"查手机"图标点击事件 ----
     document.addEventListener('DOMContentLoaded', function() {
+        _cpEnsureInnerAppInsidePhone();
         // 找到第二页的"查手机"图标
         var allIcons = document.querySelectorAll('.app-icon');
         allIcons.forEach(function(icon) {
@@ -40,11 +62,11 @@
             if (contacts.length === 0) {
                 grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#bbb;font-size:13px;padding:30px 0;">暂无联系人，请先在WeChat中添加</div>';
             } else {
-                contacts.forEach(function(c) {
+                for (const c of contacts) {
                     var item = document.createElement('div');
                     item.className = 'cp-contact-item';
                     // 获取显示名（备注优先）
-                    var displayName = c.roleName || '未命名';
+                    var displayName = await _cpGetDisplayName(c);
                     // 头像
                     var avatarHtml = c.roleAvatar
                         ? '<img src="' + c.roleAvatar + '" alt="">'
@@ -53,10 +75,12 @@
                         '<div class="cp-contact-name">' + displayName + '</div>';
                     item.onclick = function() {
                         closeCheckphoneContactModal();
-                        setTimeout(function() { openCheckphoneApp(c); }, 350);
+                        setTimeout(function() {
+                            openCheckphoneApp(Object.assign({}, c, { _displayName: displayName }));
+                        }, 350);
                     };
                     grid.appendChild(item);
-                });
+                }
             }
         } catch(e) {
             console.error('加载联系人失败', e);
@@ -83,15 +107,13 @@
     // ---- 打开应用内页（点击桌面图标）----
     window.cpOpenApp = async function(appName) {
         if (!_cpContact) return;
+        _cpEnsureInnerAppInsidePhone();
         var innerApp = document.getElementById('cp-inner-app');
         if (!innerApp) return;
 
         // 获取显示名（备注优先）
-        var displayName = _cpContact.roleName || '角色';
-        try {
-            var remark = await localforage.getItem('cd_settings_' + _cpContact.id + '_remark');
-            if (remark && remark !== '未设置') displayName = remark;
-        } catch(e) {}
+        var displayName = _cpDisplayName || _cpContact._displayName || await _cpGetDisplayName(_cpContact);
+        _cpDisplayName = displayName;
 
         // 设置标题：角色名/备注 · 应用名
         var titleEl = document.getElementById('cp-inner-app-title');
@@ -114,8 +136,8 @@
         if (innerApp) innerApp.style.display = 'none';
     };
 
-    // ---- 刷新应用内页（调用AI生成内容）----
-    window.cpRefreshInnerApp = async function() {
+    // ---- 刷新应用内页（重绘应用框架）----
+    window.cpRefreshInnerApp = function() {
         var innerApp = document.getElementById('cp-inner-app');
         if (!innerApp || !_cpContact) return;
         var appName = innerApp.getAttribute('data-app-name') || '备忘录';
@@ -128,88 +150,37 @@
                 btn.style.background = 'rgba(0,0,0,0.06)';
             }, 500);
         }
-        await _cpFetchInnerAppContent(appName);
+        _cpRenderInnerApp(appName);
     };
 
-    // ---- 渲染应用内容（先显示骨架，再异步请求AI）----
+    function _cpBuildFrameRows(rows) {
+        return rows.map(function(text) {
+            return '<div style="padding:11px 12px;border-radius:12px;background:#fff;border:1px solid #ededf3;color:#4a4a56;font-size:13px;line-height:1.55;">' +
+                text + '</div>';
+        }).join('');
+    }
+
+    // ---- 渲染应用内容（仅保留应用框架，不生成数据）----
     function _cpRenderInnerApp(appName) {
         var body = document.getElementById('cp-inner-app-body');
         if (!body) return;
-        // 显示加载骨架
-        body.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px;padding:4px 0;">' +
-            '<div style="height:14px;background:#e8e8e8;border-radius:7px;width:70%;animation:cpSkeletonPulse 1.2s infinite;"></div>' +
-            '<div style="height:14px;background:#e8e8e8;border-radius:7px;width:90%;animation:cpSkeletonPulse 1.2s infinite 0.1s;"></div>' +
-            '<div style="height:14px;background:#e8e8e8;border-radius:7px;width:55%;animation:cpSkeletonPulse 1.2s infinite 0.2s;"></div>' +
-            '<div style="height:80px;background:#f0f0f0;border-radius:14px;margin-top:8px;animation:cpSkeletonPulse 1.2s infinite 0.15s;"></div>' +
-            '<div style="height:14px;background:#e8e8e8;border-radius:7px;width:80%;animation:cpSkeletonPulse 1.2s infinite 0.3s;"></div>' +
-            '<div style="height:14px;background:#e8e8e8;border-radius:7px;width:60%;animation:cpSkeletonPulse 1.2s infinite 0.4s;"></div>' +
-            '</div>';
-        // 注入骨架动画样式（只注入一次）
-        if (!document.getElementById('cp-skeleton-style')) {
-            var s = document.createElement('style');
-            s.id = 'cp-skeleton-style';
-            s.textContent = '@keyframes cpSkeletonPulse{0%,100%{opacity:0.6}50%{opacity:1}}';
-            document.head.appendChild(s);
-        }
-        // 异步请求AI内容
-        _cpFetchInnerAppContent(appName);
-    }
-
-    // ---- 调用AI生成应用内容 ----
-    async function _cpFetchInnerAppContent(appName) {
-        if (!_cpContact) return;
-        var body = document.getElementById('cp-inner-app-body');
-        if (!body) return;
-        try {
-            var apiUrl = await localforage.getItem('miffy_api_url');
-            var apiKey = await localforage.getItem('miffy_api_key');
-            var model = await localforage.getItem('miffy_api_model');
-            var temp = parseFloat(await localforage.getItem('miffy_api_temp')) || 0.7;
-            if (!apiUrl || !apiKey || !model) {
-                body.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;margin-top:40px;letter-spacing:0.3px;">请先配置API才能查看内容</div>';
-                return;
-            }
-            var detail = _cpContact.roleDetail || '';
-            var roleName = _cpContact.roleName || '角色';
-            // 根据不同应用生成不同内容
-            var appPrompts = {
-                '备忘录': '你是' + roleName + '（设定：' + detail + '），现在请以第一人称生成你手机备忘录中的3-5条备忘内容。内容要符合角色性格，真实自然，像真实的手机备忘录一样（可以是购物清单、提醒事项、随手记录等）。每条备忘单独一行，用简洁的文字。',
-                '相册': '你是' + roleName + '（设定：' + detail + '），现在请描述你手机相册中最近的3-5张照片的内容（用文字描述每张照片拍了什么，什么时候拍的，有什么故事）。要符合角色性格，真实自然。',
-                '音乐': '你是' + roleName + '（设定：' + detail + '），现在请列出你手机音乐播放列表中最近在听的5-8首歌（歌名 - 歌手），并说明你为什么喜欢这些歌。要符合角色性格。',
-                '短视频': '你是' + roleName + '（设定：' + detail + '），现在请描述你最近在短视频平台上刷到的3-5个印象深刻的视频内容，以及你的反应和感受。要符合角色性格，真实自然。',
-                '资产': '你是' + roleName + '（设定：' + detail + '），现在请描述你的资产情况，包括：大概的存款余额、最近的收支情况、有没有在理财等。内容要符合角色性格和背景，数字要具体真实。',
-                '购物': '你是' + roleName + '（设定：' + detail + '），现在请列出你购物车或最近浏览的3-5件商品（商品名称、价格、你为什么想买），以及最近下单的1-2件商品。要符合角色性格。',
-                '浏览器': '你是' + roleName + '（设定：' + detail + '），现在请描述你浏览器最近的历史记录中的3-5个网站/搜索内容，以及你为什么搜索这些。要符合角色性格，真实自然。',
-                '私密空间': '你是' + roleName + '（设定：' + detail + '），你的手机有一个私密空间（加密文件夹）。请描述里面存放了什么内容（可以是私密照片、秘密文件、不想被人看到的东西等），以及为什么要藏起来。要符合角色性格，可以有一定神秘感。'
-            };
-            var prompt = appPrompts[appName] || ('你是' + roleName + '，请描述你手机' + appName + '应用中的内容。');
-            var messages = [
-                { role: 'system', content: '你是一个手机应用内容生成助手。请用自然、真实的方式生成手机应用内容，不要有任何格式标记，直接输出纯文本内容，换行用\\n表示。内容要简洁，符合真实手机应用的风格。' },
-                { role: 'user', content: prompt }
-            ];
-            var cleanApiUrl = apiUrl.replace(/\/+$/, '').replace(/\/v1$/, '');
-            var endpoint = cleanApiUrl + '/v1/chat/completions';
-            var response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-                body: JSON.stringify({ model: model, messages: messages, temperature: temp })
-            });
-            if (!response.ok) throw new Error('API请求失败: ' + response.status);
-            var data = await response.json();
-            var content = data.choices[0].message.content.trim();
-            // 渲染内容
-            body.innerHTML = '';
-            var lines = content.split(/\n+/).filter(function(l) { return l.trim(); });
-            lines.forEach(function(line, idx) {
-                var p = document.createElement('div');
-                p.style.cssText = 'font-size:13.5px;color:#333;line-height:1.7;padding:10px 14px;background:#fff;border-radius:12px;box-shadow:0 1px 6px rgba(0,0,0,0.04);border:1px solid #f5f5f5;';
-                p.textContent = line.trim();
-                body.appendChild(p);
-            });
-        } catch(e) {
-            console.error('[查手机应用内页] AI请求失败', e);
-            body.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;margin-top:40px;letter-spacing:0.3px;">内容加载失败，点击右上角刷新重试</div>';
-        }
+        var frameRowsMap = {
+            '备忘录': ['快速记录区', '待办清单区', '最近编辑区'],
+            '相册': ['最近照片区', '相册分组区', '回忆精选区'],
+            '音乐': ['最近播放区', '收藏歌单区', '推荐歌单区'],
+            '短视频': ['关注更新区', '推荐视频区', '历史记录区'],
+            '资产': ['账户总览区', '收支记录区', '账单分析区'],
+            '购物': ['购物车区', '待收货区', '历史订单区'],
+            '浏览器': ['常用网站区', '历史访问区', '下载管理区'],
+            '私密空间': ['隐私入口区', '私密相册区', '私密文档区']
+        };
+        var rows = frameRowsMap[appName] || ['主内容区', '辅助内容区', '最近操作区'];
+        body.innerHTML =
+            '<div style="padding:12px;border-radius:14px;background:#ffffff;border:1px solid #ececf2;">' +
+                '<div style="font-size:14px;font-weight:700;color:#2d2d38;letter-spacing:0.2px;">' + appName + ' · 应用框架</div>' +
+                '<div style="margin-top:6px;font-size:12px;color:#8c8ca1;line-height:1.55;">仅保留页面结构，不执行任何查数据生成。</div>' +
+            '</div>' +
+            _cpBuildFrameRows(rows);
     }
 
     // ---- 打开手机检查页面 ----
@@ -217,14 +188,18 @@
         _cpContact = contact;
         _cpPasscodeInput = '';
         _cpAsking = false;
+        _cpDisplayName = contact._displayName || contact.roleName || '对方';
+        _cpEnsureInnerAppInsidePhone();
 
         var app = document.getElementById('checkphone-app');
         if (!app) return;
         app.style.display = 'flex';
+        var innerApp = document.getElementById('cp-inner-app');
+        if (innerApp) innerApp.style.display = 'none';
 
         // 设置角色名
         var roleNameEl = document.getElementById('checkphone-role-name');
-        if (roleNameEl) roleNameEl.textContent = (contact.roleName || '对方') + ' 的手机';
+        if (roleNameEl) roleNameEl.textContent = _cpDisplayName + ' 的手机';
 
         // 重置到锁屏状态
         _cpShowLockScreen();
@@ -254,11 +229,11 @@
         var passcodeAvatarImg = document.getElementById('cp-passcode-avatar-img');
         if (passcodeAvatarImg) passcodeAvatarImg.src = contact.roleAvatar || '';
         var passcodeNameEl = document.getElementById('cp-passcode-name');
-        if (passcodeNameEl) passcodeNameEl.textContent = contact.roleName || '对方';
+        if (passcodeNameEl) passcodeNameEl.textContent = _cpDisplayName;
 
         // 设置询问按钮的角色名
         var askRoleNameEl = document.getElementById('cp-ask-role-name');
-        if (askRoleNameEl) askRoleNameEl.textContent = contact.roleName || '对方';
+        if (askRoleNameEl) askRoleNameEl.textContent = _cpDisplayName;
 
         // 设置AI回复头像
         var replyAvatarImg = document.getElementById('cp-role-reply-avatar-img');
@@ -270,7 +245,27 @@
 
         // 设置锁屏通知文字
         var notifText = document.getElementById('cp-lock-notif-text');
-        if (notifText) notifText.textContent = (contact.roleName || '对方') + ' 发来了消息';
+        if (notifText) notifText.textContent = _cpDisplayName + ' 发来了消息';
+
+        _cpGetDisplayName(contact).then(function(name) {
+            if (!_cpContact || String(_cpContact.id) !== String(contact.id)) return;
+            _cpDisplayName = name || _cpDisplayName;
+            var roleNameEl2 = document.getElementById('checkphone-role-name');
+            if (roleNameEl2) roleNameEl2.textContent = _cpDisplayName + ' 的手机';
+            var passcodeNameEl2 = document.getElementById('cp-passcode-name');
+            if (passcodeNameEl2) passcodeNameEl2.textContent = _cpDisplayName;
+            var askRoleNameEl2 = document.getElementById('cp-ask-role-name');
+            if (askRoleNameEl2) askRoleNameEl2.textContent = _cpDisplayName;
+            var notifText2 = document.getElementById('cp-lock-notif-text');
+            if (notifText2) notifText2.textContent = _cpDisplayName + ' 发来了消息';
+            var profileNameEl2 = document.getElementById('cp-profile-name');
+            if (profileNameEl2) profileNameEl2.textContent = _cpDisplayName;
+            var innerTitle = document.getElementById('cp-inner-app-title');
+            var innerApp2 = document.getElementById('cp-inner-app');
+            if (innerTitle && innerApp2 && innerApp2.getAttribute('data-app-name')) {
+                innerTitle.textContent = _cpDisplayName + ' · ' + innerApp2.getAttribute('data-app-name');
+            }
+        }).catch(function() {});
 
         // 绑定上滑手势
         _cpBindSwipeGesture();
@@ -280,10 +275,17 @@
     window.closeCheckphoneApp = function() {
         var app = document.getElementById('checkphone-app');
         if (app) app.style.display = 'none';
+        var innerApp = document.getElementById('cp-inner-app');
+        if (innerApp) {
+            innerApp.style.display = 'none';
+            innerApp.removeAttribute('data-app-name');
+            innerApp.removeAttribute('data-contact-id');
+        }
         if (_cpTimeTimer) { clearInterval(_cpTimeTimer); _cpTimeTimer = null; }
         _cpContact = null;
         _cpPasscodeInput = '';
         _cpAsking = false;
+        _cpDisplayName = '';
         // 重置UI
         _cpHideAllScreens();
         var lockScreen = document.getElementById('cp-lock-screen');
@@ -329,9 +331,8 @@
             if (profileAvatarImg) profileAvatarImg.src = _cpContact.roleAvatar || '';
             // 名字（角色名）
             var profileNameEl = document.getElementById('cp-profile-name');
-            if (profileNameEl) profileNameEl.textContent = _cpContact.roleName || '角色';
+            if (profileNameEl) profileNameEl.textContent = _cpDisplayName || _cpContact.roleName || '角色';
             // 更新应用行标题（角色名/备注 · 应用名）
-            var _cpDisplayName = _cpContact.remark || _cpContact.roleName || '角色';
             var row1Title = document.getElementById('cp-row1-title');
             var row2Title = document.getElementById('cp-row2-title');
             if (row1Title) row1Title.textContent = _cpDisplayName + ' · 备忘录';

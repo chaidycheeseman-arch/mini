@@ -1350,6 +1350,22 @@ function _renderBills() {
         return CD_KEY_PREFIX + activeChatContact.id + '_' + field;
     }
 
+    async function cdGetToggleValue(name) {
+        var key = cdKey('toggle_' + name);
+        if (!key) return false;
+        var val = await localforage.getItem(key);
+        if (val !== null && val !== undefined) return !!val;
+        // 兼容旧版本：跨模式记忆默认继承原来的“记忆总结”总开关，避免升级后行为突变
+        if (name === 'cross_mode_memory') {
+            var legacyKey = cdKey('toggle_memory');
+            var legacyVal = legacyKey ? await localforage.getItem(legacyKey) : false;
+            var fallback = !!legacyVal;
+            await localforage.setItem(key, fallback);
+            return fallback;
+        }
+        return false;
+    }
+
     // 打开聊天详情页
     window.openChatDetail = async function() {
         if (!activeChatContact) return;
@@ -1416,12 +1432,13 @@ function _renderBills() {
         if (maxEl && replyMax !== null) maxEl.value = replyMax;
 
         // 恢复各开关状态
-        var toggleKeys = ['time', 'memory', 'drama', 'keepalive', 'proactive', 'auto_summary'];
+        var toggleKeys = ['time', 'memory', 'cross_mode_memory', 'drama', 'keepalive', 'proactive', 'auto_summary'];
         for (var i = 0; i < toggleKeys.length; i++) {
             var tk = toggleKeys[i];
-            var key = cdKey('toggle_' + tk);
-            var val = key ? await localforage.getItem(key) : false;
-            var toggleId = tk === 'auto_summary' ? 'cd-toggle-auto-summary' : ('cd-toggle-' + tk);
+            var val = await cdGetToggleValue(tk);
+            var toggleId = tk === 'auto_summary'
+                ? 'cd-toggle-auto-summary'
+                : (tk === 'cross_mode_memory' ? 'cd-toggle-cross-mode-memory' : ('cd-toggle-' + tk));
             var toggleEl = document.getElementById(toggleId);
             if (toggleEl) {
                 if (val) {
@@ -1439,14 +1456,10 @@ function _renderBills() {
         if (thresholdEl && threshold !== null) thresholdEl.value = threshold;
 
         // 恢复记忆展开区显示状态（CSS动画）
-        var memoryOn = await localforage.getItem(cdKey('toggle_memory'));
+        var memoryOn = await cdGetToggleValue('memory');
         var memoryExpand = document.getElementById('cd-memory-expand');
         if (memoryExpand) {
-            if (memoryOn) {
-                memoryExpand.classList.add('open');
-            } else {
-                memoryExpand.classList.remove('open');
-            }
+            memoryExpand.classList.add('open');
         }
 
         // 恢复后台保活展开区显示状态
@@ -1471,7 +1484,7 @@ function _renderBills() {
             }
         }
 
-        // 恢复后台保活间隔设置
+        // 恢复后台保活间隔
         var kMinKey = cdKey('keepalive_min');
         var kMaxKey = cdKey('keepalive_max');
         var kMin = kMinKey ? await localforage.getItem(kMinKey) : null;
@@ -1481,13 +1494,15 @@ function _renderBills() {
         if (kMinEl && kMin !== null) kMinEl.value = kMin;
         if (kMaxEl && kMax !== null) kMaxEl.value = kMax;
 
-        // 恢复每日时间段复选框
-        var timeslotsKey = cdKey('timeslots');
-        var savedTimeslots = timeslotsKey ? (await localforage.getItem(timeslotsKey) || []) : [];
-        var timeslotCbs = document.querySelectorAll('.cd-timeslot-cb');
-        timeslotCbs.forEach(function(cb) {
-            cb.checked = savedTimeslots.includes(cb.value);
-        });
+        // 恢复后台保活活跃时段
+        var keepaliveStartKey = cdKey('keepalive_active_start');
+        var keepaliveEndKey = cdKey('keepalive_active_end');
+        var keepaliveStart = keepaliveStartKey ? await localforage.getItem(keepaliveStartKey) : null;
+        var keepaliveEnd = keepaliveEndKey ? await localforage.getItem(keepaliveEndKey) : null;
+        var keepaliveStartEl = document.getElementById('cd-keepalive-start');
+        var keepaliveEndEl = document.getElementById('cd-keepalive-end');
+        if (keepaliveStartEl) keepaliveStartEl.value = (typeof keepaliveStart === 'string' && keepaliveStart) ? keepaliveStart : '00:00';
+        if (keepaliveEndEl) keepaliveEndEl.value = (typeof keepaliveEnd === 'string' && keepaliveEnd) ? keepaliveEnd : '23:59';
 
         // 恢复主动发消息间隔设置
         var pMinKey = cdKey('proactive_min');
@@ -1511,11 +1526,6 @@ function _renderBills() {
             }
         }
 
-        // 恢复指定时间列表
-        var scheduledTimesKey = cdKey('scheduled_times');
-        var savedScheduledTimes = scheduledTimesKey ? (await localforage.getItem(scheduledTimesKey) || []) : [];
-        _cdRenderScheduledTimes(savedScheduledTimes);
-
         // 同步角色拉黑用户按钮状态
         updateRoleBlockUserBtn();
 
@@ -1531,22 +1541,28 @@ function _renderBills() {
     // 切换开关
     window.cdToggle = async function(name) {
         if (!activeChatContact) return;
-        var toggleId = name === 'auto_summary' ? 'cd-toggle-auto-summary' : ('cd-toggle-' + name);
+        var toggleId = name === 'auto_summary'
+            ? 'cd-toggle-auto-summary'
+            : (name === 'cross_mode_memory' ? 'cd-toggle-cross-mode-memory' : ('cd-toggle-' + name));
         var toggleEl = document.getElementById(toggleId);
         if (!toggleEl) return;
         var isOn = toggleEl.classList.toggle('on');
+        if (isOn && (name === 'keepalive' || name === 'proactive')) {
+            // 在用户点击开关时立刻申请通知权限（用户手势上下文，成功率最高）
+            if (typeof window._ensureBrowserNotificationPermission === 'function') {
+                window._ensureBrowserNotificationPermission({ test: false }).catch(function(e) {
+                    console.error('[通知] 权限申请失败', e);
+                });
+            }
+        }
         var key = cdKey('toggle_' + name);
         if (key) await localforage.setItem(key, isOn);
 
-        // 记忆与总结开关联动展开区（CSS动画）
-        if (name === 'memory') {
+        // 记忆设置区固定展开，避免子开关被隐藏
+        if (name === 'memory' || name === 'cross_mode_memory') {
             var memoryExpand = document.getElementById('cd-memory-expand');
             if (memoryExpand) {
-                if (isOn) {
-                    memoryExpand.classList.add('open');
-                } else {
-                    memoryExpand.classList.remove('open');
-                }
+                memoryExpand.classList.add('open');
             }
         }
 
@@ -1590,70 +1606,103 @@ function _renderBills() {
         }
     };
 
+    function _normalizeTimeValue(timeVal, fallbackVal) {
+        if (typeof timeVal !== 'string') return fallbackVal;
+        var val = timeVal.trim();
+        var m = /^(\d{1,2}):(\d{1,2})$/.exec(val);
+        if (!m) return fallbackVal;
+        var hh = parseInt(m[1], 10);
+        var mm = parseInt(m[2], 10);
+        if (isNaN(hh) || isNaN(mm)) return fallbackVal;
+        if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return fallbackVal;
+        return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+    }
+
     // 保存后台保活间隔
     window.cdSaveKeepaliveInterval = async function() {
         if (!activeChatContact) return;
         var minEl = document.getElementById('cd-keepalive-min');
         var maxEl = document.getElementById('cd-keepalive-max');
         if (!minEl || !maxEl) return;
-        var minVal = parseInt(minEl.value) || 5;
-        var maxVal = parseInt(maxEl.value) || 20;
-        if (minVal < 1) { minEl.value = 1; minVal = 1; }
-        if (maxVal < minVal) { maxEl.value = minVal; maxVal = minVal; }
+        var minVal = parseInt(minEl.value, 10);
+        var maxVal = parseInt(maxEl.value, 10);
+        if (isNaN(minVal)) minVal = 5;
+        if (isNaN(maxVal)) maxVal = 20;
+        if (minVal < 1) { minVal = 1; }
+        if (maxVal < minVal) { maxVal = minVal; }
+        minEl.value = minVal;
+        maxEl.value = maxVal;
         var kMinKey = cdKey('keepalive_min');
         var kMaxKey = cdKey('keepalive_max');
         if (kMinKey) await localforage.setItem(kMinKey, minVal);
         if (kMaxKey) await localforage.setItem(kMaxKey, maxVal);
+        if (typeof window._refreshKeepaliveTimer === 'function') {
+            await window._refreshKeepaliveTimer(activeChatContact.id);
+        }
     };
 
-    // 保存每日时间段
-    window.cdSaveTimeslots = async function() {
+    // 保存后台保活每日活跃范围
+    window.cdSaveKeepaliveActiveRange = async function() {
         if (!activeChatContact) return;
-        var checkboxes = document.querySelectorAll('.cd-timeslot-cb');
-        var selected = [];
-        checkboxes.forEach(function(cb) { if (cb.checked) selected.push(cb.value); });
-        var key = cdKey('timeslots');
-        if (key) await localforage.setItem(key, selected);
+        var startEl = document.getElementById('cd-keepalive-start');
+        var endEl = document.getElementById('cd-keepalive-end');
+        if (!startEl || !endEl) return;
+        var startVal = _normalizeTimeValue(startEl.value, '00:00');
+        var endVal = _normalizeTimeValue(endEl.value, '23:59');
+        startEl.value = startVal;
+        endEl.value = endVal;
+        var startKey = cdKey('keepalive_active_start');
+        var endKey = cdKey('keepalive_active_end');
+        if (startKey) await localforage.setItem(startKey, startVal);
+        if (endKey) await localforage.setItem(endKey, endVal);
+        if (typeof window._refreshKeepaliveTimer === 'function') {
+            await window._refreshKeepaliveTimer(activeChatContact.id);
+        }
     };
 
-    // 渲染指定时间标签列表
-    function _cdRenderScheduledTimes(times) {
-        var list = document.getElementById('cd-scheduled-times-list');
-        if (!list) return;
-        list.innerHTML = '';
-        if (!times || times.length === 0) return;
-        times.forEach(function(t) {
-            var tag = document.createElement('div');
-            tag.style.cssText = 'display:flex; align-items:center; gap:5px; background:#fff; border:1px solid #eee; border-radius:14px; padding:4px 10px; font-size:12px; color:#555; cursor:default;';
-            tag.innerHTML = '<span>' + t + '</span><span onclick="cdRemoveScheduledTime(\'' + t + '\')" style="color:#ccc; cursor:pointer; font-size:14px; line-height:1; margin-left:2px; font-family:Arial,sans-serif;">×</span>';
-            list.appendChild(tag);
-        });
-    }
-
-    // 添加指定时间
-    window.cdAddScheduledTime = async function() {
+    // 立即触发一次后台保活
+    window.cdTriggerKeepaliveNow = async function() {
         if (!activeChatContact) return;
-        var picker = document.getElementById('cd-scheduled-time-picker');
-        if (!picker || !picker.value) return;
-        var timeVal = picker.value; // "HH:MM"
-        var key = cdKey('scheduled_times');
-        var saved = key ? (await localforage.getItem(key) || []) : [];
-        if (saved.includes(timeVal)) return; // 已存在则不重复添加
-        saved.push(timeVal);
-        saved.sort(); // 按时间排序
-        if (key) await localforage.setItem(key, saved);
-        _cdRenderScheduledTimes(saved);
-        picker.value = '';
+        var labelEl = document.getElementById('cd-keepalive-trigger-label');
+        var originalText = labelEl ? labelEl.textContent : '';
+        if (labelEl) labelEl.textContent = '触发中...';
+        try {
+            if (typeof window._manualKeepaliveTrigger === 'function') {
+                await window._manualKeepaliveTrigger(activeChatContact.id);
+            } else {
+                isReplying = false;
+                await triggerRoleReply();
+            }
+        } catch (e) {
+            console.error('[聊天详情] 立即触发保活失败', e);
+        } finally {
+            if (labelEl) labelEl.textContent = originalText || '立即触发一次';
+        }
     };
 
-    // 删除指定时间
-    window.cdRemoveScheduledTime = async function(timeVal) {
-        if (!activeChatContact) return;
-        var key = cdKey('scheduled_times');
-        var saved = key ? (await localforage.getItem(key) || []) : [];
-        saved = saved.filter(function(t) { return t !== timeVal; });
-        if (key) await localforage.setItem(key, saved);
-        _cdRenderScheduledTimes(saved);
+    // 授权通知并发送测试横幅
+    window.cdEnableBrowserNotification = async function() {
+        if (typeof window._ensureBrowserNotificationPermission !== 'function') {
+            alert('通知模块尚未就绪，请稍后重试。');
+            return;
+        }
+        var res = await window._ensureBrowserNotificationPermission({ test: true });
+        if (res && res.ok) {
+            alert('通知权限已开启，已发送一条测试横幅。');
+            return;
+        }
+        var reason = (res && res.reason) ? res.reason : 'unknown';
+        if (reason === 'insecure_context') {
+            alert('当前页面不是安全上下文，Edge 无法显示系统通知。请用 https 或 localhost 打开。');
+        } else if (reason === 'denied') {
+            alert('通知权限被拒绝了，请在 Edge 地址栏/站点设置里手动允许通知。');
+        } else if (reason === 'unsupported') {
+            alert('当前环境不支持浏览器通知。');
+        } else if (reason === 'show_failed') {
+            alert('通知权限已给，但系统横幅发送失败，请检查系统通知总开关和 Edge 通知权限。');
+        } else {
+            alert('通知开启失败：' + reason);
+        }
     };
 
     // 保存主动发消息间隔
@@ -1671,51 +1720,6 @@ function _renderBills() {
         if (pMinKey) await localforage.setItem(pMinKey, minVal);
         if (pMaxKey) await localforage.setItem(pMaxKey, maxVal);
     };
-
-    // 立即触发一次后台保活
-    window.cdTriggerKeepaliveNow = async function() {
-        if (!activeChatContact) return;
-        // 【角色隔离修复】锁定当前联系人，不再通过临时修改 activeChatContact 来触发
-        var contact = activeChatContact;
-        var btn = document.querySelector('#cd-keepalive-expand .cd-section-item[onclick="cdTriggerKeepaliveNow()"] .cd-item-label');
-        if (btn) { btn.textContent = '触发中...'; }
-        try {
-            isReplying = false;
-            // 【修复】直接调用 appendRoleMessage 的锁定联系人版本，而不是临时修改全局 activeChatContact
-            // 只有当前聊天窗口确实是该联系人时才通过 triggerRoleReply，否则直接通过后台触发
-            if (activeChatContact && activeChatContact.id === contact.id) {
-                await triggerRoleReply();
-            }
-            isReplying = false;
-            // 发送通知
-            var msgs = await chatListDb.messages.where('contactId').equals(contact.id).toArray();
-            if (msgs.length > 0) {
-                var lastMsg = msgs[msgs.length - 1];
-                if (lastMsg.sender === 'role') {
-                    var msgText = extractMsgPureText(lastMsg.content);
-                    if (msgText) {
-                        var displayName = await _getDisplayNameForContact(contact);
-                        var avatarSrc = contact.roleAvatar || '';
-                        showNotificationBanner(avatarSrc, displayName, msgText, getAmPmTime(), contact.id);
-                    }
-                }
-            }
-        } catch(e) {
-            console.error('[立即触发] 失败', e);
-        } finally {
-            isReplying = false;
-            if (btn) { btn.textContent = '立即触发一次'; }
-        }
-    };
-
-    // 辅助：获取联系人显示名（备注优先）
-    async function _getDisplayNameForContact(contact) {
-        try {
-            var remark = await localforage.getItem('cd_settings_' + contact.id + '_remark');
-            if (remark && remark !== '未设置') return remark;
-        } catch(e) {}
-        return contact.roleName || '角色';
-    }
 
     // 保存每轮回复条数
     window.cdSaveReplyCount = async function() {

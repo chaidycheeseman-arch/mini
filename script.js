@@ -160,13 +160,35 @@ if(rw) rw.textContent = week;
             openImageMenuAtEvent(e, el.id);
         });
     });
+    function getEditableTextValue(el) {
+        if (!el) return '';
+        if (el.id === 'text-hero-loc') {
+            const span = el.querySelector('span');
+            return span ? span.textContent : el.textContent;
+        }
+        return el.textContent;
+    }
+
+    function setEditableTextValue(el, value) {
+        if (!el) return;
+        const text = value == null ? '' : String(value);
+        if (el.id === 'text-hero-loc') {
+            const span = el.querySelector('span');
+            if (span) {
+                span.textContent = text;
+                return;
+            }
+        }
+        el.textContent = text;
+    }
+
     // 交互与持久化 (文字)
     document.querySelectorAll('.editable-text').forEach(el => {
         el.addEventListener('click', async (e) => {
             e.stopPropagation();
-            const newText = prompt('请输入新内容:', el.textContent);
+            const newText = prompt('请输入新内容:', getEditableTextValue(el));
             if(newText !== null && newText.trim() !== "") {
-                el.textContent = newText;
+                setEditableTextValue(el, newText);
                 await localforage.setItem('miffy_text_' + el.id, newText);
             }
         });
@@ -334,7 +356,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         const textKeys = Array.from(textElements).map(el => 'miffy_text_' + el.id);
         const textValues = await Promise.all(textKeys.map(k => localforage.getItem(k)));
         textElements.forEach((el, i) => {
-            if (textValues[i]) el.textContent = textValues[i];
+            if (textValues[i]) setEditableTextValue(el, textValues[i]);
         });
 
         // 2. 并行读取所有 editable 图片（批量 IndexedDB 查询）
@@ -2606,7 +2628,7 @@ document.getElementById('contact-edit-id').value = '';
             };
             const originalText = toPlain(m[1]);
             const translatedText = toPlain(m[2]);
-            return `<div class="msg-original-text">${_safeTextHtml(originalText)}</div><div class="msg-translate-divider"></div><div class="msg-translated-text">${_safeTextHtml(translatedText)}</div>`;
+            return `<div class="msg-text-body"><div class="msg-original-text">${_safeTextHtml(originalText)}</div><div class="msg-translate-divider"></div><div class="msg-translated-text">${_safeTextHtml(translatedText)}</div></div>`;
         }
         const bilingualBubbleHtml = _buildBilingualBubbleHtml(msg.content);
         let msgBodyHtml = bilingualBubbleHtml || `<div class="msg-text-body">${_safeTextHtml(msg.content)}</div>`;
@@ -2642,6 +2664,22 @@ document.getElementById('contact-edit-id').value = '';
                 isVoiceMsg = true;
                 voiceText = parsed.content || '';
                 voiceSeconds = Math.max(1, Math.ceil(voiceText.length / 3)); // 3字一秒，最少1秒
+            } else if (parsed && parsed.type === 'text') {
+                let originalText = parsed.content || '';
+                let translatedText = parsed.translation || '';
+                // 兜底：历史异常数据可能是 type=text 但 content 里塞了旧双语HTML，自动拆分恢复
+                if (!translatedText && typeof originalText === 'string') {
+                    const legacyHtml = _buildBilingualBubbleHtml(originalText);
+                    if (legacyHtml) {
+                        msgBodyHtml = legacyHtml;
+                        originalText = '';
+                    }
+                }
+                if (!msgBodyHtml || !msgBodyHtml.includes('msg-original-text')) {
+                msgBodyHtml = translatedText
+                    ? `<div class="msg-text-body"><div class="msg-original-text">${_safeTextHtml(originalText)}</div><div class="msg-translate-divider"></div><div class="msg-translated-text">${_safeTextHtml(translatedText)}</div></div>`
+                    : `<div class="msg-text-body">${_safeTextHtml(originalText)}</div>`;
+                }
             } else if (parsed && parsed.type === 'red_packet') {
                 statusHtml = '';
                 const rpAmount = parsed.amount || '0.00';
@@ -3584,12 +3622,13 @@ document.getElementById('contact-edit-id').value = '';
             const data = await response.json();
             const roleReplyText = data.choices[0].message.content.trim();
             const timeStr = getAmPmTime();
+            const roleReplyContent = _normalizeRoleMessageContent(roleReplyText);
 
             // 将角色回复写入聊天记录（后台）
             const newRoleMsgId = await chatListDb.messages.add({
                 contactId: contact.id,
                 sender: 'role',
-                content: roleReplyText,
+                content: roleReplyContent,
                 timeStr: timeStr,
                 quoteText: ''
             });
@@ -3606,7 +3645,7 @@ document.getElementById('contact-edit-id').value = '';
             const isCurrentChatActive = chatWindow && chatWindow.style.display === 'flex' && activeChatContact && activeChatContact.id === contact.id;
             if (isCurrentChatActive) {
                 const container = document.getElementById('chat-msg-container');
-                const roleMsgObj = { id: newRoleMsgId, sender: 'role', content: roleReplyText, timeStr, quoteText: '' };
+                const roleMsgObj = { id: newRoleMsgId, sender: 'role', content: roleReplyContent, timeStr, quoteText: '' };
                 container.insertAdjacentHTML('beforeend', generateMsgHtml(roleMsgObj, myAvatar, roleAvatar));
                 bindMsgEvents();
                 container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
@@ -3777,10 +3816,58 @@ document.getElementById('contact-edit-id').value = '';
         // 注释掉 activeChatContact = null; 防止后台横幅失效
     }
     let isReplying = false;
+    // 统一规范角色输出：所有角色消息都落库为携带 type 字段的 JSON 对象
+    function _normalizeRoleMessageContent(rawContent) {
+        if (rawContent === null || rawContent === undefined) {
+            return JSON.stringify({ type: 'text', content: '' });
+        }
+        const asString = String(rawContent);
+        try {
+            const parsed = JSON.parse(asString);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.type) {
+                if (parsed.type === 'text' && !parsed.translation && typeof parsed.content === 'string') {
+                    const m2 = parsed.content.match(/<div class="msg-original-text">([\s\S]*?)<\/div>\s*<div class="msg-translate-divider"><\/div>\s*<div class="msg-translated-text">([\s\S]*?)<\/div>/i);
+                    if (m2) {
+                        const toPlain = (html) => {
+                            const withBreak = String(html || '').replace(/<br\s*\/?>/gi, '\n');
+                            const temp = document.createElement('div');
+                            temp.innerHTML = withBreak;
+                            return (temp.textContent || temp.innerText || '').replace(/\r\n?/g, '\n');
+                        };
+                        return JSON.stringify({
+                            type: 'text',
+                            content: toPlain(m2[1]),
+                            translation: toPlain(m2[2])
+                        });
+                    }
+                }
+                return asString;
+            }
+        } catch(e) {}
+
+        // 兼容旧双语HTML：自动转为标准 text JSON，避免继续以裸HTML落库
+        const m = asString.match(/<div class="msg-original-text">([\s\S]*?)<\/div>\s*<div class="msg-translate-divider"><\/div>\s*<div class="msg-translated-text">([\s\S]*?)<\/div>/i);
+        if (m) {
+            const toPlain = (html) => {
+                const withBreak = String(html || '').replace(/<br\s*\/?>/gi, '\n');
+                const temp = document.createElement('div');
+                temp.innerHTML = withBreak;
+                return (temp.textContent || temp.innerText || '').replace(/\r\n?/g, '\n');
+            };
+            return JSON.stringify({
+                type: 'text',
+                content: toPlain(m[1]),
+                translation: toPlain(m[2])
+            });
+        }
+
+        return JSON.stringify({ type: 'text', content: asString });
+    }
     async function appendRoleMessage(content, quoteText = '', targetContact = null) {
         // 核心修复：优先使用传入的锁定联系人，防串联
         const contact = targetContact || activeChatContact;
         if (!contact) return null;
+        const normalizedContent = _normalizeRoleMessageContent(content);
         const container = document.getElementById('chat-msg-container');
         const roleAvatar = contact.roleAvatar || 'https://via.placeholder.com/100';
         const myAvatar = contact.userAvatar || 'https://via.placeholder.com/100';
@@ -3789,7 +3876,7 @@ document.getElementById('contact-edit-id').value = '';
             const newMsgId = await chatListDb.messages.add({
                 contactId: contact.id,
                 sender: 'role',
-                content: content,
+                content: normalizedContent,
                 timeStr: timeStr,
                 quoteText: quoteText,
                 source: 'wechat'
@@ -3803,12 +3890,12 @@ document.getElementById('contact-edit-id').value = '';
             // 核心修复：必须判断当前所在的聊天界面是不是这个锁定的联系人
             const isCurrentChatActive = chatWindow.style.display === 'flex' && activeChatContact && activeChatContact.id === contact.id;
             if (isCurrentChatActive) {
-                const msgObj = { id: newMsgId, sender: 'role', content: content, timeStr: timeStr, quoteText: quoteText };
+                const msgObj = { id: newMsgId, sender: 'role', content: normalizedContent, timeStr: timeStr, quoteText: quoteText };
                 container.insertAdjacentHTML('beforeend', generateMsgHtml(msgObj, myAvatar, roleAvatar));
                 bindMsgEvents();
                 container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
             } else {
-                const pureContent = extractMsgPureText(content);
+                const pureContent = extractMsgPureText(normalizedContent);
                 showNotificationBanner(roleAvatar, contact.roleName || '角色', pureContent, timeStr, contact.id);
             }
             // 触发方式2：角色回复时检测是否被拉黑且未知晓
@@ -4246,7 +4333,11 @@ ${langInstruction}
                 await new Promise(res => setTimeout(res, 1800));
                 // 1. 处理撤回消息
                 if (msgObj.type === 'recall_msg') {
-                    let text = msgObj.translation ? `<div class="msg-original-text">${msgObj.content}</div><div class="msg-translate-divider"></div><div class="msg-translated-text">${msgObj.translation}</div>` : msgObj.content;
+                    let text = JSON.stringify(
+                        msgObj.translation
+                            ? { type: 'text', content: msgObj.content || '', translation: msgObj.translation }
+                            : { type: 'text', content: msgObj.content || '' }
+                    );
                     const tempMsgId = await appendRoleMessage(text, '', lockedContact);
                     if (tempMsgId) {
                         // 等待1.5秒后模拟真实撤回动作
@@ -4322,7 +4413,11 @@ ${langInstruction}
                 } else if (['takeaway', 'gift', 'call', 'video_call'].includes(msgObj.type)) {
                     finalContent = JSON.stringify(msgObj);
                 } else if (msgObj.translation) {
-                    finalContent = `<div class="msg-original-text">${msgObj.content}</div><div class="msg-translate-divider"></div><div class="msg-translated-text">${msgObj.translation}</div>`;
+                    finalContent = JSON.stringify({
+                        type: 'text',
+                        content: msgObj.content || '',
+                        translation: msgObj.translation
+                    });
                 }
                 await appendRoleMessage(finalContent, quoteText, lockedContact);
             }
@@ -4573,10 +4668,11 @@ ${langInstruction}
                 // 在 WeChat 聊天中发送解除拉黑通知消息（而非SMS）
                 const timeStr = getAmPmTime();
                 const unblockMsg = `我已经解除了对你的拉黑，你现在可以在WeChat上给我发消息了。`;
+                const unblockContent = _normalizeRoleMessageContent(unblockMsg);
                 const newMsgId = await chatListDb.messages.add({
                     contactId: contact.id,
                     sender: 'role',
-                    content: unblockMsg,
+                    content: unblockContent,
                     timeStr: timeStr,
                     quoteText: '',
                     source: 'wechat'
@@ -4591,7 +4687,7 @@ ${langInstruction}
                     if (container) {
                         const myAvatar = contact.userAvatar || 'https://via.placeholder.com/100';
                         const roleAvatar = contact.roleAvatar || 'https://via.placeholder.com/100';
-                        const msgObj = { id: newMsgId, sender: 'role', content: unblockMsg, timeStr, quoteText: '' };
+                        const msgObj = { id: newMsgId, sender: 'role', content: unblockContent, timeStr, quoteText: '' };
                         container.insertAdjacentHTML('beforeend', generateMsgHtml(msgObj, myAvatar, roleAvatar));
                         bindMsgEvents();
                         container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
@@ -4766,13 +4862,23 @@ ${langInstruction}
         const rect = bubbleEl.getBoundingClientRect();
         const panelWidth = panel.offsetWidth || 170; 
         const panelHeight = panel.offsetHeight || 100;
-        let finalX = rect.left + (rect.width / 2) - (panelWidth / 2);
+        const hostEl = panel.offsetParent || document.body;
+        const hostRect = hostEl.getBoundingClientRect();
+        const hostWidth = hostEl.clientWidth || window.innerWidth;
+        const hostHeight = hostEl.clientHeight || window.innerHeight;
+        let finalX = (rect.left - hostRect.left) + (rect.width / 2) - (panelWidth / 2);
         if (finalX < 10) finalX = 10;
-        if (finalX + panelWidth > window.innerWidth - 10) finalX = window.innerWidth - panelWidth - 10;
-        let finalY = rect.top - panelHeight - 6;
-        if (finalY < 60) { 
-            finalY = rect.bottom + 6;
+        if (finalX + panelWidth > hostWidth - 10) finalX = hostWidth - panelWidth - 10;
+        const topY = (rect.top - hostRect.top) - panelHeight - 6;
+        const bottomY = (rect.bottom - hostRect.top) + 6;
+        let finalY = topY;
+        if (topY < 8) {
+            finalY = bottomY;
         }
+        if (finalY + panelHeight > hostHeight - 8) {
+            finalY = Math.max(8, topY);
+        }
+        if (finalY < 8) finalY = 8;
         panel.style.left = finalX + 'px';
         panel.style.top = finalY + 'px';
         // 核心修复：坐标计算完毕且定位贴合后，恢复透明度瞬间显示
