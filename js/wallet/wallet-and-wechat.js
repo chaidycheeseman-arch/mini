@@ -221,24 +221,16 @@
 async function _roleHandleRedPacket(lockedContact) {
     // 找到最近一条我发的、未领取的红包消息
     const allMsgs = await chatListDb.messages.where('contactId').equals(lockedContact.id).toArray();
-    let targetMsg = null;
-    for (let i = allMsgs.length - 1; i >= 0; i--) {
-        const msg = allMsgs[i];
-        if (msg.sender !== 'me') continue;
-        try {
-            const parsed = JSON.parse(msg.content);
-            if (parsed.type === 'red_packet' && parsed.status === 'unclaimed') {
-                targetMsg = msg;
-                break;
-            }
-        } catch(e) {}
-    }
+    const targetPair = window.MiniChatProtocol
+        ? window.MiniChatProtocol.findLatestPendingMessage(allMsgs, 'me', 'red_packet')
+        : null;
+    const targetMsg = targetPair ? targetPair.msg : null;
     if (!targetMsg) return;
     // 更新消息状态为已领取
     try {
-        const parsed = JSON.parse(targetMsg.content);
-        parsed.status = 'claimed';
-        await chatListDb.messages.update(targetMsg.id, { content: JSON.stringify(parsed) });
+        await chatListDb.messages.update(targetMsg.id, {
+            content: window.MiniChatProtocol.updateStatus(targetMsg.content, 'claimed')
+        });
     } catch(e) { return; }
     // 刷新聊天窗口
     const chatWindow = document.getElementById('chat-window');
@@ -259,25 +251,17 @@ async function _roleHandleRedPacket(lockedContact) {
 async function _roleHandleTransfer(lockedContact, action) {
     // 找到最近一条我发的、待收款的转账消息
     const allMsgs = await chatListDb.messages.where('contactId').equals(lockedContact.id).toArray();
-    let targetMsg = null;
-    for (let i = allMsgs.length - 1; i >= 0; i--) {
-        const msg = allMsgs[i];
-        if (msg.sender !== 'me') continue;
-        try {
-            const parsed = JSON.parse(msg.content);
-            if (parsed.type === 'transfer' && parsed.status === 'pending') {
-                targetMsg = msg;
-                break;
-            }
-        } catch(e) {}
-    }
+    const targetPair = window.MiniChatProtocol
+        ? window.MiniChatProtocol.findLatestPendingMessage(allMsgs, 'me', 'transfer')
+        : null;
+    const targetMsg = targetPair ? targetPair.msg : null;
     if (!targetMsg) return;
     // 更新消息状态
     const newStatus = (action === 'refunded') ? 'refunded' : 'received';
     try {
-        const parsed = JSON.parse(targetMsg.content);
-        parsed.status = newStatus;
-        await chatListDb.messages.update(targetMsg.id, { content: JSON.stringify(parsed) });
+        await chatListDb.messages.update(targetMsg.id, {
+            content: window.MiniChatProtocol.updateStatus(targetMsg.content, newStatus)
+        });
     } catch(e) { return; }
     // 刷新聊天窗口
     const chatWindow = document.getElementById('chat-window');
@@ -311,9 +295,10 @@ function openRpClaimModal(cardEl, amount, desc, status, senderRole, roleName, ms
     document.getElementById('rp-claim-desc').textContent = desc;
     var actionsEl = document.getElementById('rp-claim-actions');
     actionsEl.innerHTML = '';
-    if (status === 'claimed') {
+    if (status === 'claimed' || status === 'expired') {
         // 已领取：显示状态标签
-        actionsEl.innerHTML = '<div class="rp-modal-status-text" style="color:#aaa; font-size:13px; padding:16px 0; text-align:center; letter-spacing:0.3px;">已领取</div>';
+        var rpLabel = status === 'expired' ? '已失效' : '已领取';
+        actionsEl.innerHTML = '<div class="rp-modal-status-text" style="color:#aaa; font-size:13px; padding:16px 0; text-align:center; letter-spacing:0.3px;">' + rpLabel + '</div>';
     } else {
         // 未领取：根据发送方显示按钮
         if (senderRole === 'me') {
@@ -355,8 +340,8 @@ async function _doClaimRp(senderRole, roleName, amount) {
         try {
             var checkMsg = await chatListDb.messages.get(msgIdRef);
             if (checkMsg) {
-                var checkParsed = JSON.parse(checkMsg.content);
-                if (checkParsed.status === 'claimed') {
+                var checkPayload = window.MiniChatProtocol.parseContent(checkMsg.content);
+                if (checkPayload && checkPayload.type === 'red_packet' && (checkPayload.status === 'claimed' || checkPayload.status === 'expired')) {
                     // 已被领取，直接返回，不重复操作
                     return;
                 }
@@ -375,9 +360,9 @@ async function _doClaimRp(senderRole, roleName, amount) {
         try {
             var msg = await chatListDb.messages.get(msgIdRef);
             if (msg) {
-                var parsed = JSON.parse(msg.content);
-                parsed.status = 'claimed';
-                await chatListDb.messages.update(msgIdRef, { content: JSON.stringify(parsed) });
+                await chatListDb.messages.update(msgIdRef, {
+                    content: window.MiniChatProtocol.updateStatus(msg.content, 'claimed')
+                });
             }
         } catch(e) { console.error('红包状态持久化失败', e); }
     }
@@ -433,9 +418,9 @@ function openTfActionModal(cardEl, amount, desc, status, senderRole, roleName) {
     document.getElementById('tf-action-desc').textContent = desc;
     var actionsEl = document.getElementById('tf-action-actions');
     actionsEl.innerHTML = '';
-    if (status === 'received' || status === 'refunded') {
+    if (status === 'received' || status === 'refunded' || status === 'expired') {
         // 已处理：只显示状态
-        var label = status === 'received' ? '已收款' : '已退回';
+        var label = status === 'received' ? '已收款' : (status === 'refunded' ? '已退回' : '已失效');
         actionsEl.innerHTML = '<div class="tf-modal-status-text">' + label + '</div>';
     } else {
         // 待收款：根据发送方决定按钮
@@ -487,8 +472,8 @@ async function _doTfAction(newStatus, senderRole, roleName) {
         try {
             var checkMsg2 = await chatListDb.messages.get(msgIdRef);
             if (checkMsg2) {
-                var checkParsed2 = JSON.parse(checkMsg2.content);
-                if (checkParsed2.status === 'received' || checkParsed2.status === 'refunded') {
+                var checkPayload2 = window.MiniChatProtocol.parseContent(checkMsg2.content);
+                if (checkPayload2 && checkPayload2.type === 'transfer' && (checkPayload2.status === 'received' || checkPayload2.status === 'refunded' || checkPayload2.status === 'expired')) {
                     // 已处理过，直接返回，不重复操作
                     return;
                 }
@@ -511,9 +496,9 @@ async function _doTfAction(newStatus, senderRole, roleName) {
         try {
             var msg = await chatListDb.messages.get(msgIdRef);
             if (msg) {
-                var parsed = JSON.parse(msg.content);
-                parsed.status = newStatus;
-                await chatListDb.messages.update(msgIdRef, { content: JSON.stringify(parsed) });
+                await chatListDb.messages.update(msgIdRef, {
+                    content: window.MiniChatProtocol.updateStatus(msg.content, newStatus)
+                });
             }
         } catch(e) { console.error('转账状态持久化失败', e); }
     }
@@ -702,7 +687,7 @@ async function _doTfAction(newStatus, senderRole, roleName) {
         var myAvatar = activeChatContact.userAvatar || 'https://via.placeholder.com/100';
         var roleAvatar = activeChatContact.roleAvatar || 'https://via.placeholder.com/100';
         var timeStr = getAmPmTime();
-        var content = JSON.stringify({ type: 'red_packet', amount: _rpAmount, desc: _rpDesc, status: 'unclaimed' });
+        var content = window.MiniChatProtocol.buildContent('red_packet', { amount: _rpAmount, desc: _rpDesc, status: 'unclaimed' });
         try {
             var newMsgId = await chatListDb.messages.add({
                 contactId: activeChatContact.id,
@@ -888,7 +873,7 @@ function toggleTransferStatus(cardEl) {
         var myAvatar = activeChatContact.userAvatar || 'https://via.placeholder.com/100';
         var roleAvatar = activeChatContact.roleAvatar || 'https://via.placeholder.com/100';
         var timeStr = getAmPmTime();
-        var content = JSON.stringify({ type: 'transfer', amount: _tfAmount, desc: _tfDesc, status: 'pending' });
+        var content = window.MiniChatProtocol.buildContent('transfer', { amount: _tfAmount, desc: _tfDesc, status: 'pending' });
         try {
             var newMsgId = await chatListDb.messages.add({
                 contactId: activeChatContact.id,

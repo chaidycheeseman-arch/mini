@@ -574,6 +574,24 @@
 
             var rawMessages = await chatListDb.messages.where('contactId').equals(lockedContact.id).toArray();
             var recentMessages = (ctxLimit === 0) ? rawMessages : rawMessages.slice(-ctxLimit);
+            var recentDigest = recentMessages.map(function(msg) {
+                var pure = extractMsgPureText(msg.content);
+                if (!pure) return '';
+                return (msg.sender === 'me' ? '用户' : '你') + '：' + pure;
+            }).filter(Boolean).slice(-8).join('\n');
+            var recentNeedles = '';
+            try {
+                if (typeof buildRecentChatNeedles === 'function') {
+                    recentNeedles = buildRecentChatNeedles(lockedContact, rawMessages);
+                }
+            } catch (e) {}
+            var presence = lockedContact.aiPresence || {};
+            var moodSnapshot = {};
+            try {
+                if (typeof getMomentsMoodSnapshot === 'function') {
+                    moodSnapshot = await getMomentsMoodSnapshot(lockedContact.id);
+                }
+            } catch (e) {}
 
             // 构造真实时间字符串（时间感知）
             var _smsNow = new Date();
@@ -587,10 +605,28 @@
             var sysPrompt = '你是一个通过手机短信与用户互动的角色，完全沉浸于角色中。\n' +
                 '【时间感知】当前真实时间为：' + _smsTimeStr + '，你能感知现在的时间，并在对话中自然体现时间感。\n' +
                 '【格式要求】只输出1条纯文本短信回复，极度简短口语化，像真人发短信一样，不要任何格式标记。\n' +
-                '【语气要求】简洁自然，符合短信风格，不超过50字。';
+                '【语气要求】简洁自然，符合短信风格，不超过50字。\n' +
+                '【角色红线】先守住人设和已经发生的事实，再开口回复；拿不准时宁可含糊，也不要胡编新设定。';
 
             if (lockedContact.roleDetail) sysPrompt += '\n角色设定：' + lockedContact.roleDetail;
             if (lockedContact.userDetail) sysPrompt += '\n用户设定：' + lockedContact.userDetail;
+            if (recentDigest) sysPrompt += '\n最近短信/聊天重点：\n' + recentDigest;
+            if (recentNeedles) sysPrompt += '\n当前最该接住的点：\n' + recentNeedles;
+            if (presence.statusText || presence.moodText || presence.location || presence.intent) {
+                sysPrompt += '\n上一轮活体状态：\n' +
+                    (presence.statusText ? '状态：' + presence.statusText + '\n' : '') +
+                    (presence.moodText ? '情绪：' + presence.moodText + '\n' : '') +
+                    (presence.location ? '位置：' + presence.location + '\n' : '') +
+                    (presence.intent ? '意图：' + presence.intent : '');
+            }
+            if (moodSnapshot && (moodSnapshot.love !== undefined || moodSnapshot.jealous !== undefined || moodSnapshot.monologue || moodSnapshot.dark)) {
+                sysPrompt += '\n情绪快照：\n' +
+                    (moodSnapshot.love !== undefined ? '亲密感：' + moodSnapshot.love + '\n' : '') +
+                    (moodSnapshot.jealous !== undefined ? '吃醋值：' + moodSnapshot.jealous + '\n' : '') +
+                    (moodSnapshot.heartrate !== undefined ? '心率感：' + moodSnapshot.heartrate + '\n' : '') +
+                    (moodSnapshot.monologue ? '内心旁白：' + moodSnapshot.monologue + '\n' : '') +
+                    (moodSnapshot.dark ? '压抑面：' + moodSnapshot.dark : '');
+            }
 
             var messages = [{ role: 'system', content: sysPrompt }];
             recentMessages.forEach(function(msg) {

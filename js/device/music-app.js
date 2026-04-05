@@ -1,4 +1,4 @@
-(function() {
+﻿(function() {
     'use strict';
 
     var replayItems = [
@@ -6,14 +6,14 @@
             artClass: 'music-art--duet',
             title: '戒不掉（原声版）',
             badge: '听歌识曲榜 No.98',
-            subtitle: '欧阳耀莹',
+            subtitle: '欧阳朵朵',
             liked: true,
             count: '840+'
         },
         {
             artClass: 'music-art--poetry',
             title: '父亲写的散文诗',
-            badge: '感人至深，生活真谛',
+            badge: '感人至深，生活真相',
             subtitle: '许飞',
             liked: true,
             count: '1200+'
@@ -21,7 +21,7 @@
         {
             artClass: 'music-art--angel',
             title: 'ANGEL',
-            badge: 'Melon奖提名',
+            badge: '热门推荐',
             subtitle: 'MFBTY',
             liked: false,
             count: '190+'
@@ -31,21 +31,21 @@
     var specialItems = [
         {
             artClass: 'music-art--heal',
-            title: '音乐疗愈《土之律》 | 促中宫升降，和脾胃之今亨',
+            title: '音乐疗愈：土之律',
             duration: '06:10',
-            subtitle: '五音疗愈五行养生音乐-疏肝理气-调养五脏-安神助眠'
+            subtitle: '五音调养，放松助眠'
         },
         {
             artClass: 'music-art--sword',
-            title: '第1季·第3集 断长生桥',
+            title: '第七季 第3集 断长生桥',
             duration: '18:09',
-            subtitle: '剑来广播剧一二季精校版动漫2从51集开始名场面抢先听声娱文化制作'
+            subtitle: '广播剧高光片段，剧情紧凑'
         },
         {
             artClass: 'music-art--luoxiang',
-            title: '罗翔：你考的不是试，是前途和暮年的欢喜mp3',
+            title: '罗翔：你考的不是试',
             duration: '00:40',
-            subtitle: '人间清醒时刻 | 不苦与乐何在，人性真相与温柔逆商'
+            subtitle: '人间清醒时刻，短音频精选'
         }
     ];
 
