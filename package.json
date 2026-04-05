@@ -1,0 +1,12 @@
+{
+  "name": "mini-phone-push-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mini Phone local web push server",
+  "scripts": {
+    "start": "node push-server.js"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

@@ -1,0 +1,914 @@
+﻿// Auto-split from js/meetlove/meetlove-and-offline.js (933-1791)
+
+// ====== Offline Chat Feature ======
+(function() {
+    var offlineDb = new Dexie('miniPhoneOfflineDB');
+    offlineDb.version(1).stores({ messages: '++id, contactId, sender, content, timestamp' });
+
+    var activeOfflineContact = null;
+    var activeOfflineBubbleMsgId = null;
+    var offlineReplying = false;
+
+    function formatOfflineTimestamp(ts) {
+        var d = new Date(ts);
+        var y = d.getFullYear();
+        var mo = String(d.getMonth() + 1).padStart(2, '0');
+        var day = String(d.getDate()).padStart(2, '0');
+        var h = String(d.getHours()).padStart(2, '0');
+        var min = String(d.getMinutes()).padStart(2, '0');
+        return y + '\u5e74' + mo + '\u6708' + day + '\u65e5 ' + h + ':' + min;
+    }
+
+    window.openOfflineChat = function() {
+        if (!activeChatContact) return;
+        activeOfflineContact = activeChatContact;
+        hideChatExtPanel();
+        var titleEl = document.getElementById('offline-chat-title');
+        if (titleEl) {
+            var displayName = activeOfflineContact.roleName || '\u7ebf\u4e0b';
+            titleEl.textContent = displayName;
+            localforage.getItem('cd_settings_' + activeOfflineContact.id + '_remark').then(function(remark) {
+                if (remark && remark !== '\u672a\u8bbe\u7f6e') titleEl.textContent = remark;
+            }).catch(function() {});
+        }
+        var app = document.getElementById('offline-chat-app');
+        if (app) app.style.display = 'flex';
+        loadOfflineMessages();
+        var input = document.getElementById('offline-input-field');
+        if (input) { input.value = ''; input.style.height = 'auto'; }
+    };
+
+    window.closeOfflineChat = function() {
+        var app = document.getElementById('offline-chat-app');
+        if (app) app.style.display = 'none';
+    };
+
+    function ensureOfflineBubbleActionMenu() {
+        var app = document.getElementById('offline-chat-app');
+        if (!app) return null;
+        var menu = document.getElementById('offline-bubble-action-menu');
+        if (menu) return menu;
+        menu = document.createElement('div');
+        menu.id = 'offline-bubble-action-menu';
+        menu.style.cssText = 'display:none;position:absolute;z-index:360;min-width:136px;background:rgba(255,255,255,0.98);border-radius:14px;box-shadow:0 14px 34px rgba(0,0,0,0.16);border:1px solid rgba(0,0,0,0.06);overflow:hidden;';
+        menu.innerHTML =
+            '<div data-action="edit" style="padding:12px 14px;font-size:13px;color:#333;cursor:pointer;border-bottom:1px solid #f2f2f2;">编辑</div>' +
+            '<div data-action="delete" style="padding:12px 14px;font-size:13px;color:#d94848;cursor:pointer;border-bottom:1px solid #f2f2f2;">删除</div>' +
+            '<div data-action="continue" style="padding:12px 14px;font-size:13px;color:#5b4a3f;cursor:pointer;">续写</div>';
+        menu.addEventListener('click', async function(e) {
+            var item = e.target && e.target.closest('[data-action]');
+            if (!item) return;
+            var action = item.getAttribute('data-action');
+            if (!activeOfflineBubbleMsgId) return;
+            if (action === 'edit') {
+                await openOfflineEditModal(activeOfflineBubbleMsgId);
+            } else if (action === 'delete') {
+                await deleteOfflineMessage(activeOfflineBubbleMsgId);
+            } else if (action === 'continue') {
+                await continueOfflineMessage(activeOfflineBubbleMsgId);
+            }
+        });
+        app.appendChild(menu);
+        return menu;
+    }
+
+    function closeOfflineBubbleActionMenu() {
+        var menu = document.getElementById('offline-bubble-action-menu');
+        if (!menu) return;
+        menu.style.display = 'none';
+        activeOfflineBubbleMsgId = null;
+    }
+
+    function openOfflineBubbleActionMenu(msgId, bubbleEl) {
+        var menu = ensureOfflineBubbleActionMenu();
+        var app = document.getElementById('offline-chat-app');
+        if (!menu || !app || !bubbleEl || !msgId) return;
+        activeOfflineBubbleMsgId = msgId;
+        menu.style.display = 'block';
+
+        var appRect = app.getBoundingClientRect();
+        var bubbleRect = bubbleEl.getBoundingClientRect();
+        var menuW = menu.offsetWidth || 136;
+        var menuH = menu.offsetHeight || 132;
+        var x = bubbleRect.left - appRect.left + (bubbleRect.width / 2) - (menuW / 2);
+        var y = bubbleRect.top - appRect.top - menuH - 8;
+
+        if (x < 10) x = 10;
+        if (x + menuW > appRect.width - 10) x = appRect.width - menuW - 10;
+        if (y < 10) y = bubbleRect.bottom - appRect.top + 8;
+        if (y + menuH > appRect.height - 10) y = Math.max(10, appRect.height - menuH - 10);
+
+        menu.style.left = x + 'px';
+        menu.style.top = y + 'px';
+    }
+
+    function ensureOfflineEditModal() {
+        var app = document.getElementById('offline-chat-app');
+        if (!app) return null;
+        var modal = document.getElementById('offline-edit-modal');
+        if (modal) return modal;
+        modal = document.createElement('div');
+        modal.id = 'offline-edit-modal';
+        modal.style.cssText = 'display:none;position:absolute;inset:0;background:rgba(0,0,0,0.45);z-index:370;justify-content:center;align-items:flex-end;backdrop-filter:blur(6px);';
+        modal.innerHTML =
+            '<div id="offline-edit-sheet" style="width:100%;background:#fff;border-radius:22px 22px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px;transform:translateY(100%);transition:transform 0.26s cubic-bezier(0.4,0,0.2,1);">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+                    '<div style="font-size:16px;font-weight:700;color:#333;">编辑对话</div>' +
+                    '<div id="offline-edit-close-btn" style="font-size:20px;color:#bbb;cursor:pointer;line-height:1;">×</div>' +
+                '</div>' +
+                '<textarea id="offline-edit-textarea" style="width:100%;height:120px;max-height:220px;border:1px solid #eee;border-radius:12px;padding:10px 12px;font-size:14px;line-height:1.6;resize:none;outline:none;font-family:inherit;color:#333;background:#fafafa;"></textarea>' +
+                '<div style="display:flex;gap:10px;">' +
+                    '<button id="offline-edit-cancel-btn" type="button" style="flex:1;height:42px;border:none;border-radius:12px;background:#f3f3f3;color:#666;font-size:14px;cursor:pointer;">取消</button>' +
+                    '<button id="offline-edit-save-btn" type="button" style="flex:1;height:42px;border:none;border-radius:12px;background:#6f5f53;color:#fff;font-size:14px;cursor:pointer;">保存</button>' +
+                '</div>' +
+            '</div>';
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) closeOfflineEditModal();
+        });
+        app.appendChild(modal);
+
+        var closeBtn = document.getElementById('offline-edit-close-btn');
+        var cancelBtn = document.getElementById('offline-edit-cancel-btn');
+        var saveBtn = document.getElementById('offline-edit-save-btn');
+        if (closeBtn) closeBtn.addEventListener('click', closeOfflineEditModal);
+        if (cancelBtn) cancelBtn.addEventListener('click', closeOfflineEditModal);
+        if (saveBtn) saveBtn.addEventListener('click', saveOfflineEditedMessage);
+        return modal;
+    }
+
+    async function openOfflineEditModal(msgId) {
+        closeOfflineBubbleActionMenu();
+        var modal = ensureOfflineEditModal();
+        if (!modal) return;
+        var msg = await offlineDb.messages.get(msgId);
+        if (!msg) return;
+        activeOfflineBubbleMsgId = msgId;
+        var textarea = document.getElementById('offline-edit-textarea');
+        if (textarea) {
+            textarea.value = msg.content || '';
+            if (typeof autoGrowTextarea === 'function') autoGrowTextarea(textarea);
+        }
+        modal.style.display = 'flex';
+        requestAnimationFrame(function() {
+            var sheet = document.getElementById('offline-edit-sheet');
+            if (sheet) sheet.style.transform = 'translateY(0)';
+        });
+    }
+
+    function closeOfflineEditModal() {
+        var modal = document.getElementById('offline-edit-modal');
+        var sheet = document.getElementById('offline-edit-sheet');
+        if (!modal || !sheet) return;
+        sheet.style.transform = 'translateY(100%)';
+        setTimeout(function() {
+            modal.style.display = 'none';
+        }, 260);
+    }
+
+    async function saveOfflineEditedMessage() {
+        if (!activeOfflineBubbleMsgId) return;
+        var textarea = document.getElementById('offline-edit-textarea');
+        var nextText = textarea ? textarea.value : '';
+        if (!nextText || !nextText.trim()) return;
+        try {
+            await offlineDb.messages.update(activeOfflineBubbleMsgId, { content: nextText });
+            closeOfflineEditModal();
+            await loadOfflineMessages();
+        } catch (e) {
+            console.error('编辑线下消息失败', e);
+        }
+    }
+
+    async function deleteOfflineMessage(msgId) {
+        closeOfflineBubbleActionMenu();
+        if (!msgId) return;
+        if (!confirm('确定要删除这条对话吗？')) return;
+        try {
+            await offlineDb.messages.delete(msgId);
+            await loadOfflineMessages();
+        } catch (e) {
+            console.error('删除线下消息失败', e);
+        }
+    }
+
+    async function continueOfflineMessage(msgId) {
+        closeOfflineBubbleActionMenu();
+        if (!activeOfflineContact) return;
+        try {
+            var msg = await offlineDb.messages.get(msgId);
+            await triggerOfflineRoleReply(activeOfflineContact, msg ? (msg.content || '') : '');
+        } catch (e) {
+            console.error('线下续写失败', e);
+        }
+    }
+
+    // ====== 线下管理：存档系统（每角色3个槽位）======
+    window.openOfflineManage = async function() {
+        if (!activeOfflineContact) return;
+        var modal = document.getElementById('offline-manage-modal');
+        var sheet = document.getElementById('offline-manage-sheet');
+        if (!modal || !sheet) return;
+        modal.style.display = 'flex';
+        requestAnimationFrame(function() { sheet.style.transform = 'translateY(0)'; });
+        await renderOfflineSlots();
+    };
+
+    window.closeOfflineManage = function() {
+        var sheet = document.getElementById('offline-manage-sheet');
+        var modal = document.getElementById('offline-manage-modal');
+        if (sheet) sheet.style.transform = 'translateY(100%)';
+        setTimeout(function() { if (modal) modal.style.display = 'none'; }, 320);
+    };
+
+    async function renderOfflineSlots() {
+        var listEl = document.getElementById('offline-slot-list');
+        if (!listEl || !activeOfflineContact) return;
+        listEl.innerHTML = '';
+        var contactId = activeOfflineContact.id;
+        for (var i = 1; i <= 3; i++) {
+            var slotKey = 'offline_slot_' + contactId + '_' + i;
+            var slotData = null;
+            try { slotData = await localforage.getItem(slotKey); } catch(e) {}
+            var slotEl = document.createElement('div');
+            slotEl.style.cssText = 'background:#f7f8fa;border-radius:16px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border:1px solid #eee;';
+            var leftDiv = document.createElement('div');
+            leftDiv.style.cssText = 'display:flex;flex-direction:column;gap:3px;flex:1;overflow:hidden;';
+            var slotTitle = document.createElement('div');
+            slotTitle.style.cssText = 'font-size:14px;font-weight:600;color:#333;';
+            slotTitle.textContent = '存档 ' + i;
+            var slotDesc = document.createElement('div');
+            slotDesc.style.cssText = 'font-size:11px;color:#aaa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+            if (slotData) {
+                var d = new Date(slotData.savedAt || 0);
+                var dStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
+                    + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+                slotDesc.textContent = dStr + ' · ' + (slotData.msgCount || 0) + '条消息';
+            } else {
+                slotDesc.textContent = '空槽位';
+            }
+            leftDiv.appendChild(slotTitle);
+            leftDiv.appendChild(slotDesc);
+            var btnGroup = document.createElement('div');
+            btnGroup.style.cssText = 'display:flex;gap:8px;flex-shrink:0;';
+            if (slotData) {
+                // 读取按钮
+                var loadBtn = document.createElement('div');
+                loadBtn.style.cssText = 'padding:6px 12px;background:#fff;border:none;border-radius:14px;font-size:12px;color:#555;cursor:pointer;font-weight:500;box-shadow:0 4px 14px rgba(0,0,0,0.08);';
+                loadBtn.textContent = '读取';
+                (function(idx) {
+                    loadBtn.onclick = function() { loadOfflineSlot(idx); };
+                })(i);
+                btnGroup.appendChild(loadBtn);
+            }
+            // 存档按钮
+            var saveBtn = document.createElement('div');
+            saveBtn.style.cssText = 'padding:6px 12px;background:#fff;border:none;border-radius:14px;font-size:12px;color:#555;cursor:pointer;font-weight:500;box-shadow:0 4px 14px rgba(0,0,0,0.08);';
+            saveBtn.textContent = '存档';
+            (function(idx) {
+                saveBtn.onclick = function() { saveOfflineSlot(idx); };
+            })(i);
+            btnGroup.appendChild(saveBtn);
+            slotEl.appendChild(leftDiv);
+            slotEl.appendChild(btnGroup);
+            listEl.appendChild(slotEl);
+        }
+    }
+
+    async function saveOfflineSlot(slotIndex) {
+        if (!activeOfflineContact) return;
+        var contactId = activeOfflineContact.id;
+        try {
+            var msgs = await offlineDb.messages.where('contactId').equals(contactId).toArray();
+            var slotKey = 'offline_slot_' + contactId + '_' + slotIndex;
+            await localforage.setItem(slotKey, {
+                messages: msgs,
+                savedAt: Date.now(),
+                msgCount: msgs.length
+            });
+            await renderOfflineSlots();
+            // 简单提示
+            var toast = document.createElement('div');
+            toast.textContent = '存档 ' + slotIndex + ' 已保存';
+            toast.style.cssText = 'position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.65);color:#fff;padding:8px 18px;border-radius:20px;font-size:13px;z-index:9999;pointer-events:none;white-space:nowrap;';
+            var offlineApp = document.getElementById('offline-chat-app');
+            if (offlineApp) offlineApp.appendChild(toast);
+            setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 2000);
+        } catch(e) { console.error('存档失败', e); }
+    }
+
+    async function loadOfflineSlot(slotIndex) {
+        if (!activeOfflineContact) return;
+        if (!confirm('读取存档 ' + slotIndex + ' 将覆盖当前对话，确定吗？')) return;
+        var contactId = activeOfflineContact.id;
+        try {
+            var slotKey = 'offline_slot_' + contactId + '_' + slotIndex;
+            var slotData = await localforage.getItem(slotKey);
+            if (!slotData || !slotData.messages) return;
+            // 清空当前消息
+            var allMsgs = await offlineDb.messages.where('contactId').equals(contactId).toArray();
+            await offlineDb.messages.bulkDelete(allMsgs.map(function(m) { return m.id; }));
+            // 写入存档消息（去掉id让IndexedDB自动分配）
+            var newMsgs = slotData.messages.map(function(m) {
+                return { contactId: m.contactId, sender: m.sender, content: m.content, timestamp: m.timestamp };
+            });
+            if (newMsgs.length > 0) await offlineDb.messages.bulkAdd(newMsgs);
+            closeOfflineManage();
+            await loadOfflineMessages();
+        } catch(e) { console.error('读取存档失败', e); alert('读取失败: ' + e.message); }
+    }
+
+    window.offlineNewChat = async function() {
+        if (!activeOfflineContact) return;
+        if (!confirm('新建对话将清空当前所有消息，确定吗？')) return;
+        var contactId = activeOfflineContact.id;
+        try {
+            var allMsgs = await offlineDb.messages.where('contactId').equals(contactId).toArray();
+            await offlineDb.messages.bulkDelete(allMsgs.map(function(m) { return m.id; }));
+            closeOfflineManage();
+            var container = document.getElementById('offline-msg-container');
+            if (container) container.innerHTML = '';
+        } catch(e) { console.error('新建失败', e); }
+    };
+
+    // ====== 线下设置侧边栏 ======
+    window.openOfflineSettings = async function() {
+        if (!activeOfflineContact) return;
+        var overlay = document.getElementById('offline-settings-overlay');
+        var sidebar = document.getElementById('offline-settings-sidebar');
+        if (!overlay || !sidebar) return;
+        overlay.style.display = 'block';
+        sidebar.style.display = 'flex';
+        requestAnimationFrame(function() { sidebar.style.transform = 'translateX(0)'; });
+        // 恢复已保存设置
+        var contactId = activeOfflineContact.id;
+        try {
+            var settings = await localforage.getItem('offline_settings_' + contactId) || {};
+            var wordMinEl = document.getElementById('offline-word-min');
+            var wordMaxEl = document.getElementById('offline-word-max');
+            if (wordMinEl) wordMinEl.value = settings.wordMin || 100;
+            if (wordMaxEl) wordMaxEl.value = settings.wordMax || 500;
+            // 视角
+            var perspVal = settings.perspective || 'second';
+            var perspEl = document.getElementById('offline-persp-' + perspVal);
+            if (perspEl) perspEl.checked = true;
+            // 文风
+            var styleEl = document.getElementById('offline-writing-style');
+            if (styleEl) styleEl.value = settings.writingStyle !== undefined ? settings.writingStyle : '温柔细腻，笔触细腻，情感丰富，如涓涓细流般娓娓道来，充满诗意与温度';
+            // 剧情背景
+            var plotEl = document.getElementById('offline-plot-bg');
+            if (plotEl) plotEl.value = settings.plotBg || '';
+            // CSS
+            var cssEl = document.getElementById('offline-custom-css');
+            if (cssEl) cssEl.value = settings.customCss || '';
+            // 背景图预览
+            var bgPreviewImg = document.getElementById('offline-bg-preview-img');
+            if (bgPreviewImg && settings.bgImage) {
+                bgPreviewImg.src = settings.bgImage;
+                bgPreviewImg.style.display = 'block';
+            }
+        } catch(e) {}
+    };
+
+    window.closeOfflineSettings = function() {
+        var overlay = document.getElementById('offline-settings-overlay');
+        var sidebar = document.getElementById('offline-settings-sidebar');
+        if (sidebar) sidebar.style.transform = 'translateX(100%)';
+        setTimeout(function() {
+            if (overlay) overlay.style.display = 'none';
+            if (sidebar) sidebar.style.display = 'none';
+        }, 320);
+    };
+
+    window.offlineSaveSettings = async function() {
+        if (!activeOfflineContact) return;
+        var contactId = activeOfflineContact.id;
+        var wordMin = parseInt(document.getElementById('offline-word-min').value) || 100;
+        var wordMax = parseInt(document.getElementById('offline-word-max').value) || 500;
+        var perspEl = document.querySelector('input[name="offline-perspective"]:checked');
+        var perspective = perspEl ? perspEl.value : 'second';
+        var writingStyle = document.getElementById('offline-writing-style').value.trim();
+        var plotBg = document.getElementById('offline-plot-bg').value.trim();
+        var customCss = document.getElementById('offline-custom-css').value.trim();
+        // 读取已有设置（保留bgImage）
+        var existing = await localforage.getItem('offline_settings_' + contactId) || {};
+        var settings = Object.assign(existing, { wordMin, wordMax, perspective, writingStyle, plotBg, customCss });
+        await localforage.setItem('offline_settings_' + contactId, settings);
+        // 应用CSS
+        if (customCss) _applyOfflineCss(customCss);
+        closeOfflineSettings();
+        // 显示提示
+        var toast = document.createElement('div');
+        toast.textContent = '设置已保存';
+        toast.style.cssText = 'position:absolute;bottom:100px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.65);color:#fff;padding:8px 18px;border-radius:20px;font-size:13px;z-index:9999;pointer-events:none;white-space:nowrap;';
+        var offlineApp = document.getElementById('offline-chat-app');
+        if (offlineApp) offlineApp.appendChild(toast);
+        setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 2000);
+    };
+
+    window.offlineChangeBg = async function(event) {
+        var file = event.target.files[0];
+        if (!file || !activeOfflineContact) return;
+        var reader = new FileReader();
+        reader.onload = async function(e) {
+            var base64 = e.target.result;
+            // 更新预览
+            var previewImg = document.getElementById('offline-bg-preview-img');
+            if (previewImg) { previewImg.src = base64; previewImg.style.display = 'block'; }
+            // 应用背景
+            var msgBody = document.getElementById('offline-msg-container');
+            if (msgBody) msgBody.style.background = 'url(' + base64 + ') center/cover no-repeat';
+            // 持久化
+            var contactId = activeOfflineContact.id;
+            var settings = await localforage.getItem('offline_settings_' + contactId) || {};
+            settings.bgImage = base64;
+            await localforage.setItem('offline_settings_' + contactId, settings);
+        };
+        reader.readAsDataURL(file);
+        event.target.value = '';
+    };
+
+    window.offlineResetBg = async function() {
+        if (!activeOfflineContact) return;
+        var msgBody = document.getElementById('offline-msg-container');
+        if (msgBody) msgBody.style.background = '#f0ede8';
+        var previewImg = document.getElementById('offline-bg-preview-img');
+        if (previewImg) { previewImg.src = ''; previewImg.style.display = 'none'; }
+        var contactId = activeOfflineContact.id;
+        var settings = await localforage.getItem('offline_settings_' + contactId) || {};
+        delete settings.bgImage;
+        await localforage.setItem('offline_settings_' + contactId, settings);
+    };
+
+    window.offlineApplyCss = function() {
+        var cssEl = document.getElementById('offline-custom-css');
+        if (cssEl) _applyOfflineCss(cssEl.value.trim());
+    };
+
+    window.offlineResetCss = async function() {
+        var cssEl = document.getElementById('offline-custom-css');
+        if (cssEl) cssEl.value = '';
+        _applyOfflineCss('');
+        if (activeOfflineContact) {
+            var contactId = activeOfflineContact.id;
+            var settings = await localforage.getItem('offline_settings_' + contactId) || {};
+            settings.customCss = '';
+            await localforage.setItem('offline_settings_' + contactId, settings);
+        }
+    };
+
+    function _applyOfflineCss(css) {
+        var styleId = 'offline-custom-style';
+        var existing = document.getElementById(styleId);
+        if (!existing) {
+            existing = document.createElement('style');
+            existing.id = styleId;
+            document.head.appendChild(existing);
+        }
+        existing.textContent = css || '';
+    }
+
+    /* ====== 线下CSS模板提取 ====== */
+    window.offlineExtractCssTemplate = function() {
+        var template = [
+            '/* ====== 线下聊天 CSS 模板 ======',
+            '   复制此内容到「自定义页面CSS」中，按需修改后点击「应用」。',
+            '   ============================== */',
+            '',
+            '/* --- 全局背景 --- */',
+            '.offline-msg-body {',
+            '    background: #f0ede8;          /* 聊天区域背景色 */',
+            '    padding: 16px 14px 90px;      /* 内边距 */',
+            '    gap: 18px;                    /* 气泡间距 */',
+            '}',
+            '',
+            '/* --- 头像（行外小头像） --- */',
+            '.offline-avatar {',
+            '    width: 38px;',
+            '    height: 38px;',
+            '    border-radius: 50%;',
+            '    border: 2px solid #fff;',
+            '    box-shadow: 0 2px 8px rgba(0,0,0,0.1);',
+            '}',
+            '',
+            '/* --- 气泡包裹器（控制整体宽度） --- */',
+            '.offline-bubble-wrap {',
+            '    width: 260px;',
+            '    min-width: 260px;',
+            '    max-width: 260px;',
+            '    gap: 4px;',
+            '}',
+            '',
+            '/* --- 气泡头部（内嵌头像+名字+时间戳） --- */',
+            '.offline-bubble-header {',
+            '    padding: 10px 14px 6px;',
+            '    gap: 8px;',
+            '}',
+            '',
+            '/* --- 气泡头部内嵌头像 --- */',
+            '.offline-bubble-avatar {',
+            '    width: 36px;',
+            '    height: 36px;',
+            '    border-radius: 50%;',
+            '    border: 1.5px solid rgba(255,255,255,0.7);',
+            '}',
+            '',
+            '/* --- 气泡内名字标签 --- */',
+            '.offline-bubble-name {',
+            '    font-size: 11px;',
+            '    font-weight: 600;',
+            '    color: rgba(58,48,40,0.6);',
+            '}',
+            '',
+            '/* --- 气泡内时间戳 --- */',
+            '.offline-bubble-time {',
+            '    font-size: 10px;',
+            '    color: rgba(58,48,40,0.4);',
+            '}',
+            '',
+            '/* --- 气泡正文 --- */',
+            '.offline-bubble-text {',
+            '    padding: 4px 14px 12px;',
+            '    font-size: 14px;',
+            '    line-height: 1.7;',
+            '    color: #3a3028;',
+            '}',
+            '',
+            '/* --- 用户气泡（右侧） --- */',
+            '.offline-me .offline-bubble {',
+            '    background: #f5f1ec;          /* 右侧气泡背景色 */',
+            '    border-radius: 20px;',
+            '    box-shadow: 0 2px 12px rgba(0,0,0,0.08);',
+            '}',
+            '',
+            '/* --- 角色气泡（左侧） --- */',
+            '.offline-role .offline-bubble {',
+            '    background: #ffffff;          /* 左侧气泡背景色 */',
+            '    border-radius: 20px;',
+            '    box-shadow: 0 2px 12px rgba(0,0,0,0.08);',
+            '}',
+            '',
+            '/* --- 旁白文字（斜体灰色） --- */',
+            '.offline-narration {',
+            '    color: #9a9088;',
+            '    font-style: italic;',
+            '    font-size: 13px;',
+            '    line-height: 1.7;',
+            '}',
+            '',
+            '/* --- 对话文字（正常加粗） --- */',
+            '.offline-dialogue {',
+            '    color: #1a1410;',
+            '    font-style: normal;',
+            '    font-weight: 500;',
+            '}',
+            '',
+            '/* --- 输入框区域 --- */',
+            '.offline-input-wrap {',
+            '    background: rgba(255,255,255,0.92);',
+            '    border-radius: 22px;',
+            '    border: 1px solid rgba(255,255,255,0.8);',
+            '    box-shadow: 0 4px 20px rgba(0,0,0,0.08);',
+            '}',
+            '',
+            '/* --- 发送按钮 --- */',
+            '.offline-send-btn {',
+            '    background: #7a6e64;',
+            '    box-shadow: 0 3px 10px rgba(122,110,100,0.35);',
+            '}',
+            '',
+            '/* --- 顶部导航栏 --- */',
+            '.offline-header {',
+            '    background: rgba(240,237,232,0.92);',
+            '    border-bottom: 1px solid rgba(0,0,0,0.06);',
+            '}',
+            '',
+            '.offline-header-title {',
+            '    font-size: 16px;',
+            '    font-weight: 700;',
+            '    color: #3a3028;',
+            '}',
+        ].join('\n');
+
+        var cssEl = document.getElementById('offline-custom-css');
+        if (cssEl) {
+            cssEl.value = template;
+            cssEl.focus();
+            /* 滚动到顶部方便查看 */
+            cssEl.scrollTop = 0;
+        }
+        /* 提示用户 */
+        var btn = document.querySelector('[onclick="offlineExtractCssTemplate()"]');
+        if (btn) {
+            var orig = btn.textContent;
+            btn.textContent = '已填入模板！';
+            btn.style.background = '#e8f5e9';
+            btn.style.color = '#4caf50';
+            btn.style.borderColor = '#c8e6c9';
+            setTimeout(function() {
+                btn.textContent = orig;
+                btn.style.background = '';
+                btn.style.color = '';
+                btn.style.borderColor = '';
+            }, 2000);
+        }
+    };
+
+    async function loadOfflineMessages() {
+        var container = document.getElementById('offline-msg-container');
+        if (!container || !activeOfflineContact) return;
+        container.innerHTML = '';
+        closeOfflineBubbleActionMenu();
+        try {
+            var msgs = await offlineDb.messages.where('contactId').equals(activeOfflineContact.id).toArray();
+            msgs.forEach(function(msg) { container.appendChild(buildOfflineBubble(msg)); });
+            requestAnimationFrame(function() { container.scrollTop = container.scrollHeight; });
+        } catch(e) { console.error('load offline messages failed', e); }
+    }
+
+    function buildOfflineBubble(msg) {
+        var isMe = msg.sender === 'me';
+        var contact = activeOfflineContact;
+        var userAvatar = contact ? (contact.userAvatar || '') : '';
+        var roleAvatar = contact ? (contact.roleAvatar || '') : '';
+        var userName = '我';
+        var roleName = contact ? (contact.roleName || '角色') : '角色';
+        try {
+            var myNameEl = document.getElementById('text-wechat-me-name');
+            if (myNameEl && myNameEl.textContent) userName = myNameEl.textContent;
+        } catch(e) {}
+
+        var avatar = isMe ? userAvatar : roleAvatar;
+        var name = isMe ? userName : roleName;
+        var rowClass = isMe ? 'offline-msg-row offline-me' : 'offline-msg-row offline-role';
+        var tsText = formatOfflineTimestamp(msg.timestamp || Date.now());
+        var placeholder = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+        var row = document.createElement('div');
+        row.className = rowClass;
+
+        var wrap = document.createElement('div');
+        wrap.className = 'offline-bubble-wrap';
+
+        // 气泡本体（无尖角，头像+名字+时间戳都在气泡内）
+        var bubble = document.createElement('div');
+        bubble.className = 'offline-bubble';
+
+        // 气泡头部：头像 + 名字 + 时间戳
+        var header = document.createElement('div');
+        header.className = 'offline-bubble-header';
+
+        var avatarInner = document.createElement('div');
+        avatarInner.className = 'offline-bubble-avatar';
+        var img = document.createElement('img');
+        img.src = avatar || placeholder;
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        avatarInner.appendChild(img);
+
+        var meta = document.createElement('div');
+        meta.className = 'offline-bubble-meta';
+
+        var nameEl = document.createElement('div');
+        nameEl.className = 'offline-bubble-name';
+        nameEl.textContent = name;
+
+        var timeEl = document.createElement('div');
+        timeEl.className = 'offline-bubble-time';
+        timeEl.textContent = tsText;
+
+        meta.appendChild(nameEl);
+        meta.appendChild(timeEl);
+
+        header.appendChild(avatarInner);
+        header.appendChild(meta);
+
+        // 气泡正文（旁白灰色斜体，对话黑色正体）
+        var textEl = document.createElement('div');
+        textEl.className = 'offline-bubble-text';
+        // 解析 *旁白* 和 "对话" 格式
+        var rawContent = msg.content || '';
+        var lines = rawContent.split('\n');
+        lines.forEach(function(line, idx) {
+            if (idx > 0) {
+                textEl.appendChild(document.createTextNode('\n'));
+            }
+            // 检测整行是否为旁白（以*开头和*结尾）
+            var narrationMatch = line.match(/^\*(.+)\*$/);
+            if (narrationMatch) {
+                var em = document.createElement('em');
+                em.className = 'offline-narration';
+                em.textContent = narrationMatch[1];
+                textEl.appendChild(em);
+            } else {
+                // 在行内查找"对话"片段并高亮为黑色
+                var parts = line.split(/([""][^""]*[""])/);
+                parts.forEach(function(part) {
+                    if (part.match(/^[""][^""]*[""]$/)) {
+                        var span = document.createElement('span');
+                        span.className = 'offline-dialogue';
+                        span.textContent = part;
+                        textEl.appendChild(span);
+                    } else if (part) {
+                        textEl.appendChild(document.createTextNode(part));
+                    }
+                });
+            }
+        });
+
+        bubble.appendChild(header);
+        bubble.appendChild(textEl);
+        if (msg && msg.id) {
+            bubble.setAttribute('data-msg-id', String(msg.id));
+            bubble.style.cursor = 'pointer';
+            bubble.addEventListener('click', function(e) {
+                e.stopPropagation();
+                openOfflineBubbleActionMenu(msg.id, bubble);
+            });
+        }
+        wrap.appendChild(bubble);
+        row.appendChild(wrap);
+        return row;
+    }
+
+    window.offlineSendMessage = async function() {
+        var input = document.getElementById('offline-input-field');
+        if (!input || !activeOfflineContact) return;
+        var content = input.value;
+        if (!content || !content.trim()) return;
+        var container = document.getElementById('offline-msg-container');
+        var ts = Date.now();
+        try {
+            var newId = await offlineDb.messages.add({
+                contactId: activeOfflineContact.id,
+                sender: 'me',
+                content: content,
+                timestamp: ts
+            });
+            input.value = '';
+            input.style.height = 'auto';
+            var msg = { id: newId, contactId: activeOfflineContact.id, sender: 'me', content: content, timestamp: ts };
+            container.appendChild(buildOfflineBubble(msg));
+            requestAnimationFrame(function() { container.scrollTop = container.scrollHeight; });
+            triggerOfflineRoleReply(activeOfflineContact, content);
+        } catch(e) { console.error('send offline message failed', e); }
+    };
+
+    async function triggerOfflineRoleReply(contact, userText) {
+        if (offlineReplying) return;
+        offlineReplying = true;
+        var container = document.getElementById('offline-msg-container');
+        try {
+            var apiUrl = await localforage.getItem('miffy_api_url');
+            var apiKey = await localforage.getItem('miffy_api_key');
+            var model = await localforage.getItem('miffy_api_model');
+            var temp = parseFloat(await localforage.getItem('miffy_api_temp')) || 0.7;
+            if (!apiUrl || !apiKey || !model) return;
+            var ctxRaw = await localforage.getItem('miffy_api_ctx');
+            var ctxLimit = (ctxRaw !== null && ctxRaw !== '') ? parseInt(ctxRaw) : 10;
+            var allMsgs = await offlineDb.messages.where('contactId').equals(contact.id).toArray();
+            var recentMsgs = (ctxLimit === 0) ? allMsgs : allMsgs.slice(-ctxLimit);
+            var allOnlineMsgs = [];
+            try {
+                allOnlineMsgs = await chatListDb.messages.where('contactId').equals(contact.id).toArray();
+                allOnlineMsgs = allOnlineMsgs.filter(function(m) {
+                    return m && m.source !== 'sms' && m.sender !== 'system' && !m.isSystemTip && !m.isRecalled;
+                });
+            } catch (eOnline) {
+                allOnlineMsgs = [];
+            }
+            var recentOnlineMsgs = (ctxLimit === 0) ? allOnlineMsgs : allOnlineMsgs.slice(-ctxLimit);
+            var offlineSettings = await localforage.getItem('offline_settings_' + contact.id) || {};
+            var wordMin = Math.max(50, parseInt(offlineSettings.wordMin, 10) || 100);
+            var wordMax = Math.max(wordMin, parseInt(offlineSettings.wordMax, 10) || 500);
+            var perspectiveMap = { first: '第一人称', second: '第二人称', third: '第三人称' };
+            var perspective = perspectiveMap[offlineSettings.perspective] || '第二人称';
+            var writingStyle = String(offlineSettings.writingStyle || '').trim();
+            var plotBg = String(offlineSettings.plotBg || '').trim();
+            var now = new Date();
+            var weeks2 = ['\u5468\u65e5','\u5468\u4e00','\u5468\u4e8c','\u5468\u4e09','\u5468\u56db','\u5468\u4e94','\u5468\u516d'];
+            var timeStr = now.getFullYear() + '\u5e74' + (now.getMonth()+1) + '\u6708' + now.getDate() + '\u65e5 ' +
+                weeks2[now.getDay()] + ' ' +
+                String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+            var onlineMemoryText = '';
+            if (typeof buildOnlineCrossModeMemoryText === 'function') {
+                onlineMemoryText = await buildOnlineCrossModeMemoryText(contact, ctxLimit, allOnlineMsgs);
+            } else if (recentOnlineMsgs.length > 0) {
+                var roleNameFallback = contact.roleName || '角色';
+                onlineMemoryText = recentOnlineMsgs.map(function(m) {
+                    var sender = m.sender === 'me' ? '用户' : roleNameFallback;
+                    var text = typeof extractMsgPureText === 'function'
+                        ? extractMsgPureText(m.content || '')
+                        : String(m.content || '');
+                    text = String(text || '').trim();
+                    if (!text) return '';
+                    return sender + '：' + text;
+                }).filter(function(line) {
+                    return !!line;
+                }).join('\n');
+            }
+            var memorySummaryText = '';
+            if (typeof getContactSummaryHistoryText === 'function') {
+                memorySummaryText = await getContactSummaryHistoryText(contact.id);
+            }
+            var worldbookSeedTexts = [];
+            recentOnlineMsgs.forEach(function(m) {
+                var text = typeof extractMsgPureText === 'function'
+                    ? extractMsgPureText(m.content || '')
+                    : String(m.content || '');
+                text = String(text || '').trim();
+                if (text) worldbookSeedTexts.push(text);
+            });
+            recentMsgs.forEach(function(m) {
+                var text = String(m.content || '').trim();
+                if (text) worldbookSeedTexts.push(text);
+            });
+            var worldbookText = '';
+            if (typeof buildContactWorldbookContextText === 'function') {
+                worldbookText = await buildContactWorldbookContextText(contact, worldbookSeedTexts);
+            }
+            var sysPrompt = '【角色身份锚点】你现在就是「' + (contact.roleName || '角色') + '」，正在与用户进行一段真实、连续发生的线下见面。\n' +
+                '【线下模式铁律】\n' +
+                '1. 线下剧情和线上聊天属于同一段关系连续体，必须承接已经发生的事实，不要失忆，不要重新自我介绍。\n' +
+                '2. 你可以描写环境、动作、距离、表情和氛围，但绝对不允许替用户决定动作、心理、反应和台词。\n' +
+                '3. 输出必须是自然中文纯文本，不要JSON，不要列表，不要解释。\n' +
+                '4. 旁白必须用星号包裹，如 *你靠近了一点*；真正说出口的话必须放在双引号内，如 "我在这里"。\n' +
+                '5. 叙述视角固定为' + perspective + '，整体长度控制在' + wordMin + '-' + wordMax + '字之间。\n' +
+                '6. 文字要像真人，不要模板化抒情，不要空泛总结，优先承接刚刚发生的细节、情绪和动作。\n' +
+                '【时间】' + timeStr + '\n';
+            if (writingStyle) sysPrompt += '【文风要求】' + writingStyle + '\n';
+            if (plotBg) sysPrompt += '【当前剧情背景】' + plotBg + '\n';
+            if (contact.roleDetail) sysPrompt += '角色设定：' + contact.roleDetail + '\n';
+            if (contact.userDetail) sysPrompt += '用户设定：' + contact.userDetail + '\n';
+            if (memorySummaryText) {
+                sysPrompt += '【长期记忆摘要】以下内容是你们已经共同经历过的事实，请带着它继续线下互动，不要和它冲突：\n' + memorySummaryText + '\n';
+            }
+            if (worldbookText) {
+                sysPrompt += '【背景与设定信息】\n' + worldbookText + '\n';
+            }
+            if (onlineMemoryText) {
+                sysPrompt += '【跨模式记忆：线上聊天】以下为你们最近在线上聊过的内容。线下续写时必须视为已发生事实并自然延续：\n' + onlineMemoryText + '\n';
+            }
+            var messages = [{ role: 'system', content: sysPrompt }];
+            recentMsgs.forEach(function(m) {
+                messages.push({ role: m.sender === 'me' ? 'user' : 'assistant', content: m.content });
+            });
+            if (recentMsgs.length === 0) {
+                messages.push({ role: 'user', content: '请承接我们已经发生过的线上关系和当前背景，开启这次线下见面的第一段互动。' });
+            } else if (recentMsgs[recentMsgs.length - 1].sender !== 'me') {
+                messages.push({ role: 'user', content: '请紧接上一段线下剧情继续自然推进。' });
+            }
+            var cleanApiUrl = apiUrl.replace(/\/+$/, '').replace(/\/v1$/, '');
+            var endpoint = cleanApiUrl + '/v1/chat/completions';
+            var response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+                body: JSON.stringify({ model: model, messages: messages, temperature: temp })
+            });
+            if (!response.ok) return;
+            var data = await response.json();
+            var replyText = data.choices[0].message.content.trim();
+            try {
+                var parsed = JSON.parse(replyText);
+                if (parsed && parsed.content) replyText = parsed.content;
+                else if (Array.isArray(parsed) && parsed[0] && parsed[0].content) replyText = parsed[0].content;
+            } catch(e2) {}
+            var replyTs = Date.now();
+            var replyId = await offlineDb.messages.add({
+                contactId: contact.id,
+                sender: 'role',
+                content: replyText,
+                timestamp: replyTs
+            });
+            var app = document.getElementById('offline-chat-app');
+            if (app && app.style.display === 'flex' && activeOfflineContact && activeOfflineContact.id === contact.id) {
+                var replyMsg = { id: replyId, contactId: contact.id, sender: 'role', content: replyText, timestamp: replyTs };
+                container.appendChild(buildOfflineBubble(replyMsg));
+                requestAnimationFrame(function() { container.scrollTop = container.scrollHeight; });
+            }
+        } catch(e) { console.error('offline role reply failed', e); }
+        finally { offlineReplying = false; }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var offlineInput = document.getElementById('offline-input-field');
+        if (offlineInput) {
+            offlineInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+            });
+        }
+        var offlineContainer = document.getElementById('offline-msg-container');
+        if (offlineContainer) {
+            offlineContainer.addEventListener('scroll', function() {
+                closeOfflineBubbleActionMenu();
+            }, { passive: true });
+        }
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#offline-bubble-action-menu') && !e.target.closest('.offline-bubble')) {
+                closeOfflineBubbleActionMenu();
+            }
+        });
+    });
+
+})();

@@ -84,6 +84,60 @@ function _buildBankCardElement(cardData) {
 const appIconNames = ["小说", "日记", "购物", "论坛", "WeChat", "纪念日", "遇恋", "世界书", "占位1", "闲鱼", "查手机", "情侣空间", "信息", "占位3", "占位4", "占位5", "主题", "设置"];
 const themeIconGrid = document.getElementById('icon-theme-grid');
 const mainIcons = document.querySelectorAll('.icon-img img, .dock-icon img');
+const headerSubtitleMap = {
+    '主题': 'THEME',
+    '设置': 'SETTINGS',
+    '世界书': 'WORLDBOOK',
+    '消息': 'MESSAGES',
+    '联系人': 'CONTACTS',
+    '个人中心': 'PROFILE',
+    '资产钱包': 'WALLET',
+    '银行卡': 'BANK CARD',
+    '面具预设': 'MASK PRESETS',
+    '表情包库': 'STICKER LIBRARY',
+    '信息': 'INBOX',
+    '首页': 'HOME',
+    '聊天详情': 'CHAT DETAIL',
+    '发朋友圈': 'MOMENTS',
+    '理财': 'FINANCE',
+    '遇恋': 'MEETLOVE',
+    '匹配': 'MATCH',
+    '线下': 'OFFLINE',
+    '大厅设置': 'HALL SETTINGS',
+    '线下设置': 'OFFLINE SETTINGS'
+};
+
+function resolveHeaderSubtitle(rawText, isOfflineTitle) {
+    var raw = (rawText || '').trim();
+    var compact = raw.replace(/\s+/g, '');
+    if (!compact) return isOfflineTitle ? 'OFFLINE' : 'SECTION';
+    if (headerSubtitleMap[compact]) return headerSubtitleMap[compact];
+    var latinTokens = compact.match(/[A-Za-z0-9]+/g);
+    if (latinTokens && latinTokens.length) {
+        return latinTokens.join(' ').toUpperCase();
+    }
+    return isOfflineTitle ? 'OFFLINE' : 'SECTION';
+}
+
+function refreshHeaderSubtitles() {
+    document.querySelectorAll('.app-title, .offline-header-title').forEach(function(el) {
+        var isOfflineTitle = el.classList.contains('offline-header-title');
+        var subtitle = resolveHeaderSubtitle(el.textContent || '', isOfflineTitle);
+        el.setAttribute('data-subtitle', subtitle);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    refreshHeaderSubtitles();
+    if (!window.MutationObserver) return;
+    var timer = null;
+    var observer = new MutationObserver(function() {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(refreshHeaderSubtitles, 50);
+    });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+});
+
     // 修复电脑端：打开任意全屏应用前，先关闭其他所有全屏应用，防止多个 full-app-page 同时可见互相遮挡
     function openApp(appId) {
         document.querySelectorAll('.full-app-page').forEach(el => {
@@ -1045,17 +1099,20 @@ window.addEventListener('DOMContentLoaded', async () => {
             '',
             '/* --- 导航栏背景 --- */',
             '.app-header {',
-            '    height: 60px;',
-            '    background: rgba(255,255,255,0.85);',
+            '    height: 68px;',
+            '    background: transparent;',
             '}',
             '',
             '/* --- 导航栏返回/操作按钮 --- */',
             '.app-back, .app-header-action {',
-            '    width: 36px;',
-            '    height: 36px;',
+            '    width: 32px;',
+            '    height: 32px;',
             '    border-radius: 50%;',
-            '    background: #fff;',
-            '    box-shadow: 0 4px 12px rgba(0,0,0,0.06);',
+            '    background: transparent;',
+            '    box-shadow: none;',
+            '}',
+            '.app-header-action svg {',
+            '    filter: drop-shadow(0 6px 14px rgba(0,0,0,0.12));',
             '}',
             '',
             '/* --- 聊天气泡字体 --- */',

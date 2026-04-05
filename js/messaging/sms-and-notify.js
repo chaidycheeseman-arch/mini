@@ -574,24 +574,6 @@
 
             var rawMessages = await chatListDb.messages.where('contactId').equals(lockedContact.id).toArray();
             var recentMessages = (ctxLimit === 0) ? rawMessages : rawMessages.slice(-ctxLimit);
-            var recentDigest = recentMessages.map(function(msg) {
-                var pure = extractMsgPureText(msg.content);
-                if (!pure) return '';
-                return (msg.sender === 'me' ? '用户' : '你') + '：' + pure;
-            }).filter(Boolean).slice(-8).join('\n');
-            var recentNeedles = '';
-            try {
-                if (typeof buildRecentChatNeedles === 'function') {
-                    recentNeedles = buildRecentChatNeedles(lockedContact, rawMessages);
-                }
-            } catch (e) {}
-            var presence = lockedContact.aiPresence || {};
-            var moodSnapshot = {};
-            try {
-                if (typeof getMomentsMoodSnapshot === 'function') {
-                    moodSnapshot = await getMomentsMoodSnapshot(lockedContact.id);
-                }
-            } catch (e) {}
 
             // 构造真实时间字符串（时间感知）
             var _smsNow = new Date();
@@ -605,28 +587,10 @@
             var sysPrompt = '你是一个通过手机短信与用户互动的角色，完全沉浸于角色中。\n' +
                 '【时间感知】当前真实时间为：' + _smsTimeStr + '，你能感知现在的时间，并在对话中自然体现时间感。\n' +
                 '【格式要求】只输出1条纯文本短信回复，极度简短口语化，像真人发短信一样，不要任何格式标记。\n' +
-                '【语气要求】简洁自然，符合短信风格，不超过50字。\n' +
-                '【角色红线】先守住人设和已经发生的事实，再开口回复；拿不准时宁可含糊，也不要胡编新设定。';
+                '【语气要求】简洁自然，符合短信风格，不超过50字。';
 
             if (lockedContact.roleDetail) sysPrompt += '\n角色设定：' + lockedContact.roleDetail;
             if (lockedContact.userDetail) sysPrompt += '\n用户设定：' + lockedContact.userDetail;
-            if (recentDigest) sysPrompt += '\n最近短信/聊天重点：\n' + recentDigest;
-            if (recentNeedles) sysPrompt += '\n当前最该接住的点：\n' + recentNeedles;
-            if (presence.statusText || presence.moodText || presence.location || presence.intent) {
-                sysPrompt += '\n上一轮活体状态：\n' +
-                    (presence.statusText ? '状态：' + presence.statusText + '\n' : '') +
-                    (presence.moodText ? '情绪：' + presence.moodText + '\n' : '') +
-                    (presence.location ? '位置：' + presence.location + '\n' : '') +
-                    (presence.intent ? '意图：' + presence.intent : '');
-            }
-            if (moodSnapshot && (moodSnapshot.love !== undefined || moodSnapshot.jealous !== undefined || moodSnapshot.monologue || moodSnapshot.dark)) {
-                sysPrompt += '\n情绪快照：\n' +
-                    (moodSnapshot.love !== undefined ? '亲密感：' + moodSnapshot.love + '\n' : '') +
-                    (moodSnapshot.jealous !== undefined ? '吃醋值：' + moodSnapshot.jealous + '\n' : '') +
-                    (moodSnapshot.heartrate !== undefined ? '心率感：' + moodSnapshot.heartrate + '\n' : '') +
-                    (moodSnapshot.monologue ? '内心旁白：' + moodSnapshot.monologue + '\n' : '') +
-                    (moodSnapshot.dark ? '压抑面：' + moodSnapshot.dark : '');
-            }
 
             var messages = [{ role: 'system', content: sysPrompt }];
             recentMessages.forEach(function(msg) {
@@ -1319,6 +1283,126 @@
         return nowMin >= startMin || nowMin <= endMin;
     }
 
+    var _pushSubscribeBusy = false;
+    var _pushApiBase = '';
+
+    function _urlBase64ToUint8Array(base64String) {
+        var padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+        var base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+        var rawData = atob(base64);
+        var outputArray = new Uint8Array(rawData.length);
+        for (var i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+    }
+
+    async function _postPushApi(path, payload) {
+        try {
+            var resp = await fetch(_pushApiBase + path, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload || {})
+            });
+            var data = null;
+            try { data = await resp.json(); } catch (e) {}
+            if (!resp.ok) {
+                return {
+                    ok: false,
+                    reason: (data && data.reason) ? data.reason : ('http_' + resp.status),
+                    status: resp.status,
+                    data: data
+                };
+            }
+            return data || { ok: true };
+        } catch (e2) {
+            return { ok: false, reason: 'push_server_unavailable', error: e2 && e2.message ? e2.message : String(e2) };
+        }
+    }
+
+    async function _fetchPushApi(path) {
+        try {
+            var resp = await fetch(_pushApiBase + path, { method: 'GET' });
+            var data = null;
+            try { data = await resp.json(); } catch (e) {}
+            if (!resp.ok) {
+                return {
+                    ok: false,
+                    reason: (data && data.reason) ? data.reason : ('http_' + resp.status),
+                    status: resp.status,
+                    data: data
+                };
+            }
+            return data || { ok: true };
+        } catch (e2) {
+            return { ok: false, reason: 'push_server_unavailable', error: e2 && e2.message ? e2.message : String(e2) };
+        }
+    }
+
+    async function _ensureWebPushSubscription(options) {
+        if (_pushSubscribeBusy) return { ok: false, reason: 'busy' };
+        var opts = options || {};
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+            return { ok: false, reason: 'push_unsupported' };
+        }
+        if (!window.isSecureContext) {
+            return { ok: false, reason: 'insecure_context' };
+        }
+        if (!('Notification' in window) || Notification.permission !== 'granted') {
+            return { ok: false, reason: 'notification_not_granted' };
+        }
+
+        _pushSubscribeBusy = true;
+        try {
+            var reg = await navigator.serviceWorker.ready;
+            var sub = await reg.pushManager.getSubscription();
+            if (!sub) {
+                var vapidResp = await _fetchPushApi('/api/push/vapid-public-key');
+                if (!vapidResp || !vapidResp.ok || !vapidResp.publicKey) {
+                    return { ok: false, reason: 'push_server_unavailable' };
+                }
+                sub = await reg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: _urlBase64ToUint8Array(vapidResp.publicKey)
+                });
+            }
+
+            var subJson = sub.toJSON ? sub.toJSON() : sub;
+            var saveResp = await _postPushApi('/api/push/subscribe', {
+                subscription: subJson,
+                client: {
+                    userAgent: navigator.userAgent || '',
+                    language: navigator.language || '',
+                    timeZone: (Intl && Intl.DateTimeFormat) ? (Intl.DateTimeFormat().resolvedOptions().timeZone || '') : ''
+                }
+            });
+            if (!saveResp || !saveResp.ok) {
+                return { ok: false, reason: (saveResp && saveResp.reason) ? saveResp.reason : 'subscribe_failed' };
+            }
+            try { await localforage.setItem('miffy_webpush_enabled', true); } catch (e2) {}
+            return { ok: true, reason: 'subscribed', endpoint: subJson.endpoint || '' };
+        } catch (e) {
+            if (!opts.silent) {
+                console.error('[Push] 订阅失败', e);
+            }
+            return { ok: false, reason: 'subscribe_exception', error: e && e.message ? e.message : String(e) };
+        } finally {
+            _pushSubscribeBusy = false;
+        }
+    }
+
+    window._ensureWebPushSubscription = _ensureWebPushSubscription;
+
+    window._sendWebPushTest = async function(payload) {
+        var body = payload || {};
+        return _postPushApi('/api/push/send-test', {
+            title: body.title || 'Mini Push 测试',
+            body: body.body || '这是一条来自 Web Push 的测试消息。',
+            url: body.url || window.location.href,
+            contactId: body.contactId || ''
+        });
+    };
+
     // ====== Web Push 通知：申请权限 & 发送系统推送 ======
     async function _ensureBrowserNotificationPermission() {
         if (!('Notification' in window)) {
@@ -1352,7 +1436,8 @@
             secureContext: !!window.isSecureContext,
             notificationSupported: ('Notification' in window),
             notificationPermission: ('Notification' in window) ? Notification.permission : 'unsupported',
-            serviceWorkerSupported: ('serviceWorker' in navigator)
+            serviceWorkerSupported: ('serviceWorker' in navigator),
+            pushSupported: ('PushManager' in window)
         };
     };
 
@@ -1360,10 +1445,17 @@
         var opts = options || {};
         var perm = await _ensureBrowserNotificationPermission();
         if (!perm.ok) return perm;
+        var pushRes = null;
+        if (opts.subscribePush) {
+            pushRes = await _ensureWebPushSubscription();
+            if (!pushRes.ok) {
+                return { ok: false, reason: pushRes.reason, push: pushRes };
+            }
+        }
         if (!opts.test) return perm;
 
         var testTitle = 'Mini 通知测试';
-        var testBody = '通知已启用，后台消息会逐条弹出。';
+        var testBody = '通知已启用，后台消息会逐条弹出并保留在通知栏。';
         var testTag = 'mini-notify-test-' + Date.now();
         try {
             if ('serviceWorker' in navigator) {
@@ -1372,24 +1464,29 @@
                     await reg.showNotification(testTitle, {
                         body: testBody,
                         icon: 'icon-192.png',
+                        badge: 'icon-192.png',
                         tag: testTag,
                         renotify: false,
+                        requireInteraction: true,
+                        timestamp: Date.now(),
                         data: { contactId: '', url: window.location.href }
                     });
-                    return { ok: true, reason: 'granted' };
+                    return { ok: true, reason: 'granted', push: pushRes };
                 }
             }
             var n = new Notification(testTitle, {
                 body: testBody,
                 icon: 'icon-192.png',
                 tag: testTag,
-                renotify: false
+                renotify: false,
+                requireInteraction: true,
+                timestamp: Date.now()
             });
             n.onclick = function() {
                 window.focus();
                 n.close();
             };
-            return { ok: true, reason: 'granted' };
+            return { ok: true, reason: 'granted', push: pushRes };
         } catch (e2) {
             return { ok: false, reason: 'show_failed', error: e2 && e2.message ? e2.message : String(e2) };
         }
@@ -1403,39 +1500,23 @@
         var displayName = await _getDisplayName(contact);
         var avatarSrc = contact.roleAvatar || 'icon-192.png';
         var uniqueTag = 'mini-bgseq-' + contact.id + '-' + Date.now() + '-' + (++_notifySeq);
+        var commonNotifData = { contactId: contact.id, url: window.location.href };
+        var swOptions = {
+            body: msgText,
+            icon: avatarSrc,
+            badge: 'icon-192.png',
+            tag: uniqueTag,
+            renotify: false,
+            requireInteraction: true,
+            timestamp: Date.now(),
+            data: commonNotifData
+        };
 
         if ('serviceWorker' in navigator) {
             try {
                 var reg = await navigator.serviceWorker.getRegistration();
                 if (reg) {
-                    // 先主动关闭上一条同类通知，避免桌面端需要手动点掉才显示下一条
-                    var oldNotifs = await reg.getNotifications();
-                    for (var i = 0; i < oldNotifs.length; i++) {
-                        var t = oldNotifs[i].tag || '';
-                        if (t.indexOf('mini-bgseq-') === 0) {
-                            oldNotifs[i].close();
-                        }
-                    }
-
-                    await reg.showNotification(displayName, {
-                        body: msgText,
-                        icon: avatarSrc,
-                        tag: uniqueTag,
-                        renotify: false,
-                        data: { contactId: contact.id, url: window.location.href }
-                    });
-
-                    // 自动关闭本条，保证后续队列无需点击也能继续
-                    setTimeout(async function() {
-                        try {
-                            var reg2 = await navigator.serviceWorker.getRegistration();
-                            if (!reg2) return;
-                            var sameTag = await reg2.getNotifications({ tag: uniqueTag });
-                            for (var k = 0; k < sameTag.length; k++) {
-                                sameTag[k].close();
-                            }
-                        } catch (eClose) {}
-                    }, 2200);
+                    await reg.showNotification(displayName, swOptions);
                     return;
                 }
             } catch (swErr) {
@@ -1448,7 +1529,9 @@
                 body: msgText,
                 icon: avatarSrc,
                 tag: uniqueTag,
-                renotify: false
+                renotify: false,
+                requireInteraction: true,
+                timestamp: Date.now()
             });
             notif.onclick = function() {
                 window.focus();
@@ -1456,9 +1539,6 @@
                 enterChatWindow(contact.id);
                 notif.close();
             };
-            setTimeout(function() {
-                try { notif.close(); } catch (e2) {}
-            }, 2200);
         }
     }
 
@@ -1692,6 +1772,12 @@
             console.error('[恢复定时器] 失败', e);
         }
         _requestNotificationPermission().catch(function() {});
+        try {
+            var pushOn = await localforage.getItem('miffy_webpush_enabled');
+            if (pushOn && ('Notification' in window) && Notification.permission === 'granted') {
+                _ensureWebPushSubscription({ silent: true }).catch(function() {});
+            }
+        } catch (e3) {}
     }
 
     // 页面加载完成后启动

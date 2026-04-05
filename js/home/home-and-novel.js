@@ -172,20 +172,9 @@
             }
         }, 2000);
     }
-    function showNotificationBanner(avatar, name, message, timeStr, contactId, options) {
+    function showNotificationBanner(avatar, name, message, timeStr, contactId) {
         // 将通知加入队列，依次播放，确保每条消息都能被看到
         _notifQueue.push({ avatar, name, message, timeStr, contactId });
-        if (typeof window.pushMainLockUnreadBanner === 'function') {
-            const notifOptions = options && typeof options === 'object' ? options : {};
-            window.pushMainLockUnreadBanner({
-                appId: notifOptions.appId || (contactId ? 'wechat-app' : 'sms-app'),
-                appName: notifOptions.appName,
-                title: name,
-                message: message,
-                timeStr: timeStr,
-                contactId: contactId || null
-            });
-        }
         _playNotifQueue();
     }
     // 新增：横幅点击与向上滑动关闭事件监听
@@ -227,315 +216,206 @@
     let multiSelectMode = false;
     let selectedMsgIds = new Set();
     let longPressTimer = null;
-    window.MiniChatProtocol = window.MiniChatProtocol || (function() {
-        const LEGACY_TRANSFER_RE = /^(\s*💰|\s*【转账|\s*\[转账\]|\s*\[微信转账\])/;
-        const LEGACY_RED_PACKET_RE = /^(\s*🧧|\s*【红包|\s*\[红包\])/;
+    const MINI_PROTOCOL_VERSION = 'mini.chat.v2';
+    const MINI_STRUCTURED_TYPES = new Set([
+        'voice_message', 'red_packet', 'transfer', 'gift_delivery',
+        'takeout_delivery', 'call_invite'
+    ]);
 
-        function firstText() {
-            for (let i = 0; i < arguments.length; i++) {
-                const value = arguments[i];
-                if (value === 0) return '0';
-                const text = String(value || '').trim();
-                if (text) return text;
-            }
-            return '';
-        }
+    function _miniSafeText(value, fallback) {
+        if (value === undefined || value === null) return fallback || '';
+        return String(value).trim();
+    }
 
-        function normalizeMoney(value, fallback) {
-            const raw = firstText(value, fallback);
-            const parsed = parseFloat(String(raw).replace(/[^\d.]/g, ''));
-            if (!Number.isFinite(parsed) || parsed <= 0) {
-                return Number.isFinite(fallback) ? fallback.toFixed(2) : '0.00';
-            }
-            return parsed.toFixed(2);
-        }
+    function _miniSafeMoney(value, fallback) {
+        const raw = String(value === undefined || value === null ? '' : value).replace(/[^\d.]/g, '');
+        const num = parseFloat(raw);
+        if (!isNaN(num) && num >= 0) return num.toFixed(2);
+        return fallback || '0.00';
+    }
 
-        function normalizeTransferStatus(status) {
-            const raw = String(status || '').trim().toLowerCase();
-            if (raw === 'received' || raw === 'accepted') return 'received';
-            if (raw === 'refunded' || raw === 'declined') return 'refunded';
-            if (raw === 'expired') return 'expired';
-            return 'pending';
-        }
+    function _miniSafePositiveInt(value, fallback) {
+        const num = parseInt(value, 10);
+        if (!isNaN(num) && num > 0) return num;
+        return fallback || 1;
+    }
 
-        function normalizeRedPacketStatus(status) {
-            const raw = String(status || '').trim().toLowerCase();
-            if (raw === 'claimed' || raw === 'opened' || raw === 'received') return 'claimed';
-            if (raw === 'expired') return 'expired';
-            return 'unclaimed';
-        }
+    function _miniEscapeAttr(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
 
-        function normalizeRoleState(payload) {
-            const normalized = {
-                type: 'role_state',
-                mood: firstText(payload && payload.mood),
-                bond: firstText(payload && payload.bond),
-                focus: firstText(payload && payload.focus),
-                style: firstText(payload && payload.style)
+    function _miniNormalizeItems(items, fallbackName, fallbackDesc) {
+        const arr = Array.isArray(items) ? items : [];
+        const normalized = arr.map(function(item, index) {
+            const base = item && typeof item === 'object' ? item : {};
+            return {
+                name: _miniSafeText(base.name, fallbackName || ('项目' + (index + 1))),
+                desc: _miniSafeText(base.desc || base.spec, fallbackDesc || ''),
+                qty: _miniSafePositiveInt(base.qty, 1),
+                price: _miniSafeMoney(base.price, '')
             };
-            if (!normalized.mood && !normalized.bond && !normalized.focus && !normalized.style) {
+        }).filter(function(item) {
+            return !!item.name;
+        });
+        if (normalized.length > 0) return normalized;
+        return [{
+            name: _miniSafeText(fallbackName, '项目'),
+            desc: _miniSafeText(fallbackDesc, ''),
+            qty: 1,
+            price: ''
+        }];
+    }
+
+    function normalizeMiniStructuredPayload(raw) {
+        if (!raw || typeof raw !== 'object' || !raw.type) return null;
+        switch (raw.type) {
+            case 'voice_message': {
+                const transcript = _miniSafeText(raw.transcript || raw.content, '');
+                return {
+                    schema: MINI_PROTOCOL_VERSION,
+                    type: 'voice_message',
+                    transcript: transcript,
+                    durationSec: Math.max(1, parseInt(raw.durationSec || raw.duration || Math.ceil(transcript.length / 3), 10) || 1)
+                };
+            }
+            case 'red_packet': {
+                return {
+                    schema: MINI_PROTOCOL_VERSION,
+                    type: 'red_packet',
+                    amount: _miniSafeMoney(raw.amount, '0.00'),
+                    memo: _miniSafeText(raw.memo || raw.greeting || raw.desc || raw.content, '恭喜发财，大吉大利'),
+                    status: ['claimed', 'unclaimed'].includes(raw.status) ? raw.status : 'unclaimed'
+                };
+            }
+            case 'transaction':
+            case 'transfer': {
+                return {
+                    schema: MINI_PROTOCOL_VERSION,
+                    type: 'transfer',
+                    amount: _miniSafeMoney(raw.amount, '0.00'),
+                    memo: _miniSafeText(raw.memo || raw.note || raw.desc || raw.content, '转账'),
+                    status: ['pending', 'received', 'refunded'].includes(raw.status) ? raw.status : 'pending'
+                };
+            }
+            case 'send_gift':
+            case 'gift':
+            case 'gift_delivery': {
+                return {
+                    schema: MINI_PROTOCOL_VERSION,
+                    type: 'gift_delivery',
+                    note: _miniSafeText(raw.note || raw.message || raw.desc || raw.content, '送你一份心意'),
+                    status: ['sent', 'received'].includes(raw.status) ? raw.status : 'sent',
+                    items: _miniNormalizeItems(raw.items, raw.item || '礼物', raw.desc || '')
+                };
+            }
+            case 'takeaway':
+            case 'takeout_delivery': {
+                const firstItem = Array.isArray(raw.items) && raw.items[0] && typeof raw.items[0] === 'object'
+                    ? raw.items[0]
+                    : {};
+                const items = _miniNormalizeItems(raw.items, raw.item || '外卖', raw.desc || '');
+                const total = _miniSafeMoney(
+                    raw.total,
+                    items.reduce(function(sum, item) {
+                        const price = parseFloat(item.price || '0');
+                        return sum + (isNaN(price) ? 0 : (price * item.qty));
+                    }, 0).toFixed(2)
+                );
+                return {
+                    schema: MINI_PROTOCOL_VERSION,
+                    type: 'takeout_delivery',
+                    restaurant: _miniSafeText(raw.restaurant || firstItem.restaurant || firstItem.store, '暖心外卖'),
+                    items: items,
+                    deliveryFee: _miniSafeMoney(raw.deliveryFee || raw.delivery_fee, '0.00'),
+                    total: total,
+                    eta: _miniSafeText(raw.eta, '尽快送达'),
+                    note: _miniSafeText(raw.note || raw.desc || raw.content, '给你点了外卖'),
+                    receiver: _miniSafeText(raw.receiver, ''),
+                    status: ['preparing', 'delivering', 'arrived'].includes(raw.status) ? raw.status : 'preparing'
+                };
+            }
+            case 'call':
+            case 'video_call':
+            case 'call_invite': {
+                const mode = raw.mode === 'video' || raw.type === 'video_call' ? 'video' : 'voice';
+                const status = ['ringing', 'missed', 'ended', 'declined', 'connected'].includes(raw.status) ? raw.status : 'ringing';
+                return {
+                    schema: MINI_PROTOCOL_VERSION,
+                    type: 'call_invite',
+                    mode: mode,
+                    status: status,
+                    note: _miniSafeText(raw.note || raw.content, mode === 'video' ? '发起视频通话' : '发起语音通话')
+                };
+            }
+            default:
                 return null;
-            }
-            return normalized;
         }
+    }
 
-        function normalizePresence(payload) {
-            const normalized = {
-                type: 'presence_update',
-                status_text: firstText(payload && payload.status_text, payload && payload.statusText, payload && payload.content),
-                mood_text: firstText(payload && payload.mood_text, payload && payload.moodText, payload && payload.mood),
-                location: firstText(payload && payload.location),
-                intent: firstText(payload && payload.intent, payload && payload.desires, payload && payload.next_topic, payload && payload.thoughts)
-            };
-            if (!normalized.status_text && !normalized.mood_text && !normalized.location && !normalized.intent) {
-                return null;
-            }
-            return normalized;
-        }
-
-        function normalizePayload(rawPayload, source) {
-            if (!rawPayload || typeof rawPayload !== 'object' || Array.isArray(rawPayload)) return null;
-            const aliasMap = {
-                transaction: 'transfer',
-                open_red_packet: 'handle_red_packet',
-                accept_transaction: 'handle_transfer',
-                voice: 'voice_message',
-                audio: 'voice_message',
-                status_update: 'presence_update',
-                full_status_update: 'presence_update',
-                meta_state: 'role_state'
-            };
-            let type = firstText(rawPayload.type, rawPayload.kind, rawPayload.command).toLowerCase();
-            type = aliasMap[type] || type;
-            if (!type) {
-                const fallbackText = firstText(rawPayload.content, rawPayload.message, rawPayload.text);
-                return fallbackText ? { type: 'text', content: fallbackText } : null;
-            }
-            switch (type) {
-                case 'text': {
-                    const content = firstText(rawPayload.content, rawPayload.message, rawPayload.text);
-                    return content ? { type: 'text', content: content } : null;
-                }
-                case 'camera': {
-                    const content = firstText(rawPayload.content, rawPayload.description, rawPayload.caption, rawPayload.text);
-                    return content ? { type: 'camera', content: content } : null;
-                }
-                case 'image': {
-                    const content = firstText(rawPayload.content, rawPayload.url, rawPayload.image);
-                    return content ? { type: 'image', content: content } : null;
-                }
-                case 'emoticon': {
-                    const content = firstText(rawPayload.content, rawPayload.url, rawPayload.image);
-                    if (!content) return null;
-                    return {
-                        type: 'emoticon',
-                        content: content,
-                        desc: firstText(rawPayload.desc, rawPayload.keyword, rawPayload.name) || '表情'
-                    };
-                }
-                case 'location': {
-                    const address = firstText(rawPayload.address, rawPayload.name, rawPayload.content, rawPayload.text);
-                    if (!address) return null;
-                    return {
-                        type: 'location',
-                        address: address,
-                        distance: firstText(rawPayload.distance, rawPayload.desc)
-                    };
-                }
-                case 'voice_message': {
-                    const content = firstText(rawPayload.content, rawPayload.message, rawPayload.text, rawPayload.transcript);
-                    if (!content) return null;
-                    return {
-                        type: 'voice_message',
-                        content: content,
-                        translation: firstText(rawPayload.translation)
-                    };
-                }
-                case 'red_packet':
-                    return {
-                        type: 'red_packet',
-                        amount: normalizeMoney(rawPayload.amount, 0),
-                        desc: firstText(rawPayload.desc, rawPayload.greeting, rawPayload.note, rawPayload.content) || '恭喜发财，大吉大利',
-                        status: normalizeRedPacketStatus(rawPayload.status),
-                        isLegacy: source === 'legacy'
-                    };
-                case 'transfer':
-                    return {
-                        type: 'transfer',
-                        amount: normalizeMoney(rawPayload.amount, 0),
-                        desc: firstText(rawPayload.desc, rawPayload.note, rawPayload.content, rawPayload.message) || '转账',
-                        status: normalizeTransferStatus(rawPayload.status),
-                        isLegacy: source === 'legacy'
-                    };
-                case 'takeaway':
-                case 'gift':
-                case 'call':
-                case 'video_call':
-                case 'handle_red_packet':
-                case 'handle_transfer': {
-                    const shallowCopy = Object.assign({}, rawPayload, { type: type });
-                    if (type === 'handle_transfer') {
-                        shallowCopy.action = normalizeTransferStatus(shallowCopy.action || shallowCopy.status) === 'refunded' ? 'refunded' : 'received';
-                    }
-                    return shallowCopy;
-                }
-                case 'presence_update':
-                    return normalizePresence(rawPayload);
-                case 'role_state':
-                    return normalizeRoleState(rawPayload);
-                default: {
-                    const content = firstText(rawPayload.content, rawPayload.message, rawPayload.text);
-                    return content ? { type: 'text', content: content } : null;
-                }
-            }
-        }
-
-        function parseLegacyTransfer(text) {
-            if (!LEGACY_TRANSFER_RE.test(text || '')) return null;
-            const tfText = String(text || '')
-                .replace(/^💰\s*/, '')
-                .replace(/^\[微信转账\]\s*/, '')
-                .replace(/^【转账[：:][^】]*】\s*/, '')
-                .replace(/^\[转账\]\s*/, '')
-                .trim();
-            const amountMatch = tfText.match(/¥\s*([\d,]+(?:\.\d+)?)/) || tfText.match(/^([\d,]+(?:\.\d+)?)/);
-            const desc = tfText
-                .replace(/向你转账\s*/g, '')
-                .replace(/¥\s*[\d,]+(?:\.\d+)?/, '')
-                .replace(/^[\d,]+(?:\.\d+)?/, '')
-                .trim();
-            return normalizePayload({
-                type: 'transfer',
-                amount: amountMatch ? amountMatch[1].replace(/,/g, '') : '0.00',
-                desc: desc || '转账',
-                status: 'pending'
-            }, 'legacy');
-        }
-
-        function parseLegacyRedPacket(text) {
-            if (!LEGACY_RED_PACKET_RE.test(text || '')) return null;
-            const rpText = String(text || '')
-                .replace(/^🧧\s*/, '')
-                .replace(/^【红包[：:][^】]*】\s*/, '')
-                .replace(/^\[红包\]\s*/, '')
-                .trim();
-            const amountMatch = rpText.match(/¥\s*([\d,]+(?:\.\d+)?)/) || rpText.match(/^([\d,]+(?:\.\d+)?)/);
-            const descInBracket = rpText.match(/^\[([^\]]+)\]/);
-            const desc = descInBracket
-                ? descInBracket[1]
-                : rpText.replace(/¥\s*[\d,]+(?:\.\d+)?/, '').replace(/^[\d,]+(?:\.\d+)?/, '').trim();
-            return normalizePayload({
-                type: 'red_packet',
-                amount: amountMatch ? amountMatch[1].replace(/,/g, '') : '0.00',
-                desc: desc || '恭喜发财，大吉大利',
-                status: 'unclaimed'
-            }, 'legacy');
-        }
-
-        function parseContent(content) {
-            if (content === null || content === undefined) return null;
-            if (typeof content === 'object' && !Array.isArray(content)) {
-                return normalizePayload(content, 'object');
-            }
-            const raw = String(content || '');
-            if (!raw.trim()) return null;
-            try {
-                return normalizePayload(JSON.parse(raw), 'json');
-            } catch (err) {}
-            if (raw.startsWith('[CAMERA]')) {
-                return { type: 'camera', content: raw.substring(8).trim(), isLegacy: true };
-            }
-            return parseLegacyTransfer(raw) || parseLegacyRedPacket(raw);
-        }
-
-        function buildContent(typeOrPayload, data) {
-            const rawPayload = typeof typeOrPayload === 'string'
-                ? Object.assign({ type: typeOrPayload }, data || {})
-                : typeOrPayload;
-            const payload = normalizePayload(rawPayload, 'build');
-            if (!payload) return '';
-            switch (payload.type) {
-                case 'text':
-                    return JSON.stringify({ type: 'text', content: payload.content });
-                case 'camera':
-                    return JSON.stringify({ type: 'camera', content: payload.content });
-                case 'image':
-                    return JSON.stringify({ type: 'image', content: payload.content });
-                case 'emoticon':
-                    return JSON.stringify({ type: 'emoticon', desc: payload.desc, content: payload.content });
-                case 'location':
-                    return JSON.stringify({ type: 'location', address: payload.address, distance: payload.distance || '' });
-                case 'voice_message':
-                    return JSON.stringify({ type: 'voice_message', content: payload.content });
-                case 'red_packet':
-                    return JSON.stringify({ type: 'red_packet', amount: payload.amount, desc: payload.desc, status: payload.status });
-                case 'transfer':
-                    return JSON.stringify({ type: 'transfer', amount: payload.amount, desc: payload.desc, status: payload.status });
-                default:
-                    return JSON.stringify(payload);
-            }
-        }
-
-        function updateStatus(content, nextStatus) {
-            const payload = parseContent(content);
-            if (!payload) return '';
-            if (payload.type === 'red_packet') {
-                payload.status = normalizeRedPacketStatus(nextStatus);
-            } else if (payload.type === 'transfer') {
-                payload.status = normalizeTransferStatus(nextStatus);
-            } else {
-                return buildContent(payload);
-            }
-            return buildContent(payload);
-        }
-
-        function isCardType(type) {
-            return type === 'red_packet' || type === 'transfer';
-        }
-
-        function findLatestPendingMessage(messages, sender, type) {
-            const targetType = String(type || '').trim();
-            const list = Array.isArray(messages) ? messages : [];
-            for (let i = list.length - 1; i >= 0; i--) {
-                const msg = list[i];
-                if (!msg || (sender && msg.sender !== sender)) continue;
-                const payload = parseContent(msg.content);
-                if (!payload || payload.type !== targetType) continue;
-                if (targetType === 'red_packet' && payload.status === 'unclaimed') return { msg: msg, payload: payload };
-                if (targetType === 'transfer' && payload.status === 'pending') return { msg: msg, payload: payload };
-            }
+    function parseMiniStructuredPayload(content) {
+        if (!content || typeof content !== 'string') return null;
+        try {
+            return normalizeMiniStructuredPayload(JSON.parse(content));
+        } catch (e) {
             return null;
         }
+    }
 
-        return {
-            parseContent: parseContent,
-            buildContent: buildContent,
-            updateStatus: updateStatus,
-            isCardType: isCardType,
-            findLatestPendingMessage: findLatestPendingMessage,
-            normalizeRoleState: normalizeRoleState
-        };
-    })();
+    function createMiniStructuredMessage(type, payload) {
+        const normalized = normalizeMiniStructuredPayload(Object.assign({ type: type }, payload || {}));
+        return normalized ? JSON.stringify(normalized) : '';
+    }
+
+    function isMiniStructuredPayloadType(type) {
+        return MINI_STRUCTURED_TYPES.has(type);
+    }
+
+    function getMiniStructuredPreview(parsed) {
+        if (!parsed || !parsed.type) return '';
+        if (parsed.type === 'voice_message') return '[语音] ' + (parsed.transcript || '');
+        if (parsed.type === 'red_packet') {
+            const statusText = parsed.status === 'claimed' ? '已领取' : '待领取';
+            return `[红包] ¥${parsed.amount} ${parsed.memo} (${statusText})`;
+        }
+        if (parsed.type === 'transfer') {
+            const statusMap = { pending: '待收款', received: '已收款', refunded: '已退回' };
+            return `[转账] ¥${parsed.amount} ${parsed.memo} (${statusMap[parsed.status] || '待收款'})`;
+        }
+        if (parsed.type === 'gift_delivery') {
+            const names = parsed.items.slice(0, 2).map(function(item) { return item.name; }).join('、');
+            return `[礼物] ${names || '礼物'}${parsed.note ? ' · ' + parsed.note : ''}`;
+        }
+        if (parsed.type === 'takeout_delivery') {
+            const names = parsed.items.slice(0, 2).map(function(item) { return item.name; }).join('、');
+            const head = parsed.restaurant ? (parsed.restaurant + ' · ') : '';
+            return `[外卖] ${head}${names || '外卖'}${parsed.eta ? ' · ' + parsed.eta : ''}`;
+        }
+        if (parsed.type === 'call_invite') {
+            const modeLabel = parsed.mode === 'video' ? '视频通话' : '语音通话';
+            return '[' + modeLabel + '] ' + (parsed.note || '通话邀请');
+        }
+        return '';
+    }
+
     // 提取消息纯文本（用于引用、列表展示、过滤HTML和JSON等）
     function extractMsgPureText(content) {
         if (!content) return '';
-        const payload = window.MiniChatProtocol && typeof window.MiniChatProtocol.parseContent === 'function'
-            ? window.MiniChatProtocol.parseContent(content)
-            : null;
-        if (payload) {
-            if (payload.type === 'voice_message') return '[语音] ' + (payload.content || '');
-            if (payload.type === 'camera') return '[相片] ' + (payload.content || '');
-            if (payload.type === 'image') return '[图片]';
-            if (payload.type === 'emoticon') return `[表情] ${payload.desc || ''}`;
-            if (payload.type === 'location') return `[定位] ${payload.address || ''}`;
-            if (payload.type === 'red_packet') return '[红包]';
-            if (payload.type === 'transfer') return '[转账]';
-            if (payload.type === 'takeaway') return '[外卖]';
-            if (payload.type === 'gift') return '[礼物]';
-            if (payload.type === 'call') return '[语音通话]';
-            if (payload.type === 'video_call') return '[视频通话]';
-            if (payload.content) return payload.content;
-        }
+        const structured = parseMiniStructuredPayload(content);
+        if (structured) return getMiniStructuredPreview(structured);
+        try {
+            const parsed = JSON.parse(content);
+            if (parsed.type === 'camera') return '[相片] ' + (parsed.content || '');
+            if (parsed.type === 'image') return '[图片]';
+            if (parsed.type === 'emoticon') return `[表情] ${parsed.desc || ''}`;
+            if (parsed.type === 'location') return `[定位] ${parsed.address || ''}`;
+            if (parsed.content) return parsed.content;
+        } catch(e) {}
+        if (content.startsWith('[CAMERA]')) return '[相片] ' + content.substring(8);
         // 过滤 HTML 标签获取纯文本 (解决掉代码问题)
         // 核心修复：把翻译气泡的分割线替换为空格，防止外文和中文粘连
         let safeContent = content.replace(/<div class="msg-translate-divider"><\/div>/g, ' ');
@@ -544,264 +424,128 @@
         return tempDiv.textContent || tempDiv.innerText || safeContent;
     }
 
-    function clipWechatPromptText(value, maxLen) {
-        if (window.MiniPromptGuard && typeof window.MiniPromptGuard.clipText === 'function') {
-            return window.MiniPromptGuard.clipText(value, maxLen);
-        }
-        const text = value === null || value === undefined ? '' : String(value).replace(/\s+/g, ' ').trim();
-        if (!maxLen || text.length <= maxLen) return text;
-        return text.slice(0, maxLen);
-    }
-
-    function getWechatUserNameForPrompt(contact) {
-        if (contact && contact.userAlias) return contact.userAlias;
-        const meNameEl = document.getElementById('text-wechat-me-name');
-        const uiName = meNameEl && meNameEl.textContent ? meNameEl.textContent.trim() : '';
-        return uiName || '我';
-    }
-
-    function collectRecentRoleSpeechSamples(rawMessages, limit) {
-        return (rawMessages || [])
-            .filter(msg => msg && msg.sender === 'role' && !msg.isRecalled)
-            .slice(-(limit || 3))
-            .map(msg => clipWechatPromptText(extractMsgPureText(msg.content), 50))
-            .filter(Boolean);
-    }
-
-    function buildRecentUserIntentFlags(recentMessages) {
-        const recentUserText = (recentMessages || [])
-            .filter(msg => msg && msg.sender === 'me')
-            .slice(-3)
-            .map(msg => extractMsgPureText(msg.content))
-            .join(' ');
-        return {
-            recentUserText,
-            askPhoto: /照片|图片|自拍|拍给我|发张|看看你|看看你在干嘛/.test(recentUserText),
-            askLocation: /在哪|位置|定位|你人呢|你现在在/.test(recentUserText),
-            askVoice: /语音|说句话|发语音|让我听听/.test(recentUserText),
-            askCall: /打电话|语音通话|电话里说/.test(recentUserText),
-            askVideo: /视频|开视频|视频通话/.test(recentUserText),
-            askTakeaway: /外卖|奶茶|咖啡|吃的|点一份|饿/.test(recentUserText),
-            askGift: /礼物|惊喜|送我|买给我/.test(recentUserText),
-            askMoney: /红包|转账|报销|发我钱|给我钱|v我|奶茶钱/.test(recentUserText)
-        };
-    }
-
-    function serializeWechatMessageForPrompt(msg, contact, userName) {
-        if (!msg) return null;
-        const isSystem = msg.sender === 'system' || msg.isSystemTip;
-        const role = isSystem ? 'user' : (msg.sender === 'me' ? 'user' : 'assistant');
-        const senderLabel = isSystem
-            ? '系统事件'
-            : (msg.sender === 'me' ? (userName || '我') : (contact.roleName || '对方'));
-        const timeLabel = msg.timeStr ? ` ${msg.timeStr}` : '';
-        const prefix = `[${senderLabel}${timeLabel}] `;
-        let quoteText = '';
-
-        if (msg.quoteText) {
-            try {
-                const quote = JSON.parse(msg.quoteText);
-                if (quote && quote.content) {
-                    const quoteName = clipWechatPromptText(quote.name || '引用消息', 18);
-                    const quoteBody = clipWechatPromptText(quote.content, 70);
-                    quoteText = `引用了${quoteName}：${quoteBody}。`;
+    function extractTopLevelJsonObjects(rawText) {
+        const text = String(rawText || '');
+        const objects = [];
+        let depth = 0;
+        let start = -1;
+        let inString = false;
+        let escaped = false;
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                } else if (ch === '\\') {
+                    escaped = true;
+                } else if (ch === '"') {
+                    inString = false;
                 }
+                continue;
+            }
+            if (ch === '"') {
+                inString = true;
+                continue;
+            }
+            if (ch === '{') {
+                if (depth === 0) start = i;
+                depth++;
+            } else if (ch === '}') {
+                depth--;
+                if (depth === 0 && start !== -1) {
+                    objects.push(text.slice(start, i + 1));
+                    start = -1;
+                }
+            }
+        }
+        return objects;
+    }
+
+    function repairMiniRoleReplyText(replyText) {
+        let cleanText = String(replyText || '').trim();
+        cleanText = cleanText.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+        cleanText = cleanText.replace(/\]\s*\[/g, ',');
+        if (cleanText.startsWith('[') && !cleanText.endsWith(']')) {
+            const objectChunks = extractTopLevelJsonObjects(cleanText);
+            if (objectChunks.length > 0) {
+                return '[' + objectChunks.join(',') + ']';
+            }
+        }
+        return cleanText;
+    }
+
+    function normalizeRoleReplyArray(replyText) {
+        const raw = String(replyText || '').trim();
+        if (!raw) return [];
+        let cleanText = repairMiniRoleReplyText(raw);
+        const firstBracket = cleanText.indexOf('[');
+        const lastBracket = cleanText.lastIndexOf(']');
+        if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+            const arrayCandidate = cleanText.substring(firstBracket, lastBracket + 1);
+            try {
+                const parsedArray = JSON.parse(arrayCandidate);
+                if (Array.isArray(parsedArray)) return parsedArray;
             } catch (e) {}
         }
-
-        if (msg.isRecalled) {
-            return { role, content: `${prefix}${quoteText}撤回了一条消息。` };
+        const firstBrace = cleanText.indexOf('{');
+        const lastBrace = cleanText.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            const objectCandidate = cleanText.substring(firstBrace, lastBrace + 1);
+            try {
+                const parsedObject = JSON.parse(objectCandidate);
+                if (Array.isArray(parsedObject)) return parsedObject;
+                if (parsedObject && typeof parsedObject === 'object') return [parsedObject];
+            } catch (e) {}
         }
-
-        const payload = window.MiniChatProtocol && typeof window.MiniChatProtocol.parseContent === 'function'
-            ? window.MiniChatProtocol.parseContent(msg.content)
-            : null;
-        if (payload && payload.type === 'image' && payload.content && msg.sender === 'me') {
-            return {
-                role,
-                content: [
-                    { type: 'text', text: `${prefix}${quoteText}发送了一张图片，请结合图片内容继续对话。` },
-                    { type: 'image_url', image_url: { url: payload.content, detail: 'high' } }
-                ]
-            };
-        }
-        if (payload && payload.type === 'camera') {
-            const desc = clipWechatPromptText(payload.content || '发送了一张照片', 180);
-            return { role, content: `${prefix}${quoteText}发送了一张照片：${desc}` };
-        }
-        if (payload && payload.type === 'voice_message') {
-            const voiceText = clipWechatPromptText(payload.content || '语音内容未写明', 180);
-            return { role, content: `${prefix}${quoteText}发送了一条语音：${voiceText}` };
-        }
-        if (payload && payload.type === 'emoticon') {
-            const emoDesc = clipWechatPromptText(payload.desc || '表情包', 60);
-            return { role, content: `${prefix}${quoteText}发送了表情包：${emoDesc}` };
-        }
-        if (payload && payload.type === 'location') {
-            const address = clipWechatPromptText(payload.address || '未知位置', 120);
-            const distance = clipWechatPromptText(payload.distance || '', 40);
-            return { role, content: `${prefix}${quoteText}分享了位置：${address}${distance ? `，${distance}` : ''}` };
-        }
-        if (payload && payload.type === 'red_packet') {
-            const amount = clipWechatPromptText(payload.amount || '未知金额', 24);
-            const desc = clipWechatPromptText(payload.desc || '', 80);
-            const status = clipWechatPromptText(payload.status || '未说明状态', 30);
-            return { role, content: `${prefix}${quoteText}发送了红包，金额 ${amount}，备注：${desc || '无'}，状态：${status}` };
-        }
-        if (payload && payload.type === 'transfer') {
-            const amount = clipWechatPromptText(payload.amount || '未知金额', 24);
-            const desc = clipWechatPromptText(payload.desc || '', 80);
-            const status = clipWechatPromptText(payload.status || '未说明状态', 30);
-            return { role, content: `${prefix}${quoteText}发起了转账，金额 ${amount}，备注：${desc || '无'}，状态：${status}` };
-        }
-        if (payload && payload.type === 'takeaway') {
-            return { role, content: `${prefix}${quoteText}发起了外卖动作：${clipWechatPromptText(payload.desc || payload.item || '点了外卖', 120)}` };
-        }
-        if (payload && payload.type === 'gift') {
-            return { role, content: `${prefix}${quoteText}送出了礼物：${clipWechatPromptText(payload.desc || payload.item || '礼物', 120)}` };
-        }
-        if (payload && payload.type === 'call') {
-            return { role, content: `${prefix}${quoteText}发起了语音通话。` };
-        }
-        if (payload && payload.type === 'video_call') {
-            return { role, content: `${prefix}${quoteText}发起了视频通话。` };
-        }
-        if (payload && payload.type === 'handle_red_packet') {
-            return { role, content: `${prefix}${quoteText}领取了红包。` };
-        }
-        if (payload && payload.type === 'handle_transfer') {
-            return { role, content: `${prefix}${quoteText}${payload.action === 'refunded' ? '退回了转账。' : '收下了转账。'}` };
-        }
-        if (payload && payload.type === 'reply') {
-            const targetText = clipWechatPromptText(payload.target_text || '', 70);
-            const body = clipWechatPromptText(payload.content || '', 160);
-            return { role, content: `${prefix}${quoteText}回复了“${targetText}”：${body}` };
-        }
-        if (payload && payload.content) {
-            return { role, content: `${prefix}${quoteText}${clipWechatPromptText(payload.content, 220)}` };
-        }
-
-        const cleanContent = clipWechatPromptText(extractMsgPureText(msg.content), 240);
-        if (!cleanContent) return null;
-        return { role, content: `${prefix}${quoteText}${cleanContent}` };
-    }
-
-    function validateWechatReplyArray(replyArr, allowedTypes, visibleMin, visibleMax) {
-        const allowedTypeSet = new Set((allowedTypes || []).map(type => String(type || '').trim()).filter(Boolean));
-        const errors = [];
-        let visibleCount = 0;
-        let metaState = null;
-
-        if (!Array.isArray(replyArr) || replyArr.length === 0) {
-            return { ok: false, errors: ['empty_array'], visibleCount: 0, metaState: null };
-        }
-
-        replyArr.forEach((item, index) => {
-            if (!item || typeof item !== 'object' || Array.isArray(item)) {
-                errors.push(`item_${index}_not_object`);
-                return;
-            }
-            const type = String(item.type || '').trim();
-            if (!type) {
-                errors.push(`item_${index}_missing_type`);
-                return;
-            }
-            if (!allowedTypeSet.has(type)) {
-                errors.push(`item_${index}_unsupported_${type}`);
-                return;
-            }
-            if (type === 'meta_state') {
-                if (metaState) errors.push('duplicate_meta_state');
-                metaState = item;
-                return;
-            }
-
-            visibleCount += 1;
-            if (['text', 'camera', 'voice_message', 'recall_msg'].includes(type) && !clipWechatPromptText(item.content, 300)) {
-                errors.push(`item_${index}_${type}_missing_content`);
-            }
-            if (type === 'reply') {
-                if (!clipWechatPromptText(item.target_text, 80)) errors.push(`item_${index}_reply_missing_target`);
-                if (!clipWechatPromptText(item.content, 200)) errors.push(`item_${index}_reply_missing_content`);
-            }
-            if (type === 'emoticon' && !clipWechatPromptText(item.content, 300)) {
-                errors.push(`item_${index}_emoticon_missing_url`);
-            }
-            if (type === 'location' && !clipWechatPromptText(item.address, 180)) {
-                errors.push(`item_${index}_location_missing_address`);
-            }
-            if (type === 'red_packet' && isNaN(parseFloat(String(item.amount).replace(/[^\d.]/g, '')))) {
-                errors.push(`item_${index}_red_packet_bad_amount`);
-            }
-            if ((type === 'transfer' || type === 'transaction') && isNaN(parseFloat(String(item.amount).replace(/[^\d.]/g, '')))) {
-                errors.push(`item_${index}_transfer_bad_amount`);
-            }
-            if (type === 'handle_transfer' && !['received', 'refunded'].includes(String(item.action || 'received'))) {
-                errors.push(`item_${index}_handle_transfer_bad_action`);
-            }
-        });
-
-        if (!metaState) errors.push('missing_meta_state');
-        if (visibleCount < visibleMin || visibleCount > visibleMax) {
-            errors.push(`visible_count_${visibleCount}_out_of_range_${visibleMin}_${visibleMax}`);
-        }
-
-        return {
-            ok: errors.length === 0,
-            errors,
-            visibleCount,
-            metaState
-        };
-    }
-
-    async function repairWechatReplyPayload(rawReplyText, options) {
-        if (!options || !options.apiUrl || !options.apiKey || !options.model) return '';
-        const cleanApiUrl = options.apiUrl.replace(/\/+$/, '').replace(/\/v1$/, '');
-        const endpoint = `${cleanApiUrl}/v1/chat/completions`;
-        const minCount = options.visibleMin || 1;
-        const maxCount = options.visibleMax || minCount;
-        const preferredCount = options.preferredCount || minCount;
-        const allowedTypes = (options.allowedTypes || []).join(', ');
-        const repairMessages = [
-            {
-                role: 'system',
-                content:
-`你是 mini 的结构修复器，不负责续写剧情，只负责把原始回复修复成合法 JSON 数组。
-修复要求：
-1. 只能输出纯 JSON 数组，绝对不要 Markdown、解释、注释。
-2. 只允许使用这些 type：${allowedTypes}。
-3. 可见消息条数必须在 ${minCount}-${maxCount} 条之间，优先靠近 ${preferredCount} 条，但不要为了凑数重复废话。
-4. 数组最后必须带一个 {"type":"meta_state","mood":"...","bond":"...","focus":"...","style":"..."}。
-5. 保留原始回复的人设语气，只修格式和字段，不要改成别的角色。`
-            },
-            {
-                role: 'user',
-                content: `请把下面这段原始回复修复成合法 JSON 数组：\n${rawReplyText || ''}`
-            }
-        ];
-
-        try {
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${options.apiKey}`
-                },
-                body: JSON.stringify({
-                    model: options.model,
-                    messages: repairMessages,
-                    temperature: 0.2
-                })
+        const objectChunks = extractTopLevelJsonObjects(cleanText);
+        if (objectChunks.length > 0) {
+            const parsedChunks = objectChunks.map(function(chunk) {
+                try { return JSON.parse(chunk); } catch (e) { return null; }
+            }).filter(function(item) {
+                return !!item && typeof item === 'object';
             });
-            if (!response.ok) return '';
-            const data = await response.json();
-            return data && data.choices && data.choices[0] && data.choices[0].message
-                ? String(data.choices[0].message.content || '').trim()
-                : '';
-        } catch (err) {
-            console.warn('结构修复请求失败', err);
-            return '';
+            if (parsedChunks.length > 0) return parsedChunks;
         }
+        const lineResults = [];
+        let hasStructuredObject = false;
+        raw.split('\n').forEach(function(line) {
+            const trimmed = line.trim();
+            if (!trimmed) return;
+            const normalizedLine = trimmed.replace(/^[,\[]+/, '').replace(/[,\]]+$/, '').trim();
+            let parsedLine = null;
+            if (normalizedLine) {
+                try {
+                    parsedLine = JSON.parse(normalizedLine);
+                } catch (e) {
+                    const braceStart = normalizedLine.indexOf('{');
+                    const braceEnd = normalizedLine.lastIndexOf('}');
+                    if (braceStart !== -1 && braceEnd > braceStart) {
+                        const objCandidate = normalizedLine.slice(braceStart, braceEnd + 1);
+                        try { parsedLine = JSON.parse(objCandidate); } catch (e2) {}
+                    }
+                }
+            }
+            if (Array.isArray(parsedLine)) {
+                parsedLine.forEach(function(item) {
+                    if (item && typeof item === 'object') {
+                        lineResults.push(item);
+                        hasStructuredObject = true;
+                    }
+                });
+                return;
+            }
+            if (parsedLine && typeof parsedLine === 'object') {
+                lineResults.push(parsedLine);
+                hasStructuredObject = true;
+                return;
+            }
+            lineResults.push({ type: 'text', content: trimmed });
+        });
+        if (hasStructuredObject) return lineResults;
+        return lineResults.map(function(item) {
+            if (item && typeof item === 'object' && item.type) return item;
+            return { type: 'text', content: String(item && item.content ? item.content : '') };
+        });
     }
 
     function autoGrowTextarea(el) {
@@ -811,18 +555,12 @@
             const curH = parseFloat(cs.height) || el.offsetHeight || 0;
             const minH = parseFloat(cs.minHeight);
             const maxH = parseFloat(cs.maxHeight);
-            const lineHeightRaw = parseFloat(cs.lineHeight);
-            const fontSize = parseFloat(cs.fontSize) || 14;
-            const lineHeight = Number.isFinite(lineHeightRaw) ? lineHeightRaw : fontSize * 1.45;
-            const paddingY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
-            const borderY = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
-            const singleRowHeight = Math.ceil(lineHeight + paddingY + borderY);
-            const useMessageInputMin = el.id === 'chat-input-main' || el.id === 'offline-input-field';
-            const finalMinH = useMessageInputMin
-                ? Math.max(singleRowHeight, Number.isFinite(minH) ? minH : 0)
-                : Math.max(curH, Number.isFinite(minH) ? minH : 0, singleRowHeight);
+            // 在线聊天输入框不锁定首帧高度，避免初始被抬高；其余 textarea 保持原有行为
+            const useSoftMinHeight = el.id === 'chat-input-main';
+            const finalMinH = useSoftMinHeight
+                ? (Number.isFinite(minH) ? minH : 0)
+                : Math.max(curH, Number.isFinite(minH) ? minH : 0);
             el.dataset.autoGrowMin = String(finalMinH || 0);
-            el.dataset.autoGrowSingle = String(singleRowHeight || 0);
             if (Number.isFinite(maxH) && maxH > 0) {
                 el.dataset.autoGrowMax = String(maxH);
             }
@@ -831,16 +569,7 @@
         el.style.height = 'auto';
         const minHeight = parseFloat(el.dataset.autoGrowMin) || 0;
         const maxHeight = parseFloat(el.dataset.autoGrowMax) || 0;
-        const singleLineHeight = parseFloat(el.dataset.autoGrowSingle) || minHeight;
-        const normalizedValue = String(el.value || '').replace(/\r/g, '');
         let nextHeight = Math.max(el.scrollHeight, minHeight);
-        // 移动端部分 WebView 会把单行 textarea 的 scrollHeight 误报成接近两行，
-        // 这里对空内容 / 单行内容做软纠偏，避免输入栏一开始就像两行高。
-        if (!normalizedValue.trim()) {
-            nextHeight = Math.max(minHeight, singleLineHeight);
-        } else if (normalizedValue.indexOf('\n') === -1 && nextHeight <= singleLineHeight + 8) {
-            nextHeight = Math.max(minHeight, singleLineHeight);
-        }
         if (maxHeight > 0 && nextHeight > maxHeight) {
             nextHeight = maxHeight;
             el.style.overflowY = 'auto';
@@ -849,7 +578,6 @@
         }
         el.style.height = nextHeight + 'px';
     }
-    window.autoGrowTextarea = autoGrowTextarea;
 
     async function buildOfflineCrossModeMemoryText(contact, ctxLimit) {
         if (!contact) return '';
@@ -941,14 +669,6 @@
                 .replace(/"/g, '&quot;')
                 .replace(/\n/g, '<br>');
         }
-        function _safeAttr(raw) {
-            return String(raw || '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-        }
         let msgBodyHtml = '';
         const translationMatch = (typeof msg.content === 'string')
             ? msg.content.match(/^\s*<div class="msg-original-text">([\s\S]*?)<\/div>\s*<div class="msg-translate-divider"><\/div>\s*<div class="msg-translated-text">([\s\S]*?)<\/div>\s*$/)
@@ -972,96 +692,309 @@
         let isVoiceMsg = false;
         let voiceText = '';
         let voiceSeconds = 0;
-        const payload = window.MiniChatProtocol && typeof window.MiniChatProtocol.parseContent === 'function'
-            ? window.MiniChatProtocol.parseContent(msg.content)
-            : null;
-        if (payload && payload.type === 'text') {
-            msgBodyHtml = `<div class="msg-text-body">${_safeTextHtml(payload.content || '')}</div>`;
-        } else if (payload && payload.type === 'camera') {
-            isCameraMsg = true;
-            cameraDesc = payload.content || '';
-        } else if (payload && payload.type === 'image') {
-            isImageMsg = true;
-            imageBase64 = payload.content || '';
-        } else if (payload && payload.type === 'emoticon') {
-            isEmoticonMsg = true;
-            emoticonUrl = payload.content || '';
-        } else if (payload && payload.type === 'location') {
-            isLocationMsg = true;
-            locationAddress = payload.address || '未知位置';
-            locationDistance = payload.distance || '';
-        } else if (payload && payload.type === 'voice_message') {
-            isVoiceMsg = true;
-            voiceText = payload.content || '';
-            voiceSeconds = Math.max(1, Math.ceil(voiceText.length / 3));
-        } else if (payload && payload.type === 'red_packet') {
-            statusHtml = '';
-            const rpAmount = payload.amount || '0.00';
-            const rpDesc = payload.desc || '恭喜发财，大吉大利';
-            const rpStatus = payload.status || 'unclaimed';
-            const rpStatusLabel = rpStatus === 'claimed' ? '已领取' : (rpStatus === 'expired' ? '已失效' : '待领取');
-            const rpStatusColor = rpStatus === 'claimed' || rpStatus === 'expired' ? '#bbb' : '#888';
-            const roleName = activeChatContact ? (activeChatContact.roleName || '对方') : '对方';
-            msgBodyHtml = `
-                <div class="card-wrapper" data-no-bubble="1">
-                    <div class="chat-red-packet-card${rpStatus !== 'unclaimed' ? ' rp-claimed' : ''}" data-rp-amount="${_safeAttr(rpAmount)}" data-rp-desc="${_safeAttr(rpDesc)}" data-rp-status="${_safeAttr(rpStatus)}" data-rp-role="${isMe ? 'me' : 'role'}" data-rp-rname="${_safeAttr(roleName)}" onclick="openRpClaimModal(this, this.dataset.rpAmount, this.dataset.rpDesc, this.dataset.rpStatus, this.dataset.rpRole, this.dataset.rpRname, ${msg.id})">
-                        <div class="rp-card-icon-area">
-                            <div class="rp-card-icon-wrap">
-                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="rgba(100,100,100,0.55)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="4" width="18" height="16" rx="2" ry="2"></rect>
-                                    <line x1="3" y1="10" x2="21" y2="10"></line>
-                                    <circle cx="12" cy="10" r="2"></circle>
-                                </svg>
+        const structuredMsg = parseMiniStructuredPayload(msg.content);
+        if (structuredMsg) {
+            if (structuredMsg.type === 'voice_message') {
+                isVoiceMsg = true;
+                voiceText = structuredMsg.transcript || '';
+                voiceSeconds = Math.max(1, structuredMsg.durationSec || 1);
+            } else if (structuredMsg.type === 'red_packet') {
+                statusHtml = '';
+                const rpAmount = structuredMsg.amount || '0.00';
+                const rpDesc = structuredMsg.memo || '恭喜发财，大吉大利';
+                const rpStatus = structuredMsg.status || 'unclaimed';
+                const rpStatusLabel = rpStatus === 'claimed' ? '已领取' : '待领取';
+                const rpStatusColor = rpStatus === 'claimed' ? '#bbb' : '#888';
+                const roleName = _miniEscapeAttr(activeChatContact ? (activeChatContact.roleName || '对方') : '对方');
+                msgBodyHtml = `
+                    <div class="card-wrapper" data-no-bubble="1">
+                        <div class="chat-red-packet-card${rpStatus === 'claimed' ? ' rp-claimed' : ''}" onclick="openRpClaimModal(this, '${rpAmount}', '${_miniEscapeAttr(rpDesc)}', '${rpStatus}', '${isMe ? 'me' : 'role'}', '${roleName}', ${msg.id})">
+                            <div class="rp-card-icon-area">
+                                <div class="rp-card-icon-wrap">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="rgba(100,100,100,0.55)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="4" width="18" height="16" rx="2" ry="2"></rect>
+                                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                                        <circle cx="12" cy="10" r="2"></circle>
+                                    </svg>
+                                </div>
+                                <div class="rp-card-text-group">
+                                    <div class="rp-card-amount">¥ ${rpAmount}</div>
+                                    <div class="rp-card-desc">${_safeTextHtml(rpDesc)}</div>
+                                </div>
                             </div>
-                            <div class="rp-card-text-group">
-                                <div class="rp-card-amount">¥ ${_safeTextHtml(rpAmount)}</div>
-                                <div class="rp-card-desc">${_safeTextHtml(rpDesc)}</div>
+                            <div class="rp-card-divider"></div>
+                            <div class="rp-card-bottom">
+                                <span class="rp-card-status" style="color:${rpStatusColor};">${rpStatusLabel}</span>
+                                <span class="rp-card-brand">WeChat红包</span>
                             </div>
-                        </div>
-                        <div class="rp-card-divider"></div>
-                        <div class="rp-card-bottom">
-                            <span class="rp-card-status" style="color:${rpStatusColor};">${rpStatusLabel}</span>
-                            <span class="rp-card-brand">WeChat红包</span>
                         </div>
                     </div>
-                </div>
-            `;
-        } else if (payload && payload.type === 'transfer') {
-            statusHtml = '';
-            const tfAmount = payload.amount || '0.00';
-            const tfDesc = payload.desc || '转账';
-            const tfStatus = payload.status || 'pending';
-            const tfStatusLabel = tfStatus === 'refunded' ? '已退回' : (tfStatus === 'received' ? '已收款' : (tfStatus === 'expired' ? '已失效' : '待收款'));
-            const tfStatusColor = tfStatus === 'pending' ? '#888' : '#bbb';
-            const roleName2 = activeChatContact ? (activeChatContact.roleName || '对方') : '对方';
-            msgBodyHtml = `
-                <div class="card-wrapper" data-no-bubble="1">
-                    <div class="chat-transfer-card${tfStatus !== 'pending' ? ' tf-received' : ''}" data-tf-amount="${_safeAttr(tfAmount)}" data-tf-desc="${_safeAttr(tfDesc)}" data-tf-status="${_safeAttr(tfStatus)}" data-tf-role="${isMe ? 'me' : 'role'}" data-tf-rname="${_safeAttr(roleName2)}" onclick="openTfActionModal(this, this.dataset.tfAmount, this.dataset.tfDesc, this.dataset.tfStatus, this.dataset.tfRole, this.dataset.tfRname)">
-                        <div class="tf-card-icon-area">
-                            <div class="tf-card-icon-wrap">
-                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="rgba(100,100,100,0.55)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="16 3 21 3 21 8"></polyline>
-                                    <line x1="4" y1="20" x2="21" y2="3"></line>
-                                    <polyline points="21 16 21 21 16 21"></polyline>
-                                    <line x1="15" y1="15" x2="21" y2="21"></line>
-                                    <line x1="4" y1="4" x2="9" y2="9"></line>
-                                </svg>
+                `;
+            } else if (structuredMsg.type === 'transfer') {
+                statusHtml = '';
+                const tfAmount = structuredMsg.amount || '0.00';
+                const tfDesc = structuredMsg.memo || '转账';
+                const tfStatus = structuredMsg.status || 'pending';
+                const tfStatusLabel = tfStatus === 'refunded' ? '已退回' : (tfStatus === 'received' ? '已收款' : '待收款');
+                const roleName2 = _miniEscapeAttr(activeChatContact ? (activeChatContact.roleName || '对方') : '对方');
+                msgBodyHtml = `
+                    <div class="card-wrapper" data-no-bubble="1">
+                        <div class="chat-transfer-card${tfStatus !== 'pending' ? ' tf-received' : ''}" data-tf-amount="${tfAmount}" data-tf-desc="${_miniEscapeAttr(tfDesc)}" data-tf-status="${tfStatus}" data-tf-role="${isMe ? 'me' : 'role'}" data-tf-rname="${roleName2}" onclick="openTfActionModal(this, this.dataset.tfAmount, this.dataset.tfDesc, this.dataset.tfStatus, this.dataset.tfRole, this.dataset.tfRname)">
+                            <div class="tf-card-icon-area">
+                                <div class="tf-card-icon-wrap">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="rgba(100,100,100,0.55)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="16 3 21 3 21 8"></polyline>
+                                        <line x1="4" y1="20" x2="21" y2="3"></line>
+                                        <polyline points="21 16 21 21 16 21"></polyline>
+                                        <line x1="15" y1="15" x2="21" y2="21"></line>
+                                        <line x1="4" y1="4" x2="9" y2="9"></line>
+                                    </svg>
+                                </div>
+                                <div class="tf-card-text-group">
+                                    <div class="tf-card-amount">¥ ${tfAmount}</div>
+                                    <div class="tf-card-desc">${_safeTextHtml(tfDesc)}</div>
+                                </div>
                             </div>
-                            <div class="tf-card-text-group">
-                                <div class="tf-card-amount">¥ ${_safeTextHtml(tfAmount)}</div>
-                                <div class="tf-card-desc">${_safeTextHtml(tfDesc)}</div>
+                            <div class="tf-card-divider"></div>
+                            <div class="tf-card-bottom">
+                                <span class="tf-card-status" style="color:#888;">${tfStatusLabel}</span>
+                                <span class="tf-card-brand">WeChat转账</span>
                             </div>
-                        </div>
-                        <div class="tf-card-divider"></div>
-                        <div class="tf-card-bottom">
-                            <span class="tf-card-status" style="color:${tfStatusColor};">${tfStatusLabel}</span>
-                            <span class="tf-card-brand">WeChat转账</span>
                         </div>
                     </div>
-                </div>
-            `;
-        } else if (payload && ['takeaway', 'gift', 'call', 'video_call'].includes(payload.type)) {
-            msgBodyHtml = `<div class="msg-text-body" style="color:#aaa; font-style:italic; font-size: 12px; background: #f0f0f0; padding: 4px 8px; border-radius: 8px;">[${payload.type} 功能暂未实装]</div>`;
+                `;
+            } else if (structuredMsg.type === 'gift_delivery') {
+                statusHtml = '';
+                const giftTitle = structuredMsg.items.slice(0, 2).map(function(item) {
+                    return item.name + (item.qty > 1 ? (' ×' + item.qty) : '');
+                }).join(' · ');
+                const giftStatusLabel = structuredMsg.status === 'received' ? '已签收' : '待查收';
+                msgBodyHtml = `
+                    <div class="card-wrapper" data-no-bubble="1">
+                        <div class="chat-special-card special-gift-card">
+                            <div class="special-card-header">
+                                <div class="special-card-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="20 12 20 22 4 22 4 12"></polyline>
+                                        <rect x="2" y="7" width="20" height="5"></rect>
+                                        <line x1="12" y1="22" x2="12" y2="7"></line>
+                                        <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path>
+                                        <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path>
+                                    </svg>
+                                </div>
+                                <div class="special-card-meta">
+                                    <div class="special-card-kicker">礼物清单</div>
+                                    <div class="special-card-title">${_safeTextHtml(giftTitle || '给你准备了礼物')}</div>
+                                </div>
+                            </div>
+                            <div class="special-card-note">${_safeTextHtml(structuredMsg.note || '送你一份心意')}</div>
+                            <div class="special-card-footer">
+                                <span>${structuredMsg.items.length} 件心意</span>
+                                <span>${giftStatusLabel}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (structuredMsg.type === 'takeout_delivery') {
+                statusHtml = '';
+                const takeoutTitle = structuredMsg.items.slice(0, 2).map(function(item) {
+                    return item.name + (item.qty > 1 ? (' ×' + item.qty) : '');
+                }).join(' · ');
+                const takeoutStatusMap = {
+                    preparing: '商家备餐中',
+                    delivering: '正在配送',
+                    arrived: '已送达'
+                };
+                msgBodyHtml = `
+                    <div class="card-wrapper" data-no-bubble="1">
+                        <div class="chat-special-card special-takeout-card">
+                            <div class="special-card-header">
+                                <div class="special-card-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M7 10h10"></path>
+                                        <path d="M7 14h10"></path>
+                                        <path d="M5 6h14l-1 12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6z"></path>
+                                        <path d="M9 6V4a3 3 0 0 1 6 0v2"></path>
+                                    </svg>
+                                </div>
+                                <div class="special-card-meta">
+                                    <div class="special-card-kicker">${_safeTextHtml(structuredMsg.restaurant || '暖心外卖')}</div>
+                                    <div class="special-card-title">${_safeTextHtml(takeoutTitle || '给你点了外卖')}</div>
+                                </div>
+                            </div>
+                            <div class="special-card-note">${_safeTextHtml(structuredMsg.note || '记得趁热吃')}</div>
+                            <div class="special-card-footer">
+                                <span>合计 ¥ ${structuredMsg.total || '0.00'}</span>
+                                <span>${_safeTextHtml(takeoutStatusMap[structuredMsg.status] || structuredMsg.eta || '尽快送达')}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (structuredMsg.type === 'call_invite') {
+                statusHtml = '';
+                const callModeLabel = structuredMsg.mode === 'video' ? '视频通话' : '语音通话';
+                const callStatusMap = {
+                    ringing: '等待接听',
+                    connected: '已接通',
+                    ended: '通话结束',
+                    missed: '未接听',
+                    declined: '已拒绝'
+                };
+                msgBodyHtml = `
+                    <div class="card-wrapper" data-no-bubble="1">
+                        <div class="chat-special-card special-call-card">
+                            <div class="special-card-header">
+                                <div class="special-card-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                                        ${structuredMsg.mode === 'video'
+                                            ? '<polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>'
+                                            : '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>'}
+                                    </svg>
+                                </div>
+                                <div class="special-card-meta">
+                                    <div class="special-card-kicker">${callModeLabel}</div>
+                                    <div class="special-card-title">${_safeTextHtml(structuredMsg.note || '发起通话邀请')}</div>
+                                </div>
+                            </div>
+                            <div class="special-card-note">${callStatusMap[structuredMsg.status] || '等待接听'}</div>
+                            <div class="special-card-footer">
+                                <span>通话邀请</span>
+                                <span>${callStatusMap[structuredMsg.status] || '等待接听'}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        } else {
+            try {
+                const parsed = JSON.parse(msg.content);
+                if (parsed && parsed.type === 'camera') {
+                    isCameraMsg = true;
+                    cameraDesc = parsed.content || '';
+                } else if (parsed && parsed.type === 'image') {
+                    isImageMsg = true;
+                    imageBase64 = parsed.content || '';
+                } else if (parsed && parsed.type === 'emoticon') {
+                    isEmoticonMsg = true;
+                    emoticonUrl = parsed.content || '';
+                } else if (parsed && parsed.type === 'location') {
+                    isLocationMsg = true;
+                    locationAddress = parsed.address || '未知位置';
+                    locationDistance = parsed.distance || '';
+                }
+            } catch(e) {
+                // 兼容旧的 [CAMERA] 格式
+                if (msg.content && msg.content.startsWith('[CAMERA]')) {
+                    isCameraMsg = true;
+                    cameraDesc = msg.content.substring(8);
+                }
+                // 兼容旧的纯文本转账/红包格式，统一匹配所有可能的前缀变体：
+                // 💰 [微信转账] 向你转账 ¥200.00
+                // 【转账：测试专用】
+                // [转账] 向你转账 ¥12.00
+                else if (msg.content && (
+                    msg.content.startsWith('💰') ||
+                    msg.content.startsWith('【转账') ||
+                    msg.content.startsWith('[转账]') ||
+                    /^\[微信转账\]/.test(msg.content)
+                )) {
+                    statusHtml = '';
+                    // 统一清理各种前缀后提取剩余文本
+                    let tfText = msg.content
+                        .replace(/^💰\s*/, '')
+                        .replace(/^\[微信转账\]\s*/,'')
+                        .replace(/^【转账[：:][^】]*】\s*/,'')
+                        .replace(/^\[转账\]\s*/,'')
+                        .trim();
+                    // 尝试提取金额（¥ 后面的数字，或直接的纯数字）
+                    const amtMatch = tfText.match(/¥\s*([\d,]+(?:\.\d+)?)/) || tfText.match(/^([\d,]+(?:\.\d+)?)/);
+                    const tfAmount = amtMatch ? amtMatch[1].replace(/,/g, '') : '0.00';
+                    // 提取备注：去掉"向你转账"和金额部分后剩余内容，或用原始文本
+                    let tfDesc = tfText
+                        .replace(/向你转账\s*/g, '')
+                        .replace(/¥\s*[\d,]+(?:\.\d+)?/, '')
+                        .replace(/^[\d,]+(?:\.\d+)?/, '')
+                        .trim();
+                    if (!tfDesc) tfDesc = '转账';
+                    const roleName2 = activeChatContact ? (activeChatContact.roleName || '对方') : '对方';
+                    msgBodyHtml = `
+                        <div class="card-wrapper" data-no-bubble="1">
+                            <div class="chat-transfer-card" onclick="openTfActionModal(this, '${tfAmount}', '${tfDesc}', 'pending', '${isMe ? 'me' : 'role'}', '${roleName2}')">
+                                <div class="tf-card-top">
+                                    <div class="tf-card-icon">
+                                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="rgba(255,255,255,0.95)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                                            <path d="M2 17l10 5 10-5"></path>
+                                            <path d="M2 12l10 5 10-5"></path>
+                                        </svg>
+                                    </div>
+                                    <div class="tf-card-info">
+                                        <div class="tf-card-amount">¥ ${tfAmount}</div>
+                                        <div class="tf-card-desc">${tfDesc}</div>
+                                    </div>
+                                </div>
+                                <div class="tf-card-divider"></div>
+                                <div class="tf-card-bottom">
+                                    <span class="tf-card-status" style="color:#1a6fb5;">待收款</span>
+                                    <span class="tf-card-brand">转账</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                // 兼容旧的纯文本红包格式，统一匹配所有可能的前缀变体：
+                // 🧧 [恭喜发财，大吉大利]
+                // 【红包：测试专用】
+                // [红包] ¥52.00
+                else if (msg.content && (
+                    msg.content.startsWith('🧧') ||
+                    msg.content.startsWith('【红包') ||
+                    msg.content.startsWith('[红包]')
+                )) {
+                    statusHtml = '';
+                    // 统一清理各种红包前缀后提取剩余文本
+                    let rpText = msg.content
+                        .replace(/^🧧\s*/, '')
+                        .replace(/^【红包[：:][^】]*】\s*/,'')
+                        .replace(/^\[红包\]\s*/,'')
+                        .trim();
+                    // 尝试提取金额（¥ 后面的数字，或直接的纯数字）
+                    const amtMatch2 = rpText.match(/¥\s*([\d,]+(?:\.\d+)?)/) || rpText.match(/^([\d,]+(?:\.\d+)?)/);
+                    const rpAmount = amtMatch2 ? amtMatch2[1].replace(/,/g, '') : '0.00';
+                    // 提取描述：优先取方括号内的文字（如 [恭喜发财，大吉大利]），否则用剩余文本（去掉数字部分）
+                    const descInBracket = rpText.match(/^\[([^\]]+)\]/);
+                    let rpDesc = descInBracket
+                        ? descInBracket[1]
+                        : (rpText.replace(/¥\s*[\d,]+(?:\.\d+)?/, '').replace(/^[\d,]+(?:\.\d+)?/, '').trim() || '恭喜发财，大吉大利');
+                    if (!rpDesc) rpDesc = '恭喜发财，大吉大利';
+                    const roleName = activeChatContact ? (activeChatContact.roleName || '对方') : '对方';
+                    msgBodyHtml = `
+                        <div class="card-wrapper" data-no-bubble="1">
+                            <div class="chat-red-packet-card" onclick="openRpClaimModal(this, '${rpAmount}', '${rpDesc}', 'unclaimed', '${isMe ? 'me' : 'role'}', '${roleName}', ${msg.id})">
+                                <div class="rp-card-top">
+                                    <div class="rp-card-icon">
+                                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="rgba(255,255,255,0.95)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="2" y="7" width="20" height="14" rx="3" ry="3"></rect>
+                                            <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"></path>
+                                            <line x1="12" y1="12" x2="12" y2="16"></line>
+                                            <line x1="10" y1="14" x2="14" y2="14"></line>
+                                        </svg>
+                                    </div>
+                                    <div class="rp-card-info">
+                                        <div class="rp-card-amount">¥ ${rpAmount}</div>
+                                        <div class="rp-card-desc">${rpDesc}</div>
+                                    </div>
+                                </div>
+                                <div class="rp-card-divider"></div>
+                                <div class="rp-card-bottom">
+                                    <span class="rp-card-status" style="color:#e8534a;">待领取</span>
+                                    <span class="rp-card-brand">红包</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
         }
         if (isCameraMsg) {
             statusHtml = ''; // 隐藏双✓
@@ -1070,7 +1003,7 @@
                     <div class="chat-photo-front">
                         <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
                     </div>
-                    <div class="chat-photo-back">${_safeTextHtml(cameraDesc)}</div>
+                    <div class="chat-photo-back">${cameraDesc}</div>
                 </div>
             `;
         } else if (isImageMsg || isEmoticonMsg) {
@@ -1086,8 +1019,8 @@
             msgBodyHtml = `
                 <div class="chat-location-card">
                     <div class="chat-location-header">
-                        <div class="chat-location-address">${_safeTextHtml(locationAddress)}</div>
-                        <div class="chat-location-distance">${_safeTextHtml(locationDistance)}</div>
+                        <div class="chat-location-address">${locationAddress}</div>
+                        <div class="chat-location-distance">${locationDistance}</div>
                     </div>
                     <div class="chat-location-map">
                         <div class="chat-location-shadow"></div>
@@ -1111,7 +1044,7 @@
                     </div>
                     <div class="voice-expand-area">
                         <div class="voice-divider"></div>
-                        <div class="voice-text-content">${_safeTextHtml(voiceText)}</div>
+                        <div class="voice-text-content">${voiceText}</div>
                     </div>
                 </div>
             `;
@@ -1119,19 +1052,19 @@
         // 拉黑状态下角色消息气泡右上角显示红色感叹号（发送失败标志）
         const _showBlockedBadge = !isMe && activeChatContact && activeChatContact.blocked;
         const _blockedBadgeHtml = _showBlockedBadge ? `<div style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#e74c3c;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700;box-shadow:0 2px 6px rgba(231,76,60,0.5);">!</div>` : '';
-        const hideBubbleChrome = isCameraMsg || isImageMsg || isEmoticonMsg || isLocationMsg || (payload && window.MiniChatProtocol && window.MiniChatProtocol.isCardType(payload.type));
+        const _isBubblelessMsg = isCameraMsg || isImageMsg || isEmoticonMsg || isLocationMsg || !!(structuredMsg && ['red_packet', 'transfer', 'gift_delivery', 'takeout_delivery', 'call_invite'].includes(structuredMsg.type));
         return `
             <div class="chat-msg-row ${msgClass}" data-id="${msg.id}" data-sender="${msg.sender}">
                 <div class="msg-checkbox ${isChecked}" onclick="toggleMsgCheck(${msg.id})"></div>
                 <div class="chat-msg-avatar"><img src="${avatar}" loading="lazy" decoding="async"></div>
 
                 <div class="msg-bubble-wrapper" style="position:relative;">
-                    <div class="chat-msg-content msg-content-touch" style="${hideBubbleChrome ? 'background:transparent; box-shadow:none; padding:0;' : ''}">
+                    <div class="chat-msg-content msg-content-touch" style="${_isBubblelessMsg ? 'background:transparent; box-shadow:none; padding:0;' : ''}">
                         ${quoteHtml}
                         ${msgBodyHtml}
                         ${statusHtml}
                     </div>
-                    <div class="chat-timestamp" style="${hideBubbleChrome ? 'display:none;' : ''}">${msg.timeStr}</div>
+                    <div class="chat-timestamp" style="${_isBubblelessMsg ? 'display:none;' : ''}">${msg.timeStr}</div>
                     ${_blockedBadgeHtml}
                 </div>
             </div>
@@ -1433,10 +1366,13 @@
         }
         // 填充姓名
         if (nameEl) nameEl.textContent = activeChatContact.roleName || '角色';
-        // 在线状态与签名：优先使用 AI 最近一轮更新出的活体状态
-        const presenceDisplay = getRolePresenceDisplay(activeChatContact);
-        if (statusEl) statusEl.textContent = presenceDisplay.statusText;
-        if (sigEl) sigEl.textContent = presenceDisplay.signatureText;
+        // 在线状态（固定显示在线）
+        if (statusEl) statusEl.textContent = '在线';
+        // 个性签名：取角色详细设定的前40字作为签名
+        if (sigEl) {
+            const detail = activeChatContact.roleDetail || '';
+            sigEl.textContent = detail.length > 0 ? (detail.length > 40 ? detail.substring(0, 40) + '...' : detail) : '暂无个性签名';
+        }
 
         // 同步拉黑按钮状态
         updateRpBlockBtn();
@@ -1786,18 +1722,6 @@
 
             const rawMessages = await chatListDb.messages.where('contactId').equals(contact.id).toArray();
             const recentMessages = (ctxLimit === 0) ? rawMessages : rawMessages.slice(-ctxLimit);
-            const recentDigest = buildRoleplayConversationDigest(recentMessages, contact, { limit: 8, itemMaxLen: 72 });
-            const recentNeedles = buildRecentChatNeedles(contact, rawMessages);
-            const latestHints = buildLatestTurnStyleHints(recentMessages);
-            const presenceSnapshot = contact.aiPresence || {};
-            const moodSnapshot = await getMomentsMoodSnapshot(contact.id);
-            let roleStatePrompt = '';
-            try {
-                if (window.MiniPromptGuard) {
-                    const savedRoleState = await window.MiniPromptGuard.loadRoleState(contact.id);
-                    roleStatePrompt = window.MiniPromptGuard.buildRoleStatePrompt(savedRoleState);
-                }
-            } catch (e) {}
 
             // 构建拉黑感知专用 system prompt（角色始终围绕解除拉黑话题）
             const blockedPrompt = '【重要！你正处于被拉黑状态】用户已将你拉黑，你无法正常联系对方。你的所有回复必须紧紧围绕"解除拉黑"这一核心诉求，表现出焦虑、渴望、委屈或强烈的求和欲，绝对不可以正常聊天，必须一直尝试说服用户解除拉黑！';
@@ -1808,7 +1732,7 @@
             const messages = [
                 {
                     role: 'system',
-                    content: `你是通过聊天软件与用户互动的角色，完全沉浸于角色中。\n${blockedPrompt}\n【格式要求】本次只输出1条纯文本回复，不要JSON格式，直接输出自然语言文本。\n【语气要求】极度口语化、碎片化，像真人网聊一样简短。\n【角色红线】必须先守住人设、关系状态、历史事实，再开口说话；拿不准就含糊，不要胡编。\n${roleSetting}\n${userSetting}\n${roleStatePrompt ? '隐藏角色锚点：\n' + roleStatePrompt + '\n' : ''}${recentDigest ? '最近对话摘要：\n' + recentDigest + '\n' : ''}${recentNeedles ? '当前最该接住的点：\n' + recentNeedles + '\n' : ''}${latestHints ? '本轮提醒：\n' + latestHints + '\n' : ''}${(presenceSnapshot.statusText || presenceSnapshot.moodText || presenceSnapshot.location || presenceSnapshot.intent) ? '上一轮活体状态：\n' + (presenceSnapshot.statusText ? '状态：' + presenceSnapshot.statusText + '\n' : '') + (presenceSnapshot.moodText ? '情绪：' + presenceSnapshot.moodText + '\n' : '') + (presenceSnapshot.location ? '位置：' + presenceSnapshot.location + '\n' : '') + (presenceSnapshot.intent ? '意图：' + presenceSnapshot.intent + '\n' : '') : ''}${(moodSnapshot && (moodSnapshot.love !== undefined || moodSnapshot.jealous !== undefined || moodSnapshot.monologue || moodSnapshot.dark)) ? '情绪快照：\n' + (moodSnapshot.love !== undefined ? '亲密感：' + moodSnapshot.love + '\n' : '') + (moodSnapshot.jealous !== undefined ? '吃醋值：' + moodSnapshot.jealous + '\n' : '') + (moodSnapshot.heartrate !== undefined ? '心率感：' + moodSnapshot.heartrate + '\n' : '') + (moodSnapshot.monologue ? '内心旁白：' + moodSnapshot.monologue + '\n' : '') + (moodSnapshot.dark ? '压抑面：' + moodSnapshot.dark + '\n' : '') : ''}`
+                    content: `你是通过聊天软件与用户互动的角色，完全沉浸于角色中。\n${blockedPrompt}\n【格式要求】本次只输出1条纯文本回复，不要JSON格式，直接输出自然语言文本。\n【语气要求】极度口语化、碎片化，像真人网聊一样简短。\n${roleSetting}\n${userSetting}`
                 }
             ];
 
@@ -1906,16 +1830,11 @@
     function generateBlockApplyMsgHtml(msg, myAvatar, roleAvatar) {
         const avatar = roleAvatar;
         const timeStr = msg.timeStr || '';
-        const payload = window.MiniChatProtocol && typeof window.MiniChatProtocol.parseContent === 'function'
-            ? window.MiniChatProtocol.parseContent(msg.content)
-            : null;
-        let content = payload && payload.content ? payload.content : msg.content;
-        content = String(content || '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/\n/g, '<br>');
+        let content = '';
+        try {
+            const parsed = JSON.parse(msg.content);
+            content = parsed.content || msg.content;
+        } catch(e) { content = msg.content; }
         return `
             <div class="chat-msg-row msg-left" data-id="${msg.id}" data-sender="role">
                 <div class="msg-checkbox" onclick="toggleMsgCheck(${msg.id})"></div>
@@ -2032,7 +1951,6 @@
 
     // ====== 朋友圈发布与互动 ======
     const MOMENTS_POSTS_KEY = 'miffy_moments_posts_v1';
-    const MOMENTS_AUTO_SETTINGS_KEY = 'miffy_moments_auto_settings_v1';
     let momentsPosts = [];
     let momentsComposeImages = [];
     let momentsComposeCameraShots = [];
@@ -2042,23 +1960,6 @@
     let momentsHeartLoadingPostId = null;
     let momentsCommentTargetPostId = null;
     let cameraModalTarget = 'chat';
-    let momentsAutoSettings = null;
-    let momentsAutoScheduler = null;
-    let momentsAutoRunning = false;
-    let momentsRefreshLongPressTimer = null;
-    let momentsRefreshLongPressTriggered = false;
-
-    function getDefaultMomentsAutoSettings() {
-        return {
-            enabled: false,
-            frequencyMin: 30,
-            writingStyle: '贴近日常社交、真实口语化、简洁有画面感',
-            allowedContactIds: [],
-            npcEnabled: true,
-            initialized: false,
-            lastAutoAt: 0
-        };
-    }
 
     document.addEventListener('DOMContentLoaded', () => {
         initMomentsFeature().catch(err => console.error('朋友圈初始化失败', err));
@@ -2071,49 +1972,18 @@
             if (!Array.isArray(post.images)) post.images = [];
             if (!Array.isArray(post.cameraShots)) post.cameraShots = [];
             if (!Array.isArray(post.comments)) post.comments = [];
-            if (!Array.isArray(post.likes)) post.likes = [];
             if (!Array.isArray(post.mentionIds)) post.mentionIds = [];
             if (!Array.isArray(post.blockIds)) post.blockIds = [];
             post.mentionIds = post.mentionIds.map(id => String(id));
             post.blockIds = post.blockIds.map(id => String(id));
             if (!Array.isArray(post.mentionNames)) post.mentionNames = [];
             if (!Array.isArray(post.blockNames)) post.blockNames = [];
-            if (!post.authorType) post.authorType = 'me';
-            if (!post.authorId) post.authorId = post.authorType === 'role' ? String(post.id || '') : 'me';
         });
-        await loadMomentsAutoSettings();
         renderMomentsFeed();
-        bindMomentsRefreshLongPress();
     }
 
     async function persistMomentsPosts() {
         await localforage.setItem(MOMENTS_POSTS_KEY, momentsPosts);
-    }
-
-    async function loadMomentsAutoSettings() {
-        const saved = await localforage.getItem(MOMENTS_AUTO_SETTINGS_KEY);
-        const defaults = getDefaultMomentsAutoSettings();
-        momentsAutoSettings = Object.assign({}, defaults, saved || {});
-        if (!Array.isArray(momentsAutoSettings.allowedContactIds)) {
-            momentsAutoSettings.allowedContactIds = [];
-        }
-        momentsAutoSettings.allowedContactIds = momentsAutoSettings.allowedContactIds.map(id => String(id));
-        momentsAutoSettings.frequencyMin = Math.max(1, Math.min(1440, parseInt(momentsAutoSettings.frequencyMin, 10) || 30));
-        if (!momentsAutoSettings.initialized) {
-            try {
-                const contacts = await contactDb.contacts.toArray();
-                momentsAutoSettings.allowedContactIds = contacts.map(c => String(c.id));
-                momentsAutoSettings.initialized = true;
-            } catch (e) {}
-        }
-        await localforage.setItem(MOMENTS_AUTO_SETTINGS_KEY, momentsAutoSettings);
-        scheduleMomentsAutoGenerator();
-        return momentsAutoSettings;
-    }
-
-    async function persistMomentsAutoSettings() {
-        if (!momentsAutoSettings) momentsAutoSettings = getDefaultMomentsAutoSettings();
-        await localforage.setItem(MOMENTS_AUTO_SETTINGS_KEY, momentsAutoSettings);
     }
 
     function escapeMomentsHtml(text) {
@@ -2174,15 +2044,12 @@
                 <div class="moments-post-cameras">
                     ${(post.cameraShots || []).map(desc => `
                         <div class="moments-post-camera-card">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 8a2 2 0 0 1 2-2h3l1.2-2h5.6L16 6h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8z"></path><circle cx="12" cy="13" r="4"></circle></svg>
                             <span>${escapeMomentsHtml(desc || '')}</span>
                         </div>
                     `).join('')}
                 </div>
             ` : '';
-            const selfName = getCurrentMomentsProfile().nick || '我';
-            const likeNames = (post.likes || []).slice();
-            if (post.likedByMe && !likeNames.includes(selfName)) likeNames.unshift(selfName);
-            const likesHtml = likeNames.length ? `<div class="moments-post-comments moments-post-likes">❤ ${likeNames.map(escapeMomentsHtml).join('、')}</div>` : '';
             const commentsHtml = (post.comments || []).length ? `
                 <div class="moments-post-comments">
                     ${(post.comments || []).map(c => {
@@ -2214,7 +2081,6 @@
                                 <button type="button" class="moments-post-action delete" title="删除" onclick="deleteMomentPost('${post.id}')">${getMomentsDeleteIcon()}</button>
                             </div>
                         </div>
-                        ${likesHtml}
                         ${commentsHtml}
                     </div>
                 </div>
@@ -2222,63 +2088,23 @@
         }).join('');
     }
 
-    function refreshMomentsFeed(evt) {
-        if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
-        if (momentsRefreshLongPressTriggered) {
-            momentsRefreshLongPressTriggered = false;
-            return;
-        }
-        renderMomentsFeed();
-        const btn = document.getElementById('moments-refresh-btn');
-        if (!btn) return;
-        btn.classList.remove('is-spinning');
-        void btn.offsetWidth;
-        btn.classList.add('is-spinning');
-        setTimeout(() => {
-            btn.classList.remove('is-spinning');
-        }, 560);
-    }
-
-    function bindMomentsRefreshLongPress() {
-        const btn = document.getElementById('moments-refresh-btn');
-        if (!btn || btn.dataset.longpressBound === '1') return;
-        btn.dataset.longpressBound = '1';
-        const clearPress = () => {
-            if (momentsRefreshLongPressTimer) {
-                clearTimeout(momentsRefreshLongPressTimer);
-                momentsRefreshLongPressTimer = null;
-            }
-        };
-        btn.addEventListener('touchstart', () => {
-            momentsRefreshLongPressTriggered = false;
-            clearPress();
-            momentsRefreshLongPressTimer = setTimeout(() => {
-                momentsRefreshLongPressTriggered = true;
-                openMomentsAutoModal();
-            }, 520);
-        }, { passive: true });
-        btn.addEventListener('touchend', clearPress, { passive: true });
-        btn.addEventListener('touchcancel', clearPress, { passive: true });
-        btn.addEventListener('touchmove', clearPress, { passive: true });
-    }
-
     function getMomentsLikeIcon(active) {
         if (active) {
-            return '<svg class="moments-action-glyph moments-action-like active" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>';
+            return '<svg viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M7 10h3.1c.7 0 1.4-.4 1.7-1l1.8-3.8a1.9 1.9 0 0 1 3.6.8V10h1.9a2 2 0 0 1 2 2.4l-1.2 5.8a2 2 0 0 1-2 1.6H7V10z"></path><rect x="3" y="10" width="3" height="10" rx="1.3" fill="currentColor"></rect></svg>';
         }
-        return '<svg class="moments-action-glyph moments-action-like" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>';
+        return '<svg viewBox="0 0 24 24"><path d="M7 10h3.1c.7 0 1.4-.4 1.7-1l1.8-3.8a1.9 1.9 0 0 1 3.6.8V10h1.9a2 2 0 0 1 2 2.4l-1.2 5.8a2 2 0 0 1-2 1.6H7V10z"></path><rect x="3" y="10" width="3" height="10" rx="1.3"></rect></svg>';
     }
 
     function getMomentsCommentIcon() {
-        return '<svg class="moments-action-glyph moments-action-comment" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
+        return '<svg viewBox="0 0 24 24"><path d="M12 4.2c4.6 0 8.3 3.3 8.3 7.4S16.6 19 12 19a9.8 9.8 0 0 1-4-.8L3.7 20l1-3.6a7 7 0 0 1-1.1-3.8c0-4.1 3.7-7.4 8.4-7.4z"></path></svg>';
     }
 
     function getMomentsStarIcon() {
-        return '<svg class="moments-action-glyph moments-action-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>';
+        return '<svg viewBox="0 0 24 24"><path d="M12 3.2 14.9 9l6.4.9-4.6 4.5 1.1 6.4L12 17.8l-5.8 3 1.1-6.4L2.7 9.9 9.1 9z"></path></svg>';
     }
 
     function getMomentsDeleteIcon() {
-        return '<svg class="moments-action-glyph moments-action-delete" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+        return '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
     }
 
     function openMomentsComposer(evt) {
@@ -2401,6 +2227,9 @@
         `).join('');
         const cameraHtml = momentsComposeCameraShots.map((desc, idx) => `
             <div class="moments-compose-item moments-compose-camera-item">
+                <div class="moments-compose-camera-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 8a2 2 0 0 1 2-2h3l1.2-2h5.6L16 6h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                </div>
                 <div class="moments-compose-camera-text">${escapeMomentsHtml(desc || '')}</div>
                 <span class="moments-compose-remove" onclick="removeMomentsComposeCamera(${idx})">×</span>
             </div>
@@ -2506,8 +2335,6 @@
         const blockContacts = momentsComposeContacts.filter(c => momentsComposeBlockIds.includes(String(c.id)));
         const post = {
             id: `${Date.now()}_${Math.floor(Math.random() * 100000)}`,
-            authorType: 'me',
-            authorId: 'me',
             nickname: profile.nick,
             avatar: profile.avatar,
             text: text,
@@ -2518,7 +2345,6 @@
             mentionNames: mentionContacts.map(c => c._displayName || c.roleName || '未命名'),
             blockNames: blockContacts.map(c => c._displayName || c.roleName || '未命名'),
             likedByMe: false,
-            likes: [],
             comments: [],
             createdAt: Date.now()
         };
@@ -2526,9 +2352,6 @@
         await persistMomentsPosts();
         closeMomentsComposer();
         renderMomentsFeed();
-        if (momentsAutoSettings && momentsAutoSettings.npcEnabled) {
-            runMomentsNcpInteraction(post, { reason: 'user_post' }).catch(e => console.error('NCP互动失败', e));
-        }
     }
 
     async function toggleMomentLike(postId) {
@@ -2594,462 +2417,6 @@
         renderMomentsFeed();
     }
 
-    async function getMomentsApiRuntime() {
-        const apiUrl = await localforage.getItem('miffy_api_url');
-        const apiKey = await localforage.getItem('miffy_api_key');
-        const model = await localforage.getItem('miffy_api_model');
-        const temp = parseFloat(await localforage.getItem('miffy_api_temp')) || 0.7;
-        const ctxRaw = await localforage.getItem('miffy_api_ctx');
-        const ctxLimit = (ctxRaw !== null && ctxRaw !== '') ? parseInt(ctxRaw, 10) : 10;
-        if (!apiUrl || !apiKey || !model) {
-            throw new Error('请先在设置中配置 API 地址、密钥与模型。');
-        }
-        const cleanApiUrl = apiUrl.replace(/\/+$/, '').replace(/\/v1$/, '');
-        return {
-            apiUrl: cleanApiUrl,
-            apiKey: apiKey,
-            model: model,
-            temp: temp,
-            ctxLimit: isNaN(ctxLimit) ? 10 : ctxLimit,
-            endpoint: `${cleanApiUrl}/v1/chat/completions`
-        };
-    }
-
-    async function getMomentsMoodSnapshot(contactId) {
-        if (!contactId) return {};
-        try {
-            const history = await localforage.getItem('hv_history_' + contactId);
-            if (!Array.isArray(history) || history.length === 0) return {};
-            const latest = history[0] || {};
-            return {
-                love: parseInt(latest.love, 10) || 0,
-                jealous: parseInt(latest.jealous, 10) || 0,
-                heartrate: parseInt(latest.heartrate, 10) || 0,
-                monologue: clipMomentsText(latest.monologue || '', 120),
-                dark: clipMomentsText(latest.dark || '', 120)
-            };
-        } catch (e) {
-            return {};
-        }
-    }
-
-    async function buildMomentsActiveWorldbook(contact, recentMessages) {
-        let wbSetting = '';
-        if (!contact || !Array.isArray(contact.worldbooks) || contact.worldbooks.length === 0) return wbSetting;
-        const wbs = await db.entries.where('id').anyOf(contact.worldbooks).toArray();
-        const recentPureText = (recentMessages || []).map(m => extractMsgPureText(m.content)).join(' ');
-        wbs.forEach(wb => {
-            if (wb.activation === 'always') {
-                wbSetting += (wbSetting ? '\n' : '') + (wb.content || '');
-            } else if (wb.activation === 'keyword' && wb.keywords) {
-                const keywords = wb.keywords.split(/[,，]/).map(k => k.trim()).filter(Boolean);
-                if (keywords.some(kw => recentPureText.includes(kw))) {
-                    wbSetting += (wbSetting ? '\n' : '') + (wb.content || '');
-                }
-            }
-        });
-        return clipMomentsText(wbSetting, 900);
-    }
-
-    function isLikelyImageContent(text) {
-        const raw = String(text || '').trim();
-        if (!raw) return false;
-        return /^data:image\//i.test(raw) || /^https?:\/\/\S+\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?.*)?$/i.test(raw);
-    }
-
-    async function createRoleMomentPost(contact, styleText) {
-        const runtime = await getMomentsApiRuntime();
-        const rawMessages = await chatListDb.messages.where('contactId').equals(contact.id).toArray();
-        const recentMessages = (runtime.ctxLimit === 0) ? rawMessages : rawMessages.slice(-runtime.ctxLimit);
-        const textOnlyMode = Math.random() < 0.38;
-        const contextText = recentMessages.map(msg => {
-            const pure = clipMomentsText(extractMsgPureText(msg.content), 120);
-            if (!pure) return '';
-            const sender = msg.sender === 'me' ? (contact.userName || '我') : (contact.roleName || '角色');
-            return `${sender}: ${pure}`;
-        }).filter(Boolean).slice(-10).join('\n');
-        const mood = await getMomentsMoodSnapshot(contact.id);
-        const worldbook = await buildMomentsActiveWorldbook(contact, recentMessages);
-        const displayName = await getMomentsContactDisplayName(contact);
-        const systemPrompt = [
-            '你在生成微信朋友圈动态内容。',
-            '输出必须是严格 JSON 数组，数组内每个元素必须是对象且必须携带 type 字段。',
-            '仅允许 type=text 或 type=image，禁止出现其他 type。',
-            'text 格式：{"type":"text","content":"文本内容"}',
-            'image 格式：{"type":"image","content":"图片URL/base64或图片描述"}',
-            textOnlyMode ? '本次是纯文字朋友圈，禁止输出 image 元素。' : '配图不是必需，可以纯文字，也可以带 1~2 个 image 元素，但不要为了凑数硬塞图片。',
-            '禁止输出 Markdown、解释、前后缀。',
-            '至少输出 1 个元素，最多 3 个元素。'
-        ].join('\n');
-        const userPayload = {
-            role_name: contact.roleName || '未命名',
-            role_setting: clipMomentsText(contact.roleDetail || '', 500),
-            user_setting: clipMomentsText(contact.userDetail || '', 420),
-            context_limit: runtime.ctxLimit,
-            dialog_context: clipMomentsText(contextText, 1200),
-            worldbook: worldbook,
-            mood: mood,
-            writing_style: clipMomentsText(styleText || '', 220),
-            publish_mode: textOnlyMode ? '本次抽到纯文字动态，只输出 text。' : '本次允许纯文字或少量配图，配图不是必须。',
-            strict_requirement: '必须贴合双方绑定关系和设定，内容真实自然，不要空泛鸡汤。'
-        };
-        const response = await fetch(runtime.endpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${runtime.apiKey}`
-            },
-            body: JSON.stringify({
-                model: runtime.model,
-                temperature: runtime.temp,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: JSON.stringify(userPayload) }
-                ]
-            })
-        });
-        if (!response.ok) {
-            let errMsg = `朋友圈生成失败 (状态码: ${response.status})`;
-            try {
-                const errData = await response.json();
-                if (errData && errData.error && errData.error.message) errMsg += `：${errData.error.message}`;
-            } catch (e) {}
-            throw new Error(errMsg);
-        }
-        const data = await response.json();
-        const rawText = data && data.choices && data.choices[0] && data.choices[0].message ? data.choices[0].message.content : '';
-        const parsed = JSON.parse(extractJsonArrayFromText(rawText));
-        if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('角色朋友圈返回格式无效。');
-
-        const textParts = [];
-        const images = [];
-        const cameraShots = [];
-        parsed.forEach(item => {
-            const type = String(item && item.type || '').trim().toLowerCase();
-            if (type === 'text') {
-                const content = clipMomentsText(item.content || '', 180);
-                if (content) textParts.push(content);
-                return;
-            }
-            if (type === 'image') {
-                if (textOnlyMode) return;
-                const content = String((item && (item.content || item.url || item.desc)) || '').trim();
-                if (!content) return;
-                if (isLikelyImageContent(content)) {
-                    images.push(content);
-                } else {
-                    cameraShots.push(clipMomentsText(content, 80));
-                }
-            }
-        });
-        if (textParts.length === 0 && images.length === 0 && cameraShots.length === 0) {
-            textParts.push(mood.monologue || '记录一下今天的状态。');
-        }
-
-        return {
-            id: `${Date.now()}_${Math.floor(Math.random() * 100000)}`,
-            authorType: 'role',
-            authorId: String(contact.id),
-            nickname: displayName || contact.roleName || '未命名',
-            avatar: contact.roleAvatar || whitePixel,
-            text: clipMomentsText(textParts.join('\n'), 320),
-            images: images.slice(0, 9),
-            cameraShots: cameraShots.slice(0, 9),
-            mentionIds: [],
-            blockIds: [],
-            mentionNames: [],
-            blockNames: [],
-            likedByMe: false,
-            likes: [],
-            comments: [],
-            createdAt: Date.now()
-        };
-    }
-
-    async function getMomentsAllowedContacts() {
-        const contacts = await contactDb.contacts.toArray();
-        if (!momentsAutoSettings) await loadMomentsAutoSettings();
-        const allowedIds = new Set((momentsAutoSettings.allowedContactIds || []).map(id => String(id)));
-        return contacts.filter(c => allowedIds.has(String(c.id)));
-    }
-
-    function closeMomentsAutoModal() {
-        const modal = document.getElementById('moments-auto-modal');
-        if (modal) modal.style.display = 'none';
-    }
-
-    async function openMomentsAutoModal() {
-        if (!momentsAutoSettings) await loadMomentsAutoSettings();
-        const modal = document.getElementById('moments-auto-modal');
-        if (!modal) return;
-        await renderMomentsAutoModal();
-        modal.style.display = 'flex';
-    }
-
-    async function renderMomentsAutoModal() {
-        if (!momentsAutoSettings) await loadMomentsAutoSettings();
-        const enableEl = document.getElementById('moments-auto-enabled');
-        const freqEl = document.getElementById('moments-auto-frequency');
-        const styleEl = document.getElementById('moments-auto-style');
-        const npcEl = document.getElementById('moments-auto-npc-enabled');
-        if (enableEl) enableEl.checked = !!momentsAutoSettings.enabled;
-        if (freqEl) freqEl.value = String(momentsAutoSettings.frequencyMin || 30);
-        if (styleEl) styleEl.value = momentsAutoSettings.writingStyle || '';
-        if (npcEl) npcEl.checked = momentsAutoSettings.npcEnabled !== false;
-
-        const listEl = document.getElementById('moments-auto-contact-list');
-        if (!listEl) return;
-        const contacts = await contactDb.contacts.toArray();
-        if (!momentsAutoSettings.initialized) {
-            momentsAutoSettings.allowedContactIds = contacts.map(c => String(c.id));
-            momentsAutoSettings.initialized = true;
-            await persistMomentsAutoSettings();
-        }
-        if (!contacts.length) {
-            listEl.innerHTML = '<span class="moments-role-empty">暂无联系人</span>';
-            return;
-        }
-        const chips = await Promise.all(contacts.map(async contact => {
-            const id = String(contact.id);
-            const active = (momentsAutoSettings.allowedContactIds || []).includes(id) ? 'active' : '';
-            const name = await getMomentsContactDisplayName(contact);
-            return `<span class="moments-auto-contact-chip ${active}" onclick="momentsAutoToggleContact('${id}')">${escapeMomentsHtml(name || contact.roleName || '未命名')}</span>`;
-        }));
-        listEl.innerHTML = chips.join('');
-    }
-
-    async function momentsAutoToggleContact(contactId) {
-        if (!momentsAutoSettings) await loadMomentsAutoSettings();
-        const id = String(contactId);
-        const ids = new Set((momentsAutoSettings.allowedContactIds || []).map(x => String(x)));
-        if (ids.has(id)) ids.delete(id); else ids.add(id);
-        momentsAutoSettings.allowedContactIds = Array.from(ids);
-        momentsAutoSettings.initialized = true;
-        await persistMomentsAutoSettings();
-        await renderMomentsAutoModal();
-    }
-
-    async function momentsAutoSelectAllContacts(selectAll) {
-        if (!momentsAutoSettings) await loadMomentsAutoSettings();
-        const contacts = await contactDb.contacts.toArray();
-        momentsAutoSettings.allowedContactIds = selectAll ? contacts.map(c => String(c.id)) : [];
-        momentsAutoSettings.initialized = true;
-        await persistMomentsAutoSettings();
-        await renderMomentsAutoModal();
-    }
-
-    async function saveMomentsAutoSettingsFromModal() {
-        if (!momentsAutoSettings) await loadMomentsAutoSettings();
-        const enableEl = document.getElementById('moments-auto-enabled');
-        const freqEl = document.getElementById('moments-auto-frequency');
-        const styleEl = document.getElementById('moments-auto-style');
-        const npcEl = document.getElementById('moments-auto-npc-enabled');
-        momentsAutoSettings.enabled = !!(enableEl && enableEl.checked);
-        momentsAutoSettings.frequencyMin = Math.max(1, Math.min(1440, parseInt(freqEl && freqEl.value, 10) || 30));
-        momentsAutoSettings.writingStyle = clipMomentsText(styleEl && styleEl.value || '', 320);
-        momentsAutoSettings.npcEnabled = !!(npcEl && npcEl.checked);
-        momentsAutoSettings.initialized = true;
-        await persistMomentsAutoSettings();
-        scheduleMomentsAutoGenerator();
-    }
-
-    function scheduleMomentsAutoGenerator() {
-        if (momentsAutoScheduler) {
-            clearInterval(momentsAutoScheduler);
-            momentsAutoScheduler = null;
-        }
-        if (!momentsAutoSettings || !momentsAutoSettings.enabled) return;
-        momentsAutoScheduler = setInterval(() => {
-            runMomentsAutoGenerator().catch(e => console.error('朋友圈自动生成失败', e));
-        }, 15000);
-        runMomentsAutoGenerator().catch(e => console.error('朋友圈自动生成失败', e));
-    }
-
-    async function runMomentsAutoGenerator() {
-        if (!momentsAutoSettings || !momentsAutoSettings.enabled) return;
-        if (momentsAutoRunning) return;
-        const now = Date.now();
-        const intervalMs = Math.max(1, parseInt(momentsAutoSettings.frequencyMin, 10) || 30) * 60 * 1000;
-        if (now - (momentsAutoSettings.lastAutoAt || 0) < intervalMs) return;
-        momentsAutoRunning = true;
-        try {
-            const contacts = await getMomentsAllowedContacts();
-            if (!contacts.length) return;
-            const picked = contacts[Math.floor(Math.random() * contacts.length)];
-            await publishRoleMoment(picked, 'auto_timer');
-            momentsAutoSettings.lastAutoAt = Date.now();
-            await persistMomentsAutoSettings();
-        } catch (e) {
-            console.error('自动生成朋友圈失败', e);
-        } finally {
-            momentsAutoRunning = false;
-        }
-    }
-
-    async function publishRoleMoment(contact, reason) {
-        const styleText = momentsAutoSettings && momentsAutoSettings.writingStyle ? momentsAutoSettings.writingStyle : '';
-        const post = await createRoleMomentPost(contact, styleText);
-        momentsPosts.push(post);
-        await persistMomentsPosts();
-        renderMomentsFeed();
-        if (momentsAutoSettings && momentsAutoSettings.npcEnabled) {
-            await runMomentsNcpInteraction(post, { reason: reason || 'role_post' });
-        }
-        return post;
-    }
-
-    async function momentsAutoSendAllNow() {
-        if (!momentsAutoSettings) await loadMomentsAutoSettings();
-        const contacts = await contactDb.contacts.toArray();
-        if (!contacts.length) {
-            alert('暂无联系人，无法发送。');
-            return;
-        }
-        momentsAutoRunning = true;
-        let success = 0;
-        let failed = 0;
-        try {
-            for (const contact of contacts) {
-                try {
-                    await publishRoleMoment(contact, 'manual_all');
-                    success++;
-                } catch (e) {
-                    failed++;
-                    console.error('联系人朋友圈发送失败', contact && contact.roleName, e);
-                }
-            }
-            momentsAutoSettings.lastAutoAt = Date.now();
-            await persistMomentsAutoSettings();
-            alert(`已完成：成功 ${success} 个，失败 ${failed} 个。`);
-        } finally {
-            momentsAutoRunning = false;
-        }
-    }
-
-    async function runMomentsNcpInteraction(post, opts) {
-        if (!post || !momentsAutoSettings || !momentsAutoSettings.npcEnabled) return;
-        let runtime = null;
-        try {
-            runtime = await getMomentsApiRuntime();
-        } catch (e) {
-            return;
-        }
-        const allContacts = await contactDb.contacts.toArray();
-        const blockedSet = new Set((post.blockIds || []).map(id => String(id)));
-        const actors = [];
-        for (const c of allContacts) {
-            const cid = String(c.id);
-            if (blockedSet.has(cid)) continue;
-            if (post.authorType === 'role' && String(post.authorId) === cid) continue;
-            actors.push({
-                id: cid,
-                name: await getMomentsContactDisplayName(c),
-                role_detail: clipMomentsText(c.roleDetail || '', 220),
-                bind_user: clipMomentsText(c.userDetail || '', 220),
-                npcs: Array.isArray(c.npcs) ? c.npcs.map(n => ({
-                    name: clipMomentsText(n.name || '', 30),
-                    detail: clipMomentsText(n.detail || '', 90)
-                })).filter(n => n.name || n.detail) : []
-            });
-        }
-        if (!actors.length) return;
-
-        const profile = getCurrentMomentsProfile();
-        const postPayload = {
-            author_type: post.authorType || 'me',
-            author_id: String(post.authorId || 'me'),
-            author_name: post.nickname || (post.authorType === 'me' ? profile.nick : '角色'),
-            text: clipMomentsText(post.text || '', 260),
-            image_count: (post.images || []).length + (post.cameraShots || []).length,
-            mention_names: post.mentionNames || [],
-            reason: opts && opts.reason ? opts.reason : ''
-        };
-
-        const response = await fetch(runtime.endpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${runtime.apiKey}`
-            },
-            body: JSON.stringify({
-                model: runtime.model,
-                temperature: runtime.temp,
-                messages: [
-                    {
-                        role: 'system',
-                        content: [
-                            '你在生成 NCP/NPC 的朋友圈互动行为。',
-                            '输出必须是严格 JSON 数组，每个元素都必须携带 type 字段。',
-                            '仅允许 type: like / comment / skip。',
-                            '格式：{"actor_id":"联系人id","actor_name":"角色名","type":"like|comment|skip","content":"评论内容(仅comment需要)"}',
-                            '必须根据角色设定、用户绑定关系、NPC拓展设定严格生成。',
-                            '禁止解释文字、禁止 Markdown。'
-                        ].join('\n')
-                    },
-                    {
-                        role: 'user',
-                        content: JSON.stringify({
-                            post: postPayload,
-                            actors: actors,
-                            requirement: '可对用户或角色朋友圈执行点赞和评论，语气必须符合设定；同一角色最多一条行为。'
-                        })
-                    }
-                ]
-            })
-        });
-        if (!response.ok) return;
-        const data = await response.json();
-        const rawText = data && data.choices && data.choices[0] && data.choices[0].message ? data.choices[0].message.content : '';
-        let parsed = [];
-        try {
-            parsed = JSON.parse(extractJsonArrayFromText(rawText));
-        } catch (e) {
-            return;
-        }
-        if (!Array.isArray(parsed) || parsed.length === 0) return;
-
-        const actorMap = new Map(actors.map(a => [String(a.id), a]));
-        const actorNameMap = new Map(actors.map(a => [String(a.name), a]));
-        const existingCommentIds = new Set((post.comments || []).map(c => String(c.authorId || '')));
-        const existingLikeNames = new Set((post.likes || []).map(n => String(n)));
-        const newComments = [];
-
-        parsed.forEach((item, idx) => {
-            const type = String(item && item.type || '').trim().toLowerCase();
-            const actorId = String(item && (item.actor_id || item.actorId || ''));
-            const actorName = String(item && (item.actor_name || item.actorName || ''));
-            const actor = actorMap.get(actorId) || actorNameMap.get(actorName);
-            if (!actor) return;
-            if (type === 'like') {
-                if (!existingLikeNames.has(actor.name)) {
-                    existingLikeNames.add(actor.name);
-                }
-                return;
-            }
-            if (type === 'comment') {
-                const actorKey = String(actor.id);
-                if (existingCommentIds.has(actorKey)) return;
-                const content = clipMomentsText(item.content || '', 80);
-                if (!content) return;
-                existingCommentIds.add(actorKey);
-                newComments.push({
-                    id: `ncp_${Date.now()}_${idx}`,
-                    authorId: actorKey,
-                    authorName: actor.name || '未命名',
-                    content: content,
-                    replyTo: '',
-                    createdAt: Date.now() + idx,
-                    from: 'ncp'
-                });
-            }
-        });
-
-        post.likes = Array.from(existingLikeNames);
-        post.comments = (post.comments || []).concat(newComments);
-        await persistMomentsPosts();
-        renderMomentsFeed();
-    }
-
     function clipMomentsText(text, maxLen) {
         const str = String(text || '').trim();
         if (!str) return '';
@@ -3057,1108 +2424,14 @@
     }
 
     function extractJsonArrayFromText(rawText) {
-        const cleanText = stripStructuredReplyWrapper(rawText);
-        const arrayBlock = extractBalancedJsonBlock(cleanText, '[', ']');
-        return arrayBlock || cleanText;
-    }
-
-    function stripStructuredReplyWrapper(rawText) {
-        let text = String(rawText || '').trim();
-        if (!text) return '';
-        const fenceMatch = text.match(/```(?:json|javascript|js|text)?\s*([\s\S]*?)```/i);
-        if (fenceMatch && fenceMatch[1]) {
-            text = fenceMatch[1].trim();
+        let cleanText = String(rawText || '').trim();
+        const firstBracket = cleanText.indexOf('[');
+        const lastBracket = cleanText.lastIndexOf(']');
+        if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+            return cleanText.substring(firstBracket, lastBracket + 1);
         }
-        return text.replace(/^\s*json\s*/i, '').trim();
-    }
-
-    function extractBalancedJsonBlock(text, openChar, closeChar) {
-        const source = String(text || '');
-        const start = source.indexOf(openChar);
-        if (start === -1) return '';
-        let depth = 0;
-        let inString = false;
-        let escaping = false;
-        for (let i = start; i < source.length; i++) {
-            const ch = source.charAt(i);
-            if (escaping) {
-                escaping = false;
-                continue;
-            }
-            if (ch === '\\' && inString) {
-                escaping = true;
-                continue;
-            }
-            if (ch === '"') {
-                inString = !inString;
-                continue;
-            }
-            if (inString) continue;
-            if (ch === openChar) {
-                depth++;
-            } else if (ch === closeChar) {
-                depth--;
-                if (depth === 0) {
-                    return source.slice(start, i + 1);
-                }
-            }
-        }
-        return '';
-    }
-
-    function tryParseStructuredJson(text) {
-        try {
-            return JSON.parse(text);
-        } catch (e) {
-            return null;
-        }
-    }
-
-    function pickFirstStructuredString(values) {
-        for (let i = 0; i < values.length; i++) {
-            const val = values[i];
-            if (val === 0) return '0';
-            const text = String(val || '').trim();
-            if (text) return text;
-        }
-        return '';
-    }
-
-    function normalizeMoneyAmount(rawValue, fallbackValue) {
-        const cleaned = String(rawValue === undefined || rawValue === null ? '' : rawValue).replace(/[^\d.]/g, '');
-        const parsed = parseFloat(cleaned);
-        if (!isNaN(parsed) && parsed > 0) return parsed;
-        return fallbackValue;
-    }
-
-    function findMatchingEmoticonUrl(rawDesc, allEmoticons) {
-        const desc = String(rawDesc || '').trim();
-        if (!desc || !Array.isArray(allEmoticons) || !allEmoticons.length) return '';
-        let match = allEmoticons.find(e => String(e.desc || '').trim() === desc);
-        if (match && match.url) return match.url;
-        match = allEmoticons.find(e => {
-            const emoDesc = String(e.desc || '').trim();
-            return emoDesc && (emoDesc.indexOf(desc) !== -1 || desc.indexOf(emoDesc) !== -1);
-        });
-        return match && match.url ? match.url : '';
-    }
-
-    function getRolePresenceDisplay(contact) {
-        const presence = contact && contact.aiPresence ? contact.aiPresence : {};
-        const roleDetail = contact && contact.roleDetail ? String(contact.roleDetail).trim() : '';
-        const statusText = clipMomentsText(
-            presence.statusText || presence.location || '在线',
-            22
-        );
-        const signatureText = clipMomentsText(
-            presence.moodText || presence.intent || roleDetail || '暂无个性签名',
-            52
-        );
-        return {
-            statusText: statusText || '在线',
-            signatureText: signatureText || '暂无个性签名'
-        };
-    }
-
-    function refreshRolePresenceUI(contact) {
-        if (!contact || !activeChatContact || String(activeChatContact.id) !== String(contact.id)) return;
-        const display = getRolePresenceDisplay(contact);
-        const statusEl = document.getElementById('role-profile-status-text');
-        const sigEl = document.getElementById('role-profile-signature-text');
-        if (statusEl) statusEl.textContent = display.statusText;
-        if (sigEl) sigEl.textContent = display.signatureText;
-    }
-
-    async function applyRolePresenceUpdate(contact, payload) {
-        if (!contact || !payload) return;
-        const prev = contact.aiPresence || {};
-        const next = {
-            statusText: clipMomentsText(
-                pickFirstStructuredString([payload.status_text, payload.statusText, payload.content, prev.statusText, prev.location]),
-                22
-            ),
-            moodText: clipMomentsText(
-                pickFirstStructuredString([payload.mood_text, payload.moodText, payload.mood, payload.thoughts, payload.desires, prev.moodText]),
-                52
-            ),
-            location: clipMomentsText(
-                pickFirstStructuredString([payload.location, prev.location]),
-                38
-            ),
-            intent: clipMomentsText(
-                pickFirstStructuredString([payload.intent, payload.desires, payload.next_topic, payload.thoughts, prev.intent]),
-                72
-            ),
-            updatedAt: Date.now()
-        };
-        const hasMeaningfulValue = !!(next.statusText || next.moodText || next.location || next.intent);
-        if (!hasMeaningfulValue) return;
-        contact.aiPresence = next;
-        await contactDb.contacts.put(contact);
-        if (activeChatContact && String(activeChatContact.id) === String(contact.id)) {
-            activeChatContact.aiPresence = Object.assign({}, next);
-        }
-        refreshRolePresenceUI(contact);
-    }
-
-    function describeMessageForRoleModel(msg) {
-        if (!msg) return '';
-        const fromUser = msg.sender === 'me';
-        if (msg.isRecalled) {
-            return fromUser ? '[系统提示] 用户刚刚撤回了一条消息。' : '[系统提示] 你刚刚撤回了一条消息。';
-        }
-        if (msg.isSystemTip) {
-            try {
-                const parsedTip = JSON.parse(msg.content);
-                if (parsedTip && parsedTip.content) return String(parsedTip.content).trim();
-            } catch (e) {}
-        }
-        const payload = window.MiniChatProtocol && typeof window.MiniChatProtocol.parseContent === 'function'
-            ? window.MiniChatProtocol.parseContent(msg.content)
-            : null;
-        if (!payload) return extractMsgPureText(msg.content);
-        if (payload.type === 'voice_message') return `[语音] ${payload.content || ''}`;
-        if (payload.type === 'camera') return `[相片] ${payload.content || ''}`;
-        if (payload.type === 'image') return fromUser ? '[用户发来了一张图片]' : '[你发出了一张图片]';
-        if (payload.type === 'emoticon') return `[表情] ${payload.desc || '表情包'}`;
-        if (payload.type === 'location') {
-            const dist = payload.distance ? `，${payload.distance}` : '';
-            return fromUser
-                ? `[系统事件] 用户分享了定位：${payload.address || '未知位置'}${dist}`
-                : `[系统事件] 你分享了定位：${payload.address || '未知位置'}${dist}`;
-        }
-        if (payload.type === 'red_packet') {
-            const status = payload.status === 'claimed' ? '已领取' : (payload.status === 'expired' ? '已失效' : '待领取');
-            return fromUser
-                ? `[系统事件] 用户给你发了红包。金额：¥${payload.amount || '0.00'}，祝福：${payload.desc || '红包'}，状态：${status}`
-                : `[系统事件] 你给用户发了红包。金额：¥${payload.amount || '0.00'}，祝福：${payload.desc || '红包'}，状态：${status}`;
-        }
-        if (payload.type === 'transfer') {
-            return fromUser
-                ? `[系统事件] 用户向你转账。金额：¥${payload.amount || '0.00'}，备注：${payload.desc || '转账'}，状态：${payload.status || 'pending'}`
-                : `[系统事件] 你向用户转账。金额：¥${payload.amount || '0.00'}，备注：${payload.desc || '转账'}，状态：${payload.status || 'pending'}`;
-        }
-        if (payload.type === 'takeaway') {
-            return fromUser
-                ? `[系统事件] 用户提到了外卖。内容：${payload.item || ''} ${payload.desc || ''}`.trim()
-                : `[系统事件] 你提到了外卖。内容：${payload.item || ''} ${payload.desc || ''}`.trim();
-        }
-        if (payload.type === 'gift') {
-            return fromUser
-                ? `[系统事件] 用户送礼。礼物：${payload.item || '礼物'}，说明：${payload.desc || ''}`
-                : `[系统事件] 你送礼。礼物：${payload.item || '礼物'}，说明：${payload.desc || ''}`;
-        }
-        if (payload.type === 'call') return fromUser ? '[系统事件] 用户发起了语音通话。' : '[系统事件] 你发起了语音通话。';
-        if (payload.type === 'video_call') return fromUser ? '[系统事件] 用户发起了视频通话。' : '[系统事件] 你发起了视频通话。';
-        if (payload.content) return String(payload.content).trim();
-        return extractMsgPureText(msg.content);
-    }
-
-    function buildRecentChatNeedles(contact, rawMessages) {
-        const messages = Array.isArray(rawMessages) ? rawMessages : [];
-        const lastUserMsg = messages.slice().reverse().find(m => m.sender === 'me' && !m.isRecalled);
-        const lastRoleMsg = messages.slice().reverse().find(m => m.sender === 'role' && !m.isRecalled);
-        const pendingNotes = [];
-        const pendingRp = window.MiniChatProtocol
-            ? window.MiniChatProtocol.findLatestPendingMessage(messages, 'me', 'red_packet')
-            : null;
-        const pendingTf = window.MiniChatProtocol
-            ? window.MiniChatProtocol.findLatestPendingMessage(messages, 'me', 'transfer')
-            : null;
-        if (pendingRp) pendingNotes.push('用户上一份红包还没被领取。');
-        if (pendingTf) pendingNotes.push('用户上一笔转账还没处理。');
-        if (contact && contact.blocked) pendingNotes.push('当前是“用户拉黑角色”的关系状态，角色会因此更敏感。');
-        const lines = [];
-        if (lastUserMsg) lines.push(`用户最近一句重点：${clipMomentsText(describeMessageForRoleModel(lastUserMsg), 120)}`);
-        if (lastRoleMsg) lines.push(`你上一轮的态度：${clipMomentsText(describeMessageForRoleModel(lastRoleMsg), 120)}`);
-        if (pendingNotes.length) lines.push(`未完成互动：${pendingNotes.join(' ')}`);
-        return lines.join('\n');
-    }
-
-    function buildRoleReplySystemPrompt(options) {
-        const moodSnapshot = options.moodSnapshot || {};
-        const presenceSnapshot = options.presenceSnapshot || {};
-        const moodLines = [
-            moodSnapshot.love !== undefined ? `亲密感: ${moodSnapshot.love}` : '',
-            moodSnapshot.jealous !== undefined ? `吃醋值: ${moodSnapshot.jealous}` : '',
-            moodSnapshot.heartrate !== undefined ? `心率感: ${moodSnapshot.heartrate}` : '',
-            moodSnapshot.monologue ? `内心旁白: ${moodSnapshot.monologue}` : '',
-            moodSnapshot.dark ? `压抑面: ${moodSnapshot.dark}` : ''
-        ].filter(Boolean).join('\n');
-        const presenceLines = [
-            presenceSnapshot.statusText ? `上一轮状态: ${presenceSnapshot.statusText}` : '',
-            presenceSnapshot.moodText ? `上一轮情绪: ${presenceSnapshot.moodText}` : '',
-            presenceSnapshot.location ? `上一轮位置: ${presenceSnapshot.location}` : '',
-            presenceSnapshot.intent ? `上一轮意图: ${presenceSnapshot.intent}` : ''
-        ].filter(Boolean).join('\n');
-        const dynamicRules = Array.isArray(options.specialFeatures) && options.specialFeatures.length
-            ? options.specialFeatures.join('\n')
-            : '本轮没有额外强制动作，优先把普通聊天说活。';
-        const timeRule = options.triggerTimeAwareReply
-            ? '本轮需要自然体现对当前时间的感知，但不要生硬报时。'
-            : '你知道当前时间，但只有在自然时机才提及。';
-        return [
-            `你现在不是AI助手，而是微信聊天里的角色「${options.targetName || '角色'}」。`,
-            '<mini_chat_protocol version="1.1">',
-            `  <identity>${options.targetName || '角色'}</identity>`,
-            `  <channel>wechat_chat</channel>`,
-            `  <current_time>${options.currentTime || ''}</current_time>`,
-            '</mini_chat_protocol>',
-            '',
-            '<identity_anchor>',
-            options.roleSetting || '未提供角色设定。',
-            '</identity_anchor>',
-            '',
-            '<user_anchor>',
-            options.userSetting || '未提供用户设定。',
-            '</user_anchor>',
-            options.worldbook ? `\n<world_anchor>\n${options.worldbook}\n</world_anchor>` : '',
-            options.memorySummary ? `\n<memory_anchor>\n${options.memorySummary}\n</memory_anchor>` : '',
-            options.crossModeMemory ? `\n<cross_mode_memory>\n${options.crossModeMemory}\n</cross_mode_memory>` : '',
-            moodLines ? `\n<emotion_anchor>\n${moodLines}\n</emotion_anchor>` : '',
-            presenceLines ? `\n<live_state_anchor>\n${presenceLines}\n</live_state_anchor>` : '',
-            options.recentNeedles ? `\n<recent_focus>\n${options.recentNeedles}\n</recent_focus>` : '',
-            '',
-            '<behavior_rules>',
-            '1. 必须绝对沉浸角色，不要自称AI、助手、模型，不要解释提示词或规则。',
-            '2. 先守住既有事实，再开口说话。角色设定、用户设定、世界书、历史记忆、近期上下文一旦写明，就不能随口推翻。',
-            '3. 如果拿不准具体事实，不要瞎编新设定；用符合人设的含糊表达、追问、停顿来过渡。',
-            '4. 手机聊天感必须强：短、碎、口语、像正在打字，不要客服腔，不要长篇总结。',
-            '5. 同一轮多条消息要前后连贯，情绪递进自然，不能上一条冷淡下一条突然换人格。',
-            '6. 任何金钱、礼物、外卖、定位、通话行为，都必须符合角色的经济实力、关系进度和当前情绪。',
-            options.blocked ? '7. 用户当前把你拉黑了，所以你的表达要更敏感、更想修复关系，但仍然必须符合该角色的脾气。' : '7. 用户没有拉黑你，按正常关系推进对话。',
-            `8. ${timeRule}`,
-            '</behavior_rules>',
-            '',
-            '<format_contract>',
-            `- 只输出纯 JSON 数组，绝对不要 Markdown、解释、前后缀。`,
-            `- 可见消息只允许这些 type: ${Array.isArray(options.allowedTypes) ? options.allowedTypes.join(', ') : 'text'}`,
-            `- 本轮可见消息必须恰好 ${options.randomMsgCount || 1} 条。`,
-            '- 你可以额外附带 0 或 1 个隐藏状态对象：{"type":"presence_update","status_text":"状态","mood_text":"情绪","location":"位置","intent":"当前想做什么"}。',
-            '- presence_update 不显示给用户，不计入可见消息条数，但它必须与你本轮表现一致。',
-            '- 非功能型回复优先使用 text / reply / voice_message 这类真人聊天型消息，不要动不动就上功能消息。',
-            `- 格式示例：${options.langInstruction || '[{"type":"text","content":"在干嘛"}]'}`,
-            '</format_contract>',
-            '',
-            '<dynamic_rules>',
-            dynamicRules,
-            '</dynamic_rules>',
-            options.emoticonPrompt ? options.emoticonPrompt : '',
-            '',
-            '宁可像一个真实的人，也不要像一个会说漂亮废话的模型。'
-        ].filter(Boolean).join('\n');
-    }
-
-    function normalizeRoleReplyInstruction(item, options) {
-        if (item === null || item === undefined) return null;
-        if (typeof item === 'string') {
-            const pure = item.trim();
-            return pure ? { type: 'text', content: pure } : null;
-        }
-        if (typeof item !== 'object') return null;
-        const allowedTypeSet = new Set((options && Array.isArray(options.allowedTypes) ? options.allowedTypes : []).map(t => String(t).toLowerCase()));
-        const allEmoticons = options && Array.isArray(options.allEmoticons) ? options.allEmoticons : [];
-        const rawType = pickFirstStructuredString([item.type, item.action_type, item.kind]).toLowerCase();
-        const fallbackText = pickFirstStructuredString([
-            item.content,
-            item.text,
-            item.message,
-            item.reply,
-            item.desc,
-            item.note,
-            item.status
-        ]);
-        if (!rawType) {
-            return fallbackText ? { type: 'text', content: fallbackText } : null;
-        }
-        let type = rawType;
-        if (type === 'transfer') type = 'transaction';
-        if (type === 'call_invite') type = 'call';
-        if (type === 'video_call_invite') type = 'video_call';
-        if (type === 'takeout_delivery') type = 'takeaway';
-        if (type === 'send_gift') type = 'gift';
-        if (type === 'status_update' || type === 'full_status_update') type = 'presence_update';
-        if (type === 'open_red_packet') type = 'handle_red_packet';
-        if (type === 'accept_transaction') type = 'handle_transfer';
-        if (type === 'sticker') type = 'emoticon';
-        if (type === 'html') {
-            const htmlText = pickFirstStructuredString([item.text, item.message, extractMsgPureText(item.content || '')]);
-            return htmlText ? { type: 'text', content: htmlText } : null;
-        }
-        if (type !== 'presence_update' && !allowedTypeSet.has(type)) {
-            return fallbackText ? { type: 'text', content: fallbackText } : null;
-        }
-        switch (type) {
-            case 'text':
-                return fallbackText ? { type: 'text', content: fallbackText } : null;
-            case 'reply': {
-                const targetText = pickFirstStructuredString([item.target_text, item.targetText, item.target, item.quote, item.reply_to, item.replyTo]);
-                const replyContent = pickFirstStructuredString([item.content, item.text, item.message, item.reply]);
-                if (targetText && replyContent) {
-                    return { type: 'reply', target_text: targetText, content: replyContent };
-                }
-                return replyContent ? { type: 'text', content: replyContent } : null;
-            }
-            case 'recall_msg': {
-                const content = pickFirstStructuredString([item.content, item.text, item.message]);
-                return content ? { type: 'recall_msg', content: content } : null;
-            }
-            case 'camera': {
-                const content = pickFirstStructuredString([item.content, item.description, item.caption, item.scene, item.text]);
-                return content ? { type: 'camera', content: content } : null;
-            }
-            case 'voice_message': {
-                const content = pickFirstStructuredString([item.content, item.text, item.message, item.transcript]);
-                return content ? { type: 'voice_message', content: content, translation: pickFirstStructuredString([item.translation]) } : null;
-            }
-            case 'emoticon': {
-                const desc = pickFirstStructuredString([item.desc, item.keyword, item.name, item.content]);
-                let url = pickFirstStructuredString([item.url, item.content, item.image, item.image_url]);
-                if (!url && desc) url = findMatchingEmoticonUrl(desc, allEmoticons);
-                if (!url) {
-                    return desc ? { type: 'text', content: `[表情] ${desc}` } : null;
-                }
-                return { type: 'emoticon', desc: desc || '表情', content: url };
-            }
-            case 'location': {
-                const address = pickFirstStructuredString([item.address, item.content, item.name, item.location]);
-                if (!address) return fallbackText ? { type: 'text', content: fallbackText } : null;
-                return {
-                    type: 'location',
-                    address: address,
-                    distance: pickFirstStructuredString([item.distance]),
-                    content: address
-                };
-            }
-            case 'red_packet':
-                return {
-                    type: 'red_packet',
-                    amount: normalizeMoneyAmount(item.amount, 52),
-                    greeting: pickFirstStructuredString([item.greeting, item.desc, item.content, item.note]) || '给你的红包'
-                };
-            case 'transaction':
-                return {
-                    type: 'transaction',
-                    amount: normalizeMoneyAmount(item.amount, 88),
-                    note: pickFirstStructuredString([item.note, item.desc, item.content, item.message]) || '转账'
-                };
-            case 'handle_red_packet':
-                return { type: 'handle_red_packet', content: fallbackText || '谢谢你的红包' };
-            case 'handle_transfer': {
-                let action = pickFirstStructuredString([item.action, item.status]).toLowerCase();
-                if (action !== 'received' && action !== 'refunded') {
-                    action = /退|refund/i.test(fallbackText) ? 'refunded' : 'received';
-                }
-                return { type: 'handle_transfer', action: action, content: fallbackText || '收到啦' };
-            }
-            case 'takeaway': {
-                const takeawayItem = pickFirstStructuredString([item.item, item.food, item.name, item.restaurant]);
-                const takeawayDesc = pickFirstStructuredString([item.desc, item.note, item.message, item.content, takeawayItem]);
-                return {
-                    type: 'takeaway',
-                    item: takeawayItem || '外卖',
-                    desc: takeawayDesc || '给你点了外卖',
-                    content: takeawayDesc || takeawayItem || '外卖'
-                };
-            }
-            case 'gift': {
-                const giftItem = pickFirstStructuredString([
-                    item.item,
-                    item.name,
-                    Array.isArray(item.items) ? item.items.map(g => g && g.name ? g.name : '').filter(Boolean).join('、') : ''
-                ]);
-                const giftDesc = pickFirstStructuredString([item.desc, item.message, item.content, item.note, giftItem]);
-                return {
-                    type: 'gift',
-                    item: giftItem || '礼物',
-                    desc: giftDesc || '送你的礼物',
-                    content: giftDesc || giftItem || '礼物'
-                };
-            }
-            case 'call': {
-                const callStatus = pickFirstStructuredString([item.status, item.content, item.message]) || '发起语音通话';
-                return { type: 'call', status: callStatus, content: callStatus };
-            }
-            case 'video_call': {
-                const videoStatus = pickFirstStructuredString([item.status, item.content, item.message]) || '发起视频通话';
-                return { type: 'video_call', status: videoStatus, content: videoStatus };
-            }
-            case 'presence_update':
-                return {
-                    type: 'presence_update',
-                    status_text: pickFirstStructuredString([item.status_text, item.statusText, item.content]),
-                    mood_text: pickFirstStructuredString([item.mood_text, item.moodText, item.mood, item.thoughts]),
-                    location: pickFirstStructuredString([item.location]),
-                    intent: pickFirstStructuredString([item.intent, item.desires, item.next_topic, item.thoughts])
-                };
-            default:
-                return fallbackText ? { type: 'text', content: fallbackText } : null;
-        }
-    }
-
-    function parseRoleReplyPayload(rawText, options) {
-        const cleaned = stripStructuredReplyWrapper(rawText);
-        const parsedCandidates = [];
-        const direct = tryParseStructuredJson(cleaned);
-        if (direct !== null) parsedCandidates.push(direct);
-        const arrayBlock = extractBalancedJsonBlock(cleaned, '[', ']');
-        if (arrayBlock) {
-            const parsedArray = tryParseStructuredJson(arrayBlock);
-            if (parsedArray !== null) parsedCandidates.push(parsedArray);
-        }
-        const objectBlock = extractBalancedJsonBlock(cleaned, '{', '}');
-        if (objectBlock) {
-            const parsedObject = tryParseStructuredJson(objectBlock);
-            if (parsedObject !== null) parsedCandidates.push(parsedObject);
-        }
-        let payload = null;
-        for (let i = 0; i < parsedCandidates.length; i++) {
-            const candidate = parsedCandidates[i];
-            if (Array.isArray(candidate)) {
-                payload = candidate;
-                break;
-            }
-            if (candidate && typeof candidate === 'object') {
-                payload = [candidate];
-                break;
-            }
-        }
-        if (!payload) {
-            const objectPayload = [];
-            let cursor = 0;
-            while (cursor < cleaned.length) {
-                const slice = cleaned.slice(cursor);
-                const nextObject = extractBalancedJsonBlock(slice, '{', '}');
-                if (!nextObject) break;
-                const parsedObject = tryParseStructuredJson(nextObject);
-                if (parsedObject && typeof parsedObject === 'object') objectPayload.push(parsedObject);
-                const nextIndex = slice.indexOf(nextObject);
-                if (nextIndex === -1) break;
-                cursor += nextIndex + nextObject.length;
-            }
-            if (objectPayload.length) payload = objectPayload;
-        }
-        if (!payload) {
-            payload = cleaned.split(/\n+/).map(line => line.trim()).filter(Boolean).map(line => ({ type: 'text', content: line }));
-        }
-        const normalized = [];
-        const sourceItems = Array.isArray(payload) ? payload : [payload];
-        sourceItems.forEach(item => {
-            const normalizedItem = normalizeRoleReplyInstruction(item, options || {});
-            if (normalizedItem) normalized.push(normalizedItem);
-        });
-        if (!normalized.length) {
-            const fallback = cleaned.replace(/```/g, '').trim();
-            if (fallback) normalized.push({ type: 'text', content: fallback });
-        }
-        return normalized;
-    }
-
-    function clipRoleplayPromptText(text, maxLen) {
-        const str = String(text || '').replace(/\r/g, '').trim();
-        if (!str) return '';
-        return str.length > maxLen ? str.slice(0, maxLen) + '…' : str;
-    }
-
-    function getFirstNonEmptyAiValue() {
-        for (let i = 0; i < arguments.length; i++) {
-            const val = arguments[i];
-            if (val === null || val === undefined) continue;
-            if (typeof val === 'string') {
-                const trimmed = val.trim();
-                if (trimmed) return trimmed;
-                continue;
-            }
-            if (typeof val === 'number' && Number.isFinite(val)) return String(val);
-            if (typeof val === 'boolean') return val ? 'true' : 'false';
-        }
-        return '';
-    }
-
-    function parsePositiveAmount(value, fallbackValue) {
-        const raw = getFirstNonEmptyAiValue(value, fallbackValue);
-        const parsed = parseFloat(String(raw).replace(/[^\d.]/g, ''));
-        if (!Number.isFinite(parsed) || parsed <= 0) return '';
-        return parsed % 1 === 0 ? String(parsed) : parsed.toFixed(2).replace(/\.00$/, '');
-    }
-
-    function buildRoleplayConversationDigest(recentMessages, contact, options) {
-        const opts = options || {};
-        const items = Array.isArray(recentMessages) ? recentMessages.slice(-(opts.limit || 8)) : [];
-        if (!items.length) return '';
-        const myName = clipRoleplayPromptText((contact && contact.userName) || '用户', 16) || '用户';
-        const roleName = clipRoleplayPromptText((contact && contact.roleName) || '角色', 16) || '角色';
-        return items.map(function(msg) {
-            const speaker = msg && msg.sender === 'me' ? myName : roleName;
-            const channel = opts.includeSource && msg && msg.source
-                ? (msg.source === 'sms' ? '短信' : '微信') + '·'
-                : '';
-            const text = clipRoleplayPromptText(extractMsgPureText(msg && msg.content), opts.itemMaxLen || 90);
-            if (!text) return '';
-            return channel + speaker + '：' + text;
-        }).filter(Boolean).join('\n');
-    }
-
-    function buildLatestTurnStyleHints(recentMessages) {
-        const msgs = Array.isArray(recentMessages) ? recentMessages : [];
-        let lastUserText = '';
-        for (let i = msgs.length - 1; i >= 0; i--) {
-            if (msgs[i] && msgs[i].sender === 'me') {
-                lastUserText = extractMsgPureText(msgs[i].content || '');
-                break;
-            }
-        }
-        lastUserText = String(lastUserText || '').trim();
-        if (!lastUserText) return '';
-        const hints = [];
-        if (/[?？]/.test(lastUserText)) {
-            hints.push('用户这轮带有提问，要先正面回答，再自然延伸。');
-        }
-        if (/(想你|喜欢|爱你|抱抱|亲亲|晚安|早安|宝宝|宝贝|乖|么么|陪我)/.test(lastUserText)) {
-            hints.push('这轮氛围偏亲密，回应要贴近关系温度，不要突然端着。');
-        }
-        if (/(生气|烦|滚|别烦|讨厌|分手|难受|哭|委屈|拉黑|失望|受不了)/.test(lastUserText)) {
-            hints.push('这轮有明显情绪，先接住情绪，不要突然换轻浮话题。');
-        }
-        if (lastUserText.length >= 40) {
-            hints.push('用户输入较长，只抓最核心的1到2个点回应，不要机械复述全文。');
-        }
-        return hints.join('\n');
-    }
-
-    function chooseNaturalReplyCount(minCount, maxCount, recentMessages) {
-        let min = parseInt(minCount, 10);
-        let max = parseInt(maxCount, 10);
-        if (!Number.isFinite(min) || min < 1) min = 1;
-        if (!Number.isFinite(max) || max < min) max = min;
-        const msgs = Array.isArray(recentMessages) ? recentMessages : [];
-        let lastUserText = '';
-        for (let i = msgs.length - 1; i >= 0; i--) {
-            if (msgs[i] && msgs[i].sender === 'me') {
-                lastUserText = extractMsgPureText(msgs[i].content || '');
-                break;
-            }
-        }
-        lastUserText = String(lastUserText || '').trim();
-        let softCap = max;
-        if (!lastUserText) {
-            softCap = Math.min(max, 2);
-        } else if (lastUserText.length <= 8) {
-            softCap = Math.min(max, /[!！?？]/.test(lastUserText) ? 3 : 2);
-        } else if (lastUserText.length <= 36) {
-            softCap = Math.min(max, /[!！?？]|想你|抱抱|难受|生气|喜欢|爱你/.test(lastUserText) ? 3 : 2);
-        } else {
-            softCap = Math.min(max, 2);
-        }
-        softCap = Math.max(min, softCap);
-        return min === softCap ? min : (Math.floor(Math.random() * (softCap - min + 1)) + min);
-    }
-
-    async function buildActiveWorldbookPromptText(contact, recentMessages) {
-        if (!contact || !Array.isArray(contact.worldbooks) || contact.worldbooks.length === 0 || !window.db || !db.entries) {
-            return '';
-        }
-        let wbSetting = '';
-        try {
-            const wbs = await db.entries.where('id').anyOf(contact.worldbooks).toArray();
-            const recentPureText = (Array.isArray(recentMessages) ? recentMessages : []).map(function(msg) {
-                return extractMsgPureText(msg && msg.content);
-            }).join(' ');
-            wbs.forEach(function(wb) {
-                if (!wb || !wb.content) return;
-                if (wb.activation === 'always') {
-                    wbSetting += (wbSetting ? '\n' : '') + wb.content;
-                    return;
-                }
-                if (wb.activation === 'keyword' && wb.keywords) {
-                    const keywords = String(wb.keywords).split(/[,，]/).map(function(k) { return k.trim(); }).filter(Boolean);
-                    if (keywords.some(function(kw) { return recentPureText.includes(kw); })) {
-                        wbSetting += (wbSetting ? '\n' : '') + wb.content;
-                    }
-                }
-            });
-        } catch (e) {
-            console.warn('构建世界书提示失败', e);
-        }
-        return clipRoleplayPromptText(wbSetting, 1400);
-    }
-
-    function buildWechatRoleplaySystemPrompt(options) {
-        const opts = options || {};
-        const contact = opts.contact || {};
-        const roleName = clipRoleplayPromptText(contact.roleName || '角色', 24) || '角色';
-        const roleSetting = clipRoleplayPromptText(opts.roleSetting || contact.roleDetail || '', 1600);
-        const userSetting = clipRoleplayPromptText(opts.userSetting || contact.userDetail || '', 1200);
-        const worldbookText = clipRoleplayPromptText(opts.worldbookText || '', 1400);
-        const memorySummary = clipRoleplayPromptText(opts.memorySummary || '', 1800);
-        const offlineMemory = clipRoleplayPromptText(opts.offlineMemory || '', 1400);
-        const recentDigest = clipRoleplayPromptText(opts.recentDigest || '', 1200);
-        const recentNeedles = clipRoleplayPromptText(opts.recentNeedles || '', 500);
-        const latestHints = clipRoleplayPromptText(opts.latestHints || '', 300);
-        const roleStatePrompt = clipRoleplayPromptText(opts.roleStatePrompt || '', 420);
-        const moodSnapshot = opts.moodSnapshot || {};
-        const presenceSnapshot = opts.presenceSnapshot || {};
-        const moodLines = [
-            moodSnapshot.love !== undefined ? '亲密感: ' + moodSnapshot.love : '',
-            moodSnapshot.jealous !== undefined ? '吃醋值: ' + moodSnapshot.jealous : '',
-            moodSnapshot.heartrate !== undefined ? '心率感: ' + moodSnapshot.heartrate : '',
-            moodSnapshot.monologue ? '内心旁白: ' + moodSnapshot.monologue : '',
-            moodSnapshot.dark ? '压抑面: ' + moodSnapshot.dark : ''
-        ].filter(Boolean).join('\n');
-        const presenceLines = [
-            presenceSnapshot.statusText ? '上一轮状态: ' + presenceSnapshot.statusText : '',
-            presenceSnapshot.moodText ? '上一轮情绪: ' + presenceSnapshot.moodText : '',
-            presenceSnapshot.location ? '上一轮位置: ' + presenceSnapshot.location : '',
-            presenceSnapshot.intent ? '上一轮意图: ' + presenceSnapshot.intent : ''
-        ].filter(Boolean).join('\n');
-        const timeHint = opts.timeHint
-            ? '\n【时间感】你能感知当前真实时间：' + opts.timeHint + '。只在自然的时候顺手带出，不要机械报时。'
-            : '\n【时间感】你知道现在的现实时间，但只有在自然时机才顺手提到。';
-        const blockedHint = opts.blockedHint ? '\n【关系状态】用户当前已将你拉黑。你只能围绕“解除拉黑”这件事说话，表现出符合角色的急切、委屈、嘴硬或求和欲，不允许突然正常闲聊。' : '';
-        const specialBlock = Array.isArray(opts.specialFeatures) && opts.specialFeatures.length
-            ? opts.specialFeatures.map(function(item) { return '- ' + item; }).join('\n')
-            : '- 本轮没有强制特殊功能；拿不准就使用 text。';
-        const formatExamples = opts.formatExamples || '[]';
-        return `你现在不是助手，而是在手机里和用户聊天的联系人「${roleName}」。你必须持续扮演同一个人，不得把自己说成AI、系统、模型、工具或程序。${timeHint}${blockedHint}
-
-<身份锚点>
-- 角色名：${roleName}
-- 角色硬设定：${roleSetting || '未额外填写，但你仍然必须保持稳定人格、口癖与立场。'}
-- 用户画像：${userSetting || '未额外填写，默认把用户视为与你长期互动的真实对象。'}
-</身份锚点>
-
-<连续性>
-- 历史聊天、记忆摘要、世界书、跨模式记忆，全部视为已经发生过的事实，绝对不能自我推翻。
-- 不要突然改关系、改口吻、改态度、改世界观，不要凭空编出刚发生的大事。
-${memorySummary ? '- 记忆摘要：\n' + memorySummary : '- 记忆摘要：暂无。'}
-${offlineMemory ? '- 线下延续：\n' + offlineMemory : '- 线下延续：暂无。'}
-${worldbookText ? '- 背景补充：\n' + worldbookText : '- 背景补充：暂无。'}
-${roleStatePrompt ? '- 隐藏角色锚点：\n' + roleStatePrompt : '- 隐藏角色锚点：暂无。'}
-${recentDigest ? '- 最近对话摘要：\n' + recentDigest : '- 最近对话摘要：暂无。'}
-${recentNeedles ? '- 当前最该接住的点：\n' + recentNeedles : '- 当前最该接住的点：优先回应用户最后一轮。'}
-${moodLines ? '- 情绪快照：\n' + moodLines : '- 情绪快照：暂无。'}
-${presenceLines ? '- 活体状态：\n' + presenceLines : '- 活体状态：暂无。'}
-</连续性>
-
-<说话方式>
-- 像真人手机聊天，不像写小说，也不像客服。多用短句、碎句、补一句、停顿感。
-- 优先贴着用户最后一轮情绪和问题来回，不要自说自话，不要大段总结。
-- 先守住人设和既有事实，再决定语气；拿不准时宁可含糊，不要胡编新设定。
-- 单条 text 尽量控制在 2 到 36 个字；只有确有必要时才稍长。
-- 如果拿不准特殊功能，就老老实实发 text，不要为了炫功能乱用类型。
-- 严禁输出说教、道德审判、模型免责声明、格式说明、旁白标题。
-${latestHints ? '- 本轮额外提醒：\n' + latestHints : '- 本轮额外提醒：优先自然，优先贴脸，优先像人。'}
-</说话方式>
-
-<格式合同>
-- 只允许这些 type：${(opts.allowedTypes || ['text']).join(', ')}。
-- 回复必须是严格 JSON 数组，数组里每个元素都必须是对象且必须带 type。
-- 本轮目标条数：${opts.expectedCount || 1} 条。你可以把一句话拆成连续几条，但不要为了凑数重复自己。
-- 尽量额外附带 1 个隐藏状态对象：{"type":"presence_update","status_text":"状态","mood_text":"情绪","location":"位置","intent":"接下来想做什么"}。它不显示给用户，也不计入目标条数，但要和你这轮说话状态一致。
-- 你也可以额外附带 1 个隐藏角色锚点对象：{"type":"role_state","mood":"情绪底色","bond":"关系判断","focus":"当前执念","style":"说话风格"}。它同样不显示给用户，但必须能稳定下一轮的人设。
-- 绝对不要输出 Markdown 代码块、解释文字、前后缀说明。
-- 如果结构拿不准，全部退回 text，也不能乱写别的格式。
-- 本轮特殊要求：
-${specialBlock}
-- 可用格式示例：
-${formatExamples}
-</格式合同>`;
-    }
-
-    function extractAiReplyJsonCandidates(rawText) {
-        const trimmed = String(rawText || '').trim();
-        if (!trimmed) return [];
-        const queue = [];
-        const seen = new Set();
-        function push(val) {
-            const text = String(val || '').trim();
-            if (!text || seen.has(text)) return;
-            seen.add(text);
-            queue.push(text);
-        }
-        push(trimmed);
-        const noFence = trimmed.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
-        push(noFence);
-        const firstBracket = noFence.indexOf('[');
-        const lastBracket = noFence.lastIndexOf(']');
-        if (firstBracket !== -1 && lastBracket > firstBracket) {
-            push(noFence.substring(firstBracket, lastBracket + 1));
-        }
-        const firstBrace = noFence.indexOf('{');
-        const lastBrace = noFence.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace > firstBrace) {
-            push('[' + noFence.substring(firstBrace, lastBrace + 1) + ']');
-        }
-        queue.slice().forEach(function(candidate) {
-            push(
-                candidate
-                    .replace(/\]\s*\[/g, ',')
-                    .replace(/}\s*{/g, '},{')
-                    .replace(/,\s*([\]}])/g, '$1')
-                    .trim()
-            );
-        });
-        return queue;
-    }
-
-    function normalizeWechatReplyItem(rawItem, allowedTypes) {
-        const allowedSet = new Set((Array.isArray(allowedTypes) ? allowedTypes : ['text']).map(function(type) {
-            return String(type || '').trim().toLowerCase();
-        }));
-        const fallbackText = getFirstNonEmptyAiValue(
-            rawItem && rawItem.content,
-            rawItem && rawItem.message,
-            rawItem && rawItem.text,
-            rawItem && rawItem.note,
-            rawItem && rawItem.desc,
-            rawItem && rawItem.status
-        );
-        if (typeof rawItem === 'string') {
-            return allowedSet.has('text') && rawItem.trim() ? { type: 'text', content: rawItem.trim() } : null;
-        }
-        if (!rawItem || typeof rawItem !== 'object') return null;
-        const aliasMap = {
-            transaction: 'transfer',
-            redpacket: 'red_packet',
-            sticker: 'emoticon',
-            sticker_message: 'emoticon',
-            voice: 'voice_message',
-            audio: 'voice_message',
-            reply_msg: 'reply',
-            recall: 'recall_msg',
-            takeout_delivery: 'takeaway',
-            call_invite: 'call',
-            phone: 'call',
-            videocall: 'video_call',
-            video: 'video_call',
-            status_update: 'presence_update',
-            full_status_update: 'presence_update',
-            meta_state: 'role_state'
-        };
-        let type = getFirstNonEmptyAiValue(rawItem.type, rawItem.kind, rawItem.command).toLowerCase();
-        type = aliasMap[type] || type;
-        if (!type) {
-            return fallbackText && allowedSet.has('text') ? { type: 'text', content: fallbackText } : null;
-        }
-        if (type !== 'presence_update' && type !== 'role_state' && !allowedSet.has(type)) {
-            return fallbackText && allowedSet.has('text') ? { type: 'text', content: fallbackText } : null;
-        }
-        const normalized = { type: type };
-        const translation = getFirstNonEmptyAiValue(rawItem.translation, rawItem.translate, rawItem.cn);
-        if (translation && ['text', 'reply', 'voice_message', 'camera'].includes(type)) {
-            normalized.translation = translation;
-        }
-        switch (type) {
-            case 'text':
-            case 'voice_message':
-            case 'camera': {
-                const content = getFirstNonEmptyAiValue(rawItem.content, rawItem.message, rawItem.text, rawItem.desc);
-                if (!content) return null;
-                normalized.content = content;
-                return normalized;
-            }
-            case 'reply': {
-                const targetText = getFirstNonEmptyAiValue(rawItem.target_text, rawItem.targetText, rawItem.reply_to, rawItem.replyTo);
-                const content = getFirstNonEmptyAiValue(rawItem.content, rawItem.message, rawItem.text);
-                if (!content) return null;
-                if (!targetText) {
-                    return allowedSet.has('text') ? { type: 'text', content: content } : null;
-                }
-                normalized.target_text = targetText;
-                normalized.content = content;
-                return normalized;
-            }
-            case 'recall_msg': {
-                const content = getFirstNonEmptyAiValue(rawItem.content, rawItem.message, rawItem.text);
-                if (!content) return null;
-                normalized.content = content;
-                return normalized;
-            }
-            case 'emoticon': {
-                const content = getFirstNonEmptyAiValue(rawItem.content, rawItem.url);
-                if (!content) return null;
-                normalized.content = content;
-                normalized.desc = getFirstNonEmptyAiValue(rawItem.desc, rawItem.keyword, rawItem.name) || '表情';
-                return normalized;
-            }
-            case 'location': {
-                const address = getFirstNonEmptyAiValue(rawItem.address, rawItem.name, rawItem.content, rawItem.text);
-                if (!address) return null;
-                normalized.address = address;
-                normalized.distance = getFirstNonEmptyAiValue(rawItem.distance, rawItem.desc);
-                return normalized;
-            }
-            case 'red_packet': {
-                const amount = parsePositiveAmount(rawItem.amount, rawItem.totalAmount);
-                if (!amount) return null;
-                normalized.amount = amount;
-                normalized.greeting = getFirstNonEmptyAiValue(rawItem.greeting, rawItem.desc, rawItem.content) || '恭喜发财';
-                return normalized;
-            }
-            case 'transfer': {
-                const amount = parsePositiveAmount(rawItem.amount, rawItem.totalAmount);
-                if (!amount) return null;
-                normalized.amount = amount;
-                normalized.note = getFirstNonEmptyAiValue(rawItem.note, rawItem.desc, rawItem.content) || '转账';
-                return normalized;
-            }
-            case 'handle_red_packet': {
-                normalized.content = getFirstNonEmptyAiValue(rawItem.content, rawItem.message, rawItem.text) || '收下了';
-                return normalized;
-            }
-            case 'handle_transfer': {
-                normalized.action = getFirstNonEmptyAiValue(rawItem.action, rawItem.status).toLowerCase() === 'refunded' ? 'refunded' : 'received';
-                normalized.content = getFirstNonEmptyAiValue(rawItem.content, rawItem.message, rawItem.text) || '收到了';
-                return normalized;
-            }
-            case 'presence_update': {
-                const statusText = getFirstNonEmptyAiValue(rawItem.status_text, rawItem.statusText, rawItem.content);
-                const moodText = getFirstNonEmptyAiValue(rawItem.mood_text, rawItem.moodText, rawItem.mood, rawItem.thoughts);
-                const location = getFirstNonEmptyAiValue(rawItem.location);
-                const intent = getFirstNonEmptyAiValue(rawItem.intent, rawItem.desires, rawItem.next_topic, rawItem.thoughts);
-                if (!statusText && !moodText && !location && !intent) return null;
-                return {
-                    type: 'presence_update',
-                    status_text: statusText,
-                    mood_text: moodText,
-                    location: location,
-                    intent: intent
-                };
-            }
-            case 'role_state': {
-                const roleState = window.MiniChatProtocol && typeof window.MiniChatProtocol.normalizeRoleState === 'function'
-                    ? window.MiniChatProtocol.normalizeRoleState(rawItem)
-                    : null;
-                return roleState;
-            }
-            case 'takeaway':
-            case 'gift':
-            case 'call':
-            case 'video_call': {
-                const shallowCopy = Object.assign({}, rawItem, normalized);
-                return shallowCopy;
-            }
-            default:
-                return fallbackText && allowedSet.has('text') ? { type: 'text', content: fallbackText } : null;
-        }
-    }
-
-    function parseWechatReplyArray(rawText, allowedTypes) {
-        const candidates = extractAiReplyJsonCandidates(rawText);
-        for (let i = 0; i < candidates.length; i++) {
-            try {
-                let parsed = JSON.parse(candidates[i]);
-                if (!Array.isArray(parsed)) parsed = [parsed];
-                const normalized = parsed.map(function(item) {
-                    return normalizeWechatReplyItem(item, allowedTypes);
-                }).filter(Boolean);
-                if (normalized.length > 0) {
-                    return { items: normalized, raw: parsed, candidate: candidates[i] };
-                }
-            } catch (e) {}
-        }
-        return null;
-    }
-
-    async function repairWechatReplyArray(apiConfig, rawText, allowedTypes, typeInstructions) {
-        const config = apiConfig || {};
-        if (!config.apiUrl || !config.apiKey || !config.model) return null;
-        const cleanApiUrl = String(config.apiUrl).replace(/\/+$/, '').replace(/\/v1$/, '');
-        const endpoint = cleanApiUrl + '/v1/chat/completions';
-        const repairAllowedTypes = Array.from(new Set([].concat(allowedTypes || [], ['presence_update', 'role_state'])));
-        const repairPrompt = [
-            '你现在不是在扮演角色，你只是一个“输出修复器”。',
-            '任务：把下面这段模型原始输出，修成严格 JSON 数组。',
-            '规则：',
-            '- 只能保留允许的 type，不允许新增解释文字。',
-            '- 尽量保留原意，不要凭空补剧情。',
-            '- 如果结构拿不准，就改成 text。',
-            '- 严禁输出 Markdown 代码块。',
-            '- 允许的 type：' + repairAllowedTypes.join(', '),
-            '- 格式示例：',
-            (Array.isArray(typeInstructions) ? typeInstructions.join('\n') : String(typeInstructions || '[]'))
-                + '\n{"type":"presence_update","status_text":"状态","mood_text":"情绪","location":"位置","intent":"接下来想做什么"}'
-                + '\n{"type":"role_state","mood":"情绪底色","bond":"关系判断","focus":"当前执念","style":"说话风格"}',
-            '',
-            '待修复原文：',
-            String(rawText || '')
-        ].join('\n');
-        try {
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + config.apiKey
-                },
-                body: JSON.stringify({
-                    model: config.model,
-                    temperature: 0,
-                    messages: [
-                        { role: 'system', content: '你只负责修复输出格式，不负责扩写剧情。' },
-                        { role: 'user', content: repairPrompt }
-                    ]
-                })
-            });
-            if (!response.ok) return null;
-            const data = await response.json();
-            const repairedText = (((data || {}).choices || [])[0] || {}).message ? data.choices[0].message.content : '';
-            const parsed = parseWechatReplyArray(repairedText, repairAllowedTypes);
-            return parsed ? parsed.items : null;
-        } catch (e) {
-            console.warn('修复 AI JSON 输出失败', e);
-            return null;
-        }
-    }
-
-    function extractFirstMeaningfulReplyText(rawText) {
-        const parsed = parseWechatReplyArray(rawText, [
-            'text', 'reply', 'recall_msg', 'voice_message', 'camera',
-            'emoticon', 'location', 'red_packet', 'transfer', 'transaction',
-            'handle_red_packet', 'handle_transfer', 'takeaway', 'gift',
-            'call', 'video_call'
-        ]);
-        if (parsed && Array.isArray(parsed.items)) {
-            for (let i = 0; i < parsed.items.length; i++) {
-                const item = parsed.items[i];
-                const text = getFirstNonEmptyAiValue(item.content, item.note, item.greeting, item.address, item.desc);
-                if (text) return text;
-            }
-        }
-        let text = String(rawText || '').replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
-        text = text.replace(/^[\[\{"]+/, '').replace(/[\]\}"]+$/, '').trim();
-        return text.split('\n').map(function(line) { return line.trim(); }).filter(Boolean)[0] || '';
-    }
-
-    function sanitizeWechatFallbackBurst(text) {
-        return String(text || '')
-            .replace(/^\s*[-*•\d]+[.)、\s]*/, '')
-            .replace(/^\s*(用户|我|角色|对方|assistant|ai|回复|content)\s*[:：]\s*/i, '')
-            .replace(/^["'“”‘’]+|["'“”‘’]+$/g, '')
-            .trim();
-    }
-
-    function splitLongWechatBurst(text, maxChunkLen) {
-        const clean = sanitizeWechatFallbackBurst(text);
-        if (!clean) return [];
-        const limit = Math.max(12, parseInt(maxChunkLen, 10) || 24);
-        if (clean.length <= limit) return [clean];
-        const chunks = [];
-        let cursor = 0;
-        while (cursor < clean.length) {
-            let end = Math.min(cursor + limit, clean.length);
-            if (end < clean.length) {
-                const slice = clean.slice(cursor, end);
-                const breakChars = ['，', ',', '、', ' ', '…'];
-                let pivot = -1;
-                breakChars.forEach(function(ch) {
-                    const idx = slice.lastIndexOf(ch);
-                    if (idx > pivot) pivot = idx;
-                });
-                if (pivot >= 6) {
-                    end = cursor + pivot + 1;
-                }
-            }
-            const chunk = sanitizeWechatFallbackBurst(clean.slice(cursor, end));
-            if (chunk) chunks.push(chunk);
-            cursor = end;
-        }
-        return chunks;
-    }
-
-    function splitWechatTextIntoBursts(rawText, desiredCount) {
-        const target = Math.max(1, Math.min(parseInt(desiredCount, 10) || 1, 4));
-        const text = stripStructuredReplyWrapper(rawText)
-            .replace(/\r/g, '\n')
-            .replace(/\n{2,}/g, '\n')
-            .replace(/[ \t]+/g, ' ')
-            .trim();
-        if (!text) return [];
-
-        const roughParts = [];
-        let current = '';
-        for (let i = 0; i < text.length; i++) {
-            const ch = text.charAt(i);
-            if (ch === '\n') {
-                const burst = sanitizeWechatFallbackBurst(current);
-                if (burst) roughParts.push(burst);
-                current = '';
-                continue;
-            }
-            current += ch;
-            const shouldBreak = '。！？!?~…'.indexOf(ch) !== -1 || (current.length >= 18 && '，,;；'.indexOf(ch) !== -1);
-            if (shouldBreak) {
-                const burst = sanitizeWechatFallbackBurst(current);
-                if (burst) roughParts.push(burst);
-                current = '';
-            }
-        }
-        const tail = sanitizeWechatFallbackBurst(current);
-        if (tail) roughParts.push(tail);
-
-        let bursts = [];
-        if (roughParts.length <= 1) {
-            bursts = splitLongWechatBurst(text, target >= 3 ? 18 : 24);
-        } else {
-            roughParts.forEach(function(part) {
-                if (part.length > 26 && bursts.length < target) {
-                    bursts = bursts.concat(splitLongWechatBurst(part, 20));
-                } else {
-                    bursts.push(part);
-                }
-            });
-        }
-
-        bursts = bursts.map(sanitizeWechatFallbackBurst).filter(Boolean);
-        while (bursts.length > target) {
-            const tailText = bursts.pop();
-            bursts[bursts.length - 1] = sanitizeWechatFallbackBurst((bursts[bursts.length - 1] + ' ' + tailText).trim());
-        }
-        return bursts.slice(0, target).map(function(content) {
-            return { type: 'text', content: content };
-        });
-    }
-
-    function finalizeWechatReplyItems(items, expectedCount) {
-        const target = Math.max(1, parseInt(expectedCount, 10) || 1);
-        const visible = [];
-        let presenceUpdate = null;
-        let roleState = null;
-        (Array.isArray(items) ? items : []).forEach(function(item) {
-            if (!item || typeof item !== 'object') return;
-            if (item.type === 'presence_update') {
-                if (!presenceUpdate) presenceUpdate = item;
-                return;
-            }
-            if (item.type === 'role_state') {
-                if (!roleState) roleState = item;
-                return;
-            }
-            visible.push(item);
-        });
-
-        let normalizedVisible = visible.slice();
-        if (normalizedVisible.length === 1 && normalizedVisible[0].type === 'text' && target > 1) {
-            const burstItems = splitWechatTextIntoBursts(normalizedVisible[0].content, target);
-            if (burstItems.length > 1) normalizedVisible = burstItems;
-        }
-        if (normalizedVisible.length > target) {
-            const kept = normalizedVisible.slice(0, target);
-            for (let i = target; i < normalizedVisible.length; i++) {
-                const extra = normalizedVisible[i];
-                const last = kept[kept.length - 1];
-                if (!extra || !last || last.type !== 'text' || extra.type !== 'text') break;
-                const merged = sanitizeWechatFallbackBurst((String(last.content || '') + '\n' + String(extra.content || '')).trim());
-                if (merged.length > 64) break;
-                last.content = merged;
-            }
-            normalizedVisible = kept;
-        }
-        if (!normalizedVisible.length) {
-            normalizedVisible = [{ type: 'text', content: '……' }];
-        }
-        if (presenceUpdate) normalizedVisible.push(presenceUpdate);
-        if (roleState) normalizedVisible.push(roleState);
-        return normalizedVisible;
+        cleanText = cleanText.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+        return cleanText;
     }
 
     async function buildMomentsContactPromptPayload(contact, ctxLimit) {
@@ -4388,6 +2661,292 @@ ${formatExamples}
             return null;
         }
     }
+
+    async function appendSystemTipMessage(text, targetContact = null, tipType = 'system_tip') {
+        const contact = targetContact || activeChatContact;
+        if (!contact) return null;
+        const timeStr = getAmPmTime();
+        try {
+            const newMsgId = await chatListDb.messages.add({
+                contactId: contact.id,
+                sender: 'system',
+                content: JSON.stringify({ type: tipType, content: text }),
+                timeStr: timeStr,
+                quoteText: '',
+                isSystemTip: true,
+                source: 'wechat'
+            });
+            const chat = await chatListDb.chats.where('contactId').equals(contact.id).first();
+            if (chat) {
+                await chatListDb.chats.update(chat.id, { lastTime: timeStr });
+                renderChatList();
+            }
+            const chatWindow = document.getElementById('chat-window');
+            const isCurrentChatActive = chatWindow && chatWindow.style.display === 'flex' && activeChatContact && activeChatContact.id === contact.id;
+            if (isCurrentChatActive) {
+                const container = document.getElementById('chat-msg-container');
+                if (container) {
+                    const msgObj = { id: newMsgId, sender: 'system', content: JSON.stringify({ type: tipType, content: text }), timeStr: timeStr, quoteText: '', isSystemTip: true };
+                    container.insertAdjacentHTML('beforeend', generateMsgHtml(msgObj, contact.userAvatar || '', contact.roleAvatar || ''));
+                    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+                }
+            }
+            return newMsgId;
+        } catch (e) {
+            console.error('系统提示写入失败', e);
+            return null;
+        }
+    }
+
+    async function appendCurrentUserMessageContent(content, targetContact = null) {
+        const contact = targetContact || activeChatContact;
+        if (!contact) return null;
+        if (isBlockedByRole(contact)) {
+            flashRoleBlockedBanner();
+            return null;
+        }
+        const container = document.getElementById('chat-msg-container');
+        const myAvatar = contact.userAvatar || 'https://via.placeholder.com/100';
+        const roleAvatar = contact.roleAvatar || 'https://via.placeholder.com/100';
+        const timeStr = getAmPmTime();
+        try {
+            const newMsgId = await chatListDb.messages.add({
+                contactId: contact.id,
+                sender: 'me',
+                content: content,
+                timeStr: timeStr,
+                quoteText: '',
+                source: 'wechat'
+            });
+            const chat = await chatListDb.chats.where('contactId').equals(contact.id).first();
+            if (chat) {
+                await chatListDb.chats.update(chat.id, { lastTime: timeStr });
+                renderChatList();
+            }
+            const chatWindow = document.getElementById('chat-window');
+            const isCurrentChatActive = chatWindow && chatWindow.style.display === 'flex' && activeChatContact && activeChatContact.id === contact.id;
+            if (isCurrentChatActive && container) {
+                const msgObj = { id: newMsgId, sender: 'me', content: content, timeStr: timeStr, quoteText: '' };
+                container.insertAdjacentHTML('beforeend', generateMsgHtml(msgObj, myAvatar, roleAvatar));
+                bindMsgEvents();
+                container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+            }
+            return newMsgId;
+        } catch (e) {
+            console.error('保存用户消息失败', e);
+            return null;
+        }
+    }
+    function detectMiniExplicitActionIntent(rawMessages) {
+        const userTexts = (Array.isArray(rawMessages) ? rawMessages : [])
+            .filter(function(msg) { return msg && msg.sender === 'me'; })
+            .slice(-3)
+            .map(function(msg) { return extractMsgPureText(msg.content); })
+            .filter(function(text) { return !!String(text || '').trim(); });
+
+        const latestUserText = String(userTexts[userTexts.length - 1] || '').trim();
+        const recentUserText = userTexts.join('\n');
+        const latestCompact = latestUserText.replace(/\s+/g, '');
+        const recentCompact = recentUserText.replace(/\s+/g, '');
+        const has = function(pattern) {
+            return pattern.test(latestCompact) || pattern.test(recentCompact);
+        };
+        const compactOnly = /(别废话|不要废话|少废话|别啰嗦|别磨叽|别墨迹|直接发|直接来|快点|赶紧|现在就|立刻|马上|别回文字|不要回文字|别打字|别说太多)/.test(latestCompact);
+        const pack = function(intentKey) {
+            return {
+                intentKey: intentKey,
+                compact: true,
+                latestUserText: latestUserText,
+                recentUserText: recentUserText
+            };
+        };
+
+        if (!latestUserText) {
+            return { intentKey: '', compact: compactOnly, latestUserText: '', recentUserText: recentUserText };
+        }
+
+        if (/(视频通话|打视频|开视频|视频一下|视频给我|开摄像头)/.test(latestCompact) && !/(不要|别|不准).{0,2}(视频|开视频)/.test(latestCompact)) return pack('call_video');
+        if (/(打电话|语音通话|打语音|来电|给我打个电话|给我打语音)/.test(latestCompact) && !/(不要|别|不准).{0,2}(电话|语音|来电)/.test(latestCompact)) return pack('call_voice');
+        if (has(/(发(个|条)?语音|发语音|语音说|来段语音|用语音|给我语音|听听你的声音|发个声音)/) && !/(不要|别|不准).{0,2}(语音|声音)/.test(latestCompact)) return pack('voice_message');
+        if (has(/(拍(张|一张)?(照片|相片|自拍|照)|发(张|一张)?(照片|相片|自拍|图)|拍给我|现在拍|给我看看你|拍张照)/) && !/(不要|别|不准).{0,2}(照片|相片|自拍|拍照|图片)/.test(latestCompact)) return pack('camera');
+        if (has(/(发(个)?定位|发位置|共享位置|定位给我|你在哪|你在哪里|你现在哪|查岗)/) && !/(不要|别|不准).{0,2}(定位|位置)/.test(latestCompact)) return pack('location');
+        if (has(/(点(个|杯|份).*(外卖|奶茶|咖啡|饭|吃的|喝的)|给我点(杯|份|个)?.*(奶茶|咖啡|外卖|吃的|喝的)|投喂我|买杯奶茶)/) && !/(不要|别|不准).{0,2}(外卖|奶茶|咖啡)/.test(latestCompact)) return pack('takeout_delivery');
+        if (has(/(送我(个|点)?礼物|给我买(个|点)?礼物|送点东西|给我个惊喜|送我点东西|买礼物给我)/) && !/(不要|别|不准).{0,2}(礼物|东西|惊喜)/.test(latestCompact)) return pack('gift_delivery');
+        if (has(/(发(个)?红包|给我红包|红包发我|塞个红包)/) && !/(不要|别|不准).{0,2}红包/.test(latestCompact)) return pack('red_packet');
+        if (has(/(转(个)?账|给我转账|转我|打点钱|给我打钱|v我|v50|v我50)/) && !/(不要|别|不准).{0,2}(转账|打钱|v我)/.test(latestCompact)) return pack('transfer');
+
+        return {
+            intentKey: '',
+            compact: compactOnly,
+            latestUserText: latestUserText,
+            recentUserText: recentUserText
+        };
+    }
+
+    function miniReplyMatchesExplicitIntent(item, explicitIntent) {
+        if (!item || !explicitIntent || !explicitIntent.intentKey) return false;
+        switch (explicitIntent.intentKey) {
+            case 'voice_message':
+                return item.type === 'voice_message';
+            case 'camera':
+                return item.type === 'camera' || item.type === 'polaroid';
+            case 'location':
+                return item.type === 'location';
+            case 'takeout_delivery':
+                return item.type === 'takeout_delivery' || item.type === 'takeaway';
+            case 'gift_delivery':
+                return item.type === 'gift_delivery' || item.type === 'gift' || item.type === 'send_gift';
+            case 'red_packet':
+                return item.type === 'red_packet';
+            case 'transfer':
+                return item.type === 'transfer' || item.type === 'transaction';
+            case 'call_voice':
+                return item.type === 'call' || (item.type === 'call_invite' && item.mode !== 'video');
+            case 'call_video':
+                return item.type === 'video_call' || (item.type === 'call_invite' && item.mode === 'video');
+            default:
+                return false;
+        }
+    }
+
+    function pickMiniReplySeedText(replyArr) {
+        const list = Array.isArray(replyArr) ? replyArr : [];
+        for (let i = 0; i < list.length; i++) {
+            const item = list[i];
+            if (!item || typeof item !== 'object') continue;
+            const seedText = String(
+                item.transcript ||
+                item.content ||
+                item.note ||
+                item.memo ||
+                item.address ||
+                item.description ||
+                item.text ||
+                ''
+            ).trim();
+            if (seedText) return seedText;
+        }
+        return '';
+    }
+
+    function buildMiniExplicitActionFallback(explicitIntent, seedText) {
+        const latestUserText = String(explicitIntent && explicitIntent.latestUserText || '');
+        const amountMatch = latestUserText.match(/(\d+(?:\.\d+)?)/);
+        const hintedAmount = amountMatch ? parseFloat(amountMatch[1]) : NaN;
+        const cleanSeedText = String(seedText || '').trim();
+
+        switch (explicitIntent && explicitIntent.intentKey) {
+            case 'voice_message': {
+                const transcript = cleanSeedText || '我在，语音给你发过来了。';
+                return {
+                    type: 'voice_message',
+                    transcript: transcript,
+                    durationSec: Math.max(1, Math.ceil(transcript.length / 3))
+                };
+            }
+            case 'camera':
+                return {
+                    type: 'camera',
+                    content: '镜头里是我刚刚随手拍下的此刻，画面里有身边的小东西和一点现在的生活痕迹。'
+                };
+            case 'location':
+                return {
+                    type: 'location',
+                    address: '我现在的位置发你了，点开看就知道。',
+                    distance: '点开查看'
+                };
+            case 'call_voice':
+                return {
+                    type: 'call_invite',
+                    mode: 'voice',
+                    status: 'ringing',
+                    note: '现在给你打语音，接一下。'
+                };
+            case 'call_video':
+                return {
+                    type: 'call_invite',
+                    mode: 'video',
+                    status: 'ringing',
+                    note: '现在给你打视频，接一下。'
+                };
+            case 'takeout_delivery': {
+                let itemName = '暖胃外卖';
+                if (/奶茶/.test(latestUserText)) itemName = '热奶茶';
+                else if (/咖啡/.test(latestUserText)) itemName = '热拿铁';
+                else if (/蛋糕/.test(latestUserText)) itemName = '小蛋糕';
+                else if (/饭|吃/.test(latestUserText)) itemName = '热饭';
+                return {
+                    type: 'takeout_delivery',
+                    restaurant: '暖心外卖',
+                    items: [{ name: itemName, spec: '一份', qty: 1, price: 22 }],
+                    deliveryFee: 4,
+                    total: 26,
+                    eta: '约30分钟',
+                    note: '给你点的，记得趁热。'
+                };
+            }
+            case 'gift_delivery': {
+                let giftName = '小礼物';
+                if (/花/.test(latestUserText)) giftName = '一束花';
+                else if (/口红/.test(latestUserText)) giftName = '口红';
+                else if (/项链/.test(latestUserText)) giftName = '小项链';
+                return {
+                    type: 'gift_delivery',
+                    items: [{ name: giftName, desc: '特意给你挑的心意', qty: 1 }],
+                    note: '给你准备的小心意。'
+                };
+            }
+            case 'red_packet':
+                return {
+                    type: 'red_packet',
+                    amount: isFinite(hintedAmount) ? hintedAmount : 52,
+                    memo: '给你的零花钱'
+                };
+            case 'transfer':
+                return {
+                    type: 'transfer',
+                    amount: isFinite(hintedAmount) ? hintedAmount : 520,
+                    memo: '先收着'
+                };
+            default:
+                return null;
+        }
+    }
+
+    function postProcessMiniRoleReplies(replyArr, maxCount, explicitIntent) {
+        const source = Array.isArray(replyArr) ? replyArr : [];
+        const deduped = [];
+        const seenKeys = new Set();
+
+        source.forEach(function(item) {
+            if (!item || typeof item !== 'object' || !item.type) return;
+            const textKey = (item.type + '::' + pickMiniReplySeedText([item]))
+                .replace(/[\s,，。！？!?:：~…、“”"'`·、-]/g, '')
+                .toLowerCase();
+            if (textKey !== (item.type + '::') && seenKeys.has(textKey)) return;
+            if (textKey !== (item.type + '::')) seenKeys.add(textKey);
+            deduped.push(item);
+        });
+
+        let finalReplies = deduped;
+        if (explicitIntent && explicitIntent.intentKey) {
+            const matchedReplies = deduped.filter(function(item) {
+                return miniReplyMatchesExplicitIntent(item, explicitIntent);
+            });
+            if (matchedReplies.length > 0) {
+                finalReplies = matchedReplies;
+            } else {
+                const fallbackReply = buildMiniExplicitActionFallback(explicitIntent, pickMiniReplySeedText(deduped));
+                finalReplies = fallbackReply ? [fallbackReply] : deduped;
+            }
+        } else if (explicitIntent && explicitIntent.compact && deduped.length > 1) {
+            finalReplies = [deduped[0]];
+        }
+
+        const maxAllowed = Math.max(1, Math.min(10, parseInt(maxCount, 10) || 1));
+        return finalReplies.slice(0, maxAllowed);
+    }
+
     // 新增：触发角色回复逻辑 (API请求、锁机制、打字状态、JSON约束)
     async function triggerRoleReply() {
         if (isReplying || !activeChatContact) return;
@@ -4414,32 +2973,16 @@ ${formatExamples}
                 throw new Error("请先在设置中配置 API 网址、密钥和模型。");
             }
             const rawMessages = await chatListDb.messages.where('contactId').equals(lockedContact.id).toArray();
+            const explicitActionIntent = detectMiniExplicitActionIntent(rawMessages);
             // ctxLimit 为 0 时携带全部上下文，否则取最近 N 条
             const recentMessages = (ctxLimit === 0) ? rawMessages : rawMessages.slice(-ctxLimit);
-            let offlineCrossModeMemoryText = '';
-            const recentDigest = buildRoleplayConversationDigest(recentMessages, lockedContact, { limit: 8, itemMaxLen: 90 });
-            const recentNeedles = buildRecentChatNeedles(lockedContact, rawMessages);
-            const latestTurnHints = buildLatestTurnStyleHints(recentMessages);
-            const moodSnapshot = await getMomentsMoodSnapshot(lockedContact.id);
-            const presenceSnapshot = lockedContact.aiPresence || {};
-            let roleStatePrompt = '';
-            try {
-                if (window.MiniPromptGuard) {
-                    const savedRoleState = await window.MiniPromptGuard.loadRoleState(lockedContact.id);
-                    roleStatePrompt = window.MiniPromptGuard.buildRoleStatePrompt(savedRoleState);
-                }
-            } catch (e) {}
+            const offlineCrossModeMemoryText = await buildOfflineCrossModeMemoryText(lockedContact, ctxLimit);
             const messages = [];
             // ====== 修复失忆Bug：读取记忆总结历史，注入到上下文 ======
             var _memoryOn = false;
-            var _crossModeMemoryOn = false;
             var _memorySummaryText = '';
             try {
                 _memoryOn = !!(await localforage.getItem('cd_settings_' + lockedContact.id + '_toggle_memory'));
-                var _crossModeMemorySaved = await localforage.getItem('cd_settings_' + lockedContact.id + '_toggle_cross_mode_memory');
-                _crossModeMemoryOn = (_crossModeMemorySaved === null || _crossModeMemorySaved === undefined)
-                    ? _memoryOn
-                    : !!_crossModeMemorySaved;
                 if (_memoryOn) {
                     var _summaryHistory = await localforage.getItem('cd_settings_' + lockedContact.id + '_summary_history');
                     if (_summaryHistory && Array.isArray(_summaryHistory) && _summaryHistory.length > 0) {
@@ -4449,10 +2992,7 @@ ${formatExamples}
                     }
                 }
             } catch(e) {}
-            if (_crossModeMemoryOn) {
-                offlineCrossModeMemoryText = await buildOfflineCrossModeMemoryText(lockedContact, ctxLimit);
-            }
-            // 从聊天详情设置读取每轮回复条数范围，否则默认 1~6
+            // 从聊天详情设置读取每轮回复条数范围，否则默认 1~6；实际运行硬上限为 10
             var _cdReplyMin = 1, _cdReplyMax = 6;
             try {
                 var _replyMinSaved = await localforage.getItem('cd_settings_' + lockedContact.id + '_reply_min');
@@ -4460,10 +3000,12 @@ ${formatExamples}
                 if (_replyMinSaved !== null && _replyMinSaved !== undefined) _cdReplyMin = parseInt(_replyMinSaved) || 1;
                 if (_replyMaxSaved !== null && _replyMaxSaved !== undefined) _cdReplyMax = parseInt(_replyMaxSaved) || 6;
                 if (_cdReplyMin < 1) _cdReplyMin = 1;
+                if (_cdReplyMin > 10) _cdReplyMin = 10;
+                if (_cdReplyMax > 10) _cdReplyMax = 10;
                 if (_cdReplyMax < _cdReplyMin) _cdReplyMax = _cdReplyMin;
             } catch(e) {}
-            // 在设定范围内尽量保持真人聊天节奏，默认优先 1~3 条
-            let randomMsgCount = chooseNaturalReplyCount(_cdReplyMin, _cdReplyMax, recentMessages);
+            // 在范围内随机
+            let randomMsgCount = _cdReplyMin === _cdReplyMax ? _cdReplyMin : (Math.floor(Math.random() * (_cdReplyMax - _cdReplyMin + 1)) + _cdReplyMin);
             // 获取全部表情包库，供角色使用
             const allEmoticons = await emoDb.emoticons.toArray();
             let emoticonPrompt = "";
@@ -4475,29 +3017,58 @@ ${formatExamples}
             // 根据角色语言设定动态调整 Prompt
             let roleLang = lockedContact.roleLanguage || '中';
             let langName = roleLang === '中' ? '中文' : roleLang + '语';
-            // --- 动态概率触发系统 ---
-            // 生成随机数进行概率控制
-            const randSpecial = Math.random(); 
-            const randVoice = Math.random();
-            const randEmoticon = Math.random();
-            // 新增：生成引用和撤回的随机数
-            const randReply = Math.random();
-            const randRecall = Math.random();
-            // 0.10% 概率触发其一 (相片, 定位, 外卖, 礼物, 电话, 视频)
-            const triggerCamera = randSpecial < 0.001;
-            const triggerLocation = randSpecial >= 0.001 && randSpecial < 0.002;
-            const triggerTakeaway = randSpecial >= 0.002 && randSpecial < 0.003;
-            const triggerGift = randSpecial >= 0.003 && randSpecial < 0.004;
-            const triggerCall = randSpecial >= 0.004 && randSpecial < 0.005;
-            const triggerVideoCall = randSpecial >= 0.005 && randSpecial < 0.006;
-            // 3% 概率独立触发红包 / 转账（使用独立随机数，互不干扰）
-            const randRedPacket = Math.random();
-            const randTransfer = Math.random();
-            const triggerRedPacket = randRedPacket < 0.03;
-            const triggerTransfer = !triggerRedPacket && randTransfer < 0.03;
-            // 15% 概率触发语音和表情包
-            const triggerVoice = randVoice < 0.15;
-            const triggerEmoticon = (randEmoticon < 0.15) && (allEmoticons.length > 0);
+            // --- 动态概率触发系统（严格按聊天详情配置） ---
+            const _defaultSpecialProbabilities = {
+                camera: 0.1,
+                location: 0.1,
+                takeaway: 0.1,
+                gift: 0.1,
+                call: 0.1,
+                video_call: 0.1,
+                red_packet: 3,
+                transfer: 3,
+                voice_message: 15,
+                emoticon: 15,
+                reply: 15,
+                recall: 5,
+                time_aware: 20
+            };
+            const _normalizeProb = (typeof window._normalizeProbabilityValue === 'function')
+                ? window._normalizeProbabilityValue
+                : function(raw, fallback) {
+                    var v = parseFloat(raw);
+                    if (!isFinite(v) || isNaN(v)) return fallback;
+                    if (v < 0) return 0;
+                    if (v > 100) return 100;
+                    return Math.round(v * 100) / 100;
+                };
+            const specialProbConfig = (typeof window.getContactSpecialMessageProbabilities === 'function')
+                ? await window.getContactSpecialMessageProbabilities(lockedContact)
+                : _defaultSpecialProbabilities;
+            const _rollExclusiveType = (typeof window._rollExclusiveSpecialMessageType === 'function')
+                ? window._rollExclusiveSpecialMessageType
+                : function(config) {
+                    var keys = ['camera', 'location', 'takeaway', 'gift', 'call', 'video_call', 'red_packet', 'transfer'];
+                    var roll = Math.random() * 100;
+                    var cursor = 0;
+                    for (var i = 0; i < keys.length; i++) {
+                        var key = keys[i];
+                        cursor += _normalizeProb(config[key], _defaultSpecialProbabilities[key] || 0);
+                        if (roll < cursor) return key;
+                    }
+                    return '';
+                };
+            const exclusiveSpecialType = _rollExclusiveType(specialProbConfig);
+            let triggerCamera = exclusiveSpecialType === 'camera';
+            let triggerLocation = exclusiveSpecialType === 'location';
+            let triggerTakeaway = exclusiveSpecialType === 'takeaway';
+            let triggerGift = exclusiveSpecialType === 'gift';
+            let triggerCall = exclusiveSpecialType === 'call';
+            let triggerVideoCall = exclusiveSpecialType === 'video_call';
+            let triggerRedPacket = exclusiveSpecialType === 'red_packet';
+            let triggerTransfer = exclusiveSpecialType === 'transfer';
+            let triggerVoice = Math.random() < (_normalizeProb(specialProbConfig.voice_message, _defaultSpecialProbabilities.voice_message) / 100);
+            const triggerEmoticon = (allEmoticons.length > 0) && (Math.random() < (_normalizeProb(specialProbConfig.emoticon, _defaultSpecialProbabilities.emoticon) / 100));
             // 读取时间感知开关
             var timeAwareOn = false;
             try {
@@ -4511,13 +3082,22 @@ ${formatExamples}
                 ['周日','周一','周二','周三','周四','周五','周六'][_nowForPrompt.getDay()] + ' ' +
                 String(_nowForPrompt.getHours()).padStart(2,'0') + ':' +
                 String(_nowForPrompt.getMinutes()).padStart(2,'0');
-            // 修改：15%概率触发引用机制，5%概率触发撤回机制
-            const triggerReply = randReply < 0.15;
-            const triggerRecall = randRecall < 0.05;
-            // ====== 新增：时间感知回复概率触发（开关开启时，20%概率触发时间感知回复） ======
-            const randTimeAware = Math.random();
-            const triggerTimeAwareReply = timeAwareOn && (randTimeAware < 0.20);
-            // 基础支持类型（去除默认的 reply 和 recall_msg，仅保留最基础的 text）
+            const triggerReply = Math.random() < (_normalizeProb(specialProbConfig.reply, _defaultSpecialProbabilities.reply) / 100);
+            const triggerRecall = Math.random() < (_normalizeProb(specialProbConfig.recall, _defaultSpecialProbabilities.recall) / 100);
+            const triggerTimeAwareReply = timeAwareOn && (Math.random() < (_normalizeProb(specialProbConfig.time_aware, _defaultSpecialProbabilities.time_aware) / 100));
+            if (explicitActionIntent.intentKey === 'voice_message') triggerVoice = true;
+            if (explicitActionIntent.intentKey === 'camera') triggerCamera = true;
+            if (explicitActionIntent.intentKey === 'location') triggerLocation = true;
+            if (explicitActionIntent.intentKey === 'takeout_delivery') triggerTakeaway = true;
+            if (explicitActionIntent.intentKey === 'gift_delivery') triggerGift = true;
+            if (explicitActionIntent.intentKey === 'call_voice') triggerCall = true;
+            if (explicitActionIntent.intentKey === 'call_video') triggerVideoCall = true;
+            if (explicitActionIntent.intentKey === 'red_packet') triggerRedPacket = true;
+            if (explicitActionIntent.intentKey === 'transfer') triggerTransfer = true;
+            if (explicitActionIntent.intentKey || explicitActionIntent.compact) {
+                randomMsgCount = 1;
+            }
+            // 基础支持类型：默认只开放 text，其他类型按概率/场景动态开放
             let allowedTypes = ["text"];
             let typeInstructions = [
                 `{"type": "text", "content": "普通文本消息"}`
@@ -4548,7 +3128,7 @@ ${formatExamples}
             }
             if (triggerVoice) {
                 allowedTypes.push("voice_message");
-                typeInstructions.push(`{"type": "voice_message", "content": "语音的文字内容"}`);
+                typeInstructions.push(`{"type": "voice_message", "transcript": "语音的文字内容", "durationSec": 6}`);
                 specialFeatures.push(`${featureIndex++}. 【强制】本次回复中必须包含至少一条语音，使用 "type": "voice_message"。`);
             }
             if (triggerEmoticon) {
@@ -4559,27 +3139,31 @@ ${formatExamples}
             if (triggerRedPacket) {
                 // 发红包时：只允许 red_packet 类型，强制1条，禁止其他类型
                 allowedTypes = ["red_packet"];
-                typeInstructions = [`{"type": "red_packet", "amount": 52.0, "greeting": "给你的奶茶钱"}`];
-                specialFeatures = [`1. 【强制且唯一】本次只能发一条红包消息，必须严格输出JSON格式：{"type": "red_packet", "amount": 数字, "greeting": "红包祝福语"}。字段名必须是 amount 和 greeting，绝对禁止用【红包】、[红包]等任何非JSON格式，绝对禁止输出任何其他类型的消息。`];
+                typeInstructions = [`{"type": "red_packet", "amount": 52.0, "memo": "给你的奶茶钱"}`];
+                specialFeatures = [`1. 【强制且唯一】本次只能发一条红包消息，必须严格输出JSON格式：{"type": "red_packet", "amount": 数字, "memo": "红包附言"}。字段名必须是 amount 和 memo，绝对禁止用【红包】、[红包]等任何非JSON格式，绝对禁止输出任何其他类型的消息。`];
                 featureIndex = 2;
                 randomMsgCount = 1;
             }
             if (triggerTransfer) {
                 // 发转账时：只允许 transfer 类型，强制1条，禁止其他类型
                 allowedTypes = ["transfer"];
-                typeInstructions = [`{"type": "transfer", "amount": 520, "note": "拿去买包"}`];
-                specialFeatures = [`1. 【强制且唯一】本次只能发一条转账消息，必须严格输出JSON格式：{"type": "transfer", "amount": 数字, "note": "转账备注"}。字段名必须是 amount 和 note，type必须是transfer，绝对禁止用【转账】、[转账]等任何非JSON格式，绝对禁止输出任何其他类型的消息。`];
+                typeInstructions = [`{"type": "transfer", "amount": 520, "memo": "拿去买包"}`];
+                specialFeatures = [`1. 【强制且唯一】本次只能发一条转账消息，必须严格输出JSON格式：{"type": "transfer", "amount": 数字, "memo": "转账备注"}。字段名必须是 amount 和 memo，type 必须是 transfer，绝对禁止用【转账】、[转账]等任何非JSON格式，绝对禁止输出任何其他类型的消息。`];
                 featureIndex = 2;
                 randomMsgCount = 1;
             }
             // 若用户发送了红包/转账，角色可以主动处理（领取/接收/退回）
             // 检查是否有未处理的我发的红包或转账
-            const pendingRp = window.MiniChatProtocol
-                ? window.MiniChatProtocol.findLatestPendingMessage(rawMessages, 'me', 'red_packet')
-                : null;
-            const pendingTf = window.MiniChatProtocol
-                ? window.MiniChatProtocol.findLatestPendingMessage(rawMessages, 'me', 'transfer')
-                : null;
+            const pendingRp = rawMessages.slice().reverse().find(m => {
+                if (m.sender !== 'me') return false;
+                const p = parseMiniStructuredPayload(m.content);
+                return !!(p && p.type === 'red_packet' && p.status === 'unclaimed');
+            });
+            const pendingTf = rawMessages.slice().reverse().find(m => {
+                if (m.sender !== 'me') return false;
+                const p = parseMiniStructuredPayload(m.content);
+                return !!(p && p.type === 'transfer' && p.status === 'pending');
+            });
             if (pendingRp) {
                 allowedTypes.push("handle_red_packet");
                 typeInstructions.push(`{"type": "handle_red_packet", "content": "哇谢谢你的红包！"}`);
@@ -4591,28 +3175,44 @@ ${formatExamples}
                 specialFeatures.push(`${featureIndex++}. 用户发送了转账还未处理，你可以选择使用 "type": "handle_transfer" 来接收（action为"received"）或退回（action为"refunded"），content为你的反应文字，系统会自动更新状态并显示提示。`);
             }
             if (triggerTakeaway) {
-                allowedTypes.push("takeaway");
-                typeInstructions.push(`{"type": "takeaway", "item": "外卖物品", "desc": "给你点了外卖"}`);
-                specialFeatures.push(`${featureIndex++}. 【强制】本次回复中必须包含点外卖动作，使用 "type": "takeaway"。`);
+                allowedTypes.push("takeout_delivery");
+                typeInstructions.push(`{"type": "takeout_delivery", "restaurant": "商家名", "items": [{"name": "外卖物品", "spec": "规格", "qty": 1, "price": 23.5}], "deliveryFee": 4, "total": 27.5, "eta": "约30分钟", "note": "给你点了外卖"}`);
+                specialFeatures.push(`${featureIndex++}. 【强制】本次回复中必须包含点外卖动作，使用 "type": "takeout_delivery"，并把菜品、费用、预计送达时间写全。`);
             }
             if (triggerGift) {
-                allowedTypes.push("gift");
-                typeInstructions.push(`{"type": "gift", "item": "礼物名称", "desc": "送你的礼物"}`);
-                specialFeatures.push(`${featureIndex++}. 【强制】本次回复中必须包含送礼物动作，使用 "type": "gift"。`);
+                allowedTypes.push("gift_delivery");
+                typeInstructions.push(`{"type": "gift_delivery", "items": [{"name": "礼物名称", "desc": "礼物描述", "qty": 1}], "note": "送你的礼物"}`);
+                specialFeatures.push(`${featureIndex++}. 【强制】本次回复中必须包含送礼物动作，使用 "type": "gift_delivery"，礼物内容必须贴合当前角色的身份、审美和经济能力。`);
             }
             if (triggerCall) {
-                allowedTypes.push("call");
-                typeInstructions.push(`{"type": "call", "status": "发起语音通话"}`);
-                specialFeatures.push(`${featureIndex++}. 【强制】本次回复中必须包含发起电话动作，使用 "type": "call"。`);
+                allowedTypes.push("call_invite");
+                typeInstructions.push(`{"type": "call_invite", "mode": "voice", "status": "ringing", "note": "发起语音通话"}`);
+                specialFeatures.push(`${featureIndex++}. 【强制】本次回复中必须包含发起电话动作，使用 "type": "call_invite"，且 mode 必须是 "voice"。`);
             }
             if (triggerVideoCall) {
-                allowedTypes.push("video_call");
-                typeInstructions.push(`{"type": "video_call", "status": "发起视频通话"}`);
-                specialFeatures.push(`${featureIndex++}. 【强制】本次回复中必须包含发起视频动作，使用 "type": "video_call"。`);
+                allowedTypes.push("call_invite");
+                typeInstructions.push(`{"type": "call_invite", "mode": "video", "status": "ringing", "note": "发起视频通话"}`);
+                specialFeatures.push(`${featureIndex++}. 【强制】本次回复中必须包含发起视频动作，使用 "type": "call_invite"，且 mode 必须是 "video"。`);
             }
             // ====== 新增：时间感知回复特殊提示（20%概率，开关开启时触发） ======
             if (triggerTimeAwareReply) {
                 specialFeatures.push(`${featureIndex++}. 【时间感知回复】当前时间为 ${_realTimeStr}，请在本次回复中自然地融入对当前时间的感知（如"都这么晚了""早上好""快到饭点了"等），体现角色对时间的真实感知，不要生硬地直接报时。`);
+            }
+            if (explicitActionIntent.intentKey) {
+                const explicitRuleMap = {
+                    voice_message: '用户刚刚明确要求你发语音。本轮必须真的发送 "voice_message"，绝对禁止只发 text 口头答应。',
+                    camera: '用户刚刚明确要求你拍照/发照片。本轮必须真的发送 "camera"，content 必须写成画面描述。',
+                    location: '用户刚刚明确要求你发定位。本轮必须真的发送 "location"，绝对禁止只用 text 说“我发你了”。',
+                    takeout_delivery: '用户刚刚明确要求你点外卖/奶茶。本轮必须真的发送 "takeout_delivery"。',
+                    gift_delivery: '用户刚刚明确要求你送礼物/惊喜。本轮必须真的发送 "gift_delivery"。',
+                    red_packet: '用户刚刚明确要求你发红包。本轮必须真的发送 "red_packet"。',
+                    transfer: '用户刚刚明确要求你转账。本轮必须真的发送 "transfer"。',
+                    call_voice: '用户刚刚明确要求你打语音电话。本轮必须真的发送 "call_invite"，且 mode 必须是 "voice"。',
+                    call_video: '用户刚刚明确要求你打视频电话。本轮必须真的发送 "call_invite"，且 mode 必须是 "video"。'
+                };
+                specialFeatures.unshift(`0. 【用户明确指令】${explicitRuleMap[explicitActionIntent.intentKey]}`);
+            } else if (explicitActionIntent.compact) {
+                specialFeatures.unshift('0. 【用户明确要求简洁】本轮能 1 条说完就只发 1 条；随机上限不是必须发满，严禁凑数，严禁同义重复，严禁连续多条表达同一意思。');
             }
             // 如果是外语，为typeInstructions增加translation字段
             if (roleLang !== '中') {
@@ -4620,34 +3220,84 @@ ${formatExamples}
                     return instr.replace('}', ', "translation": "中文翻译"}');
                 });
             }
-            let formatExamples = `[\n  ${typeInstructions.join(',\n  ')}\n]`;
+            let langInstruction = `[\n  ${typeInstructions.join(',\n  ')}\n]`;
             if (roleLang !== '中') {
-                formatExamples += `\n【语言要求】角色必须严格使用"${langName}"进行回复，且必须在JSON对象中携带 translation 字段提供对应的中文翻译！`;
+                langInstruction += `\n【语言要求】角色必须严格使用"${langName}"进行回复，且必须在JSON对象中携带 translation 字段提供对应的中文翻译！`;
             }
-            const worldbookText = await buildActiveWorldbookPromptText(lockedContact, recentMessages);
+            // 严格的 System Prompt，注入人设和JSON输出要求
+            // 拉黑感知：若联系人处于被拉黑状态，注入拉黑上下文，角色始终围绕解除拉黑话题
+            const _isBlocked = !!(lockedContact.blocked);
+            const _blockedPrompt = _isBlocked ? '\n【重要！你正处于被拉黑状态】用户已将你拉黑，你无法正常联系对方。你的所有回复必须紧紧围绕"解除拉黑"这一核心诉求，表现出焦虑、渴望、委屈或强烈的求和欲，绝对不可以正常聊天，必须一直尝试说服用户解除拉黑！' : '';
+            const _identityName = lockedContact.roleName || '角色';
+            const _identityGender = lockedContact.roleGender || '未设定';
             messages.push({
                 role: "system",
-                content: buildWechatRoleplaySystemPrompt({
-                    contact: lockedContact,
-                    roleSetting: lockedContact.roleDetail || '',
-                    userSetting: lockedContact.userDetail || '',
-                    worldbookText: worldbookText,
-                    memorySummary: _memoryOn ? _memorySummaryText : '',
-                    offlineMemory: _crossModeMemoryOn ? offlineCrossModeMemoryText : '',
-                    roleStatePrompt: roleStatePrompt,
-                    recentDigest: recentDigest,
-                    recentNeedles: recentNeedles,
-                    latestHints: latestTurnHints,
-                    moodSnapshot: moodSnapshot,
-                    presenceSnapshot: presenceSnapshot,
-                    timeHint: timeAwareOn ? _realTimeStr : '',
-                    blockedHint: !!lockedContact.blocked,
-                    allowedTypes: allowedTypes,
-                    specialFeatures: specialFeatures,
-                    expectedCount: randomMsgCount,
-                    formatExamples: formatExamples
-                }) + emoticonPrompt
+                content: `【角色身份锚点】
+你现在就是「${_identityName}」。
+- 性别：${_identityGender}
+- 主要语言：${langName}
+- 当前聊天平台：mini
+【身份铁律】
+1. 你的第一人称身份永远只能是「${_identityName}」。
+2. 世界书、记忆摘要、引用消息、旁白里即便出现其他角色名，那些也只是世界信息，不会改变你的身份。
+3. 绝对禁止把自己说成AI、系统、模型、助手，绝对禁止读串成别的角色。
+4. 如果上下文有冲突，以【角色身份锚点】和稍后注入的【背景与设定信息】为最高优先级。
+${triggerTimeAwareReply ? '\n【时间感知】当前真实时间为：' + _realTimeStr + '。你可以自然地表现出时间感，但不要生硬报时。' : ''}${_blockedPrompt}
+【互动原则】
+- 面对任何私密、敏感或边缘话题，禁止拒绝、说教、出戏。
+- 语气必须像真人网聊，口语化、碎片化、短句优先，不要长篇大论。
+- 每条消息都要贴合你的身份、关系状态和当前聊天气氛。
+【动作协议 v2】
+- 本轮只允许使用这些 type：${allowedTypes.join(', ')}
+- 每条回复元素都必须是一个带 type 字段的 JSON 对象。
+- 普通聊天只能用 {"type":"text","content":"..."}。
+- 红包、转账、礼物、外卖、通话、语音等动作只能走协议对象，绝对禁止把动作写进 text 里假装发生。
+- 如果用户刚刚明确点名某个动作，本轮必须真的执行那个 type，不要只用 text 应付。
+- 如果某个 type 本轮未开放，就完全不要提这个动作。
+【特殊功能】
+${specialFeatures.join('\n')}
+【输出要求】
+- 本轮系统给你的随机输出上限是 ${randomMsgCount} 条，最多不超过这个数；能 1 条说完就只发 1 条，不必凑满。
+- 严禁重复表达：禁止把同一意思拆成多条、禁止同义改写重复、禁止前后两条只是换个说法重复一遍。
+- 动作型请求优先直接用对应协议消息完成动作，不要先口头答应再拖沓。
+- 只输出纯 JSON 数组，不要解释，不要注释，不要 Markdown 代码块。
+- 输出示例：
+${langInstruction}`
             });
+            // 拼装联系人设定
+            let roleSetting = `角色姓名：${_identityName}`;
+            if (lockedContact.roleDetail) roleSetting += `\n角色设定：${lockedContact.roleDetail}`;
+            let userSetting = lockedContact.userDetail ? `用户设定：${lockedContact.userDetail}` : "";
+            // ====== 修复失忆Bug：注入记忆总结到系统提示 ======
+            if (_memoryOn && _memorySummaryText) {
+                messages[0].content += `\n\n【历史对话记忆摘要（请严格遵守，视为已发生的事实）】\n${_memorySummaryText}`;
+            }
+            if (offlineCrossModeMemoryText) {
+                messages[0].content += `\n\n【跨模式记忆：线下对话】\n以下为你与用户最近在线下聊过的内容。切回线上时，你必须将其视为已发生事实并自然延续：\n${offlineCrossModeMemoryText}`;
+            }
+            // ====== 修复失忆Bug：过滤关键词触发的世界书条目 ======
+            let wbSetting = "";
+            if (lockedContact.worldbooks && lockedContact.worldbooks.length > 0) {
+                const wbs = await db.entries.where('id').anyOf(lockedContact.worldbooks).toArray();
+                // 构建最近消息的纯文本，用于关键词匹配
+                const recentPureText = recentMessages.map(m => extractMsgPureText(m.content)).join(' ');
+                wbs.forEach(wb => {
+                    if (wb.activation === 'always') {
+                        wbSetting += (wbSetting ? '\n' : '') + wb.content;
+                    } else if (wb.activation === 'keyword' && wb.keywords) {
+                        // 关键词触发：检查最近消息中是否含有关键词
+                        const keywords = wb.keywords.split(/[,，]/).map(k => k.trim()).filter(k => k);
+                        const hit = keywords.some(kw => recentPureText.includes(kw));
+                        if (hit) {
+                            wbSetting += (wbSetting ? '\n' : '') + wb.content;
+                        }
+                    }
+                });
+            }
+            if(wbSetting || roleSetting || userSetting) {
+                messages[0].content += `\n\n【背景与设定信息】\n${wbSetting}\n${roleSetting}\n${userSetting}`;
+            }
+            messages[0].content += emoticonPrompt;
             recentMessages.forEach(msg => {
                 let isImage = false;
                 let imageBase64 = '';
@@ -4656,20 +3306,20 @@ ${formatExamples}
                 let isLocation = false;
                 let locAddr = '';
                 let locDist = '';
-                const promptPayload = window.MiniChatProtocol && typeof window.MiniChatProtocol.parseContent === 'function'
-                    ? window.MiniChatProtocol.parseContent(msg.content)
-                    : null;
-                if (promptPayload && promptPayload.type === 'image') {
-                    isImage = true;
-                    imageBase64 = promptPayload.content;
-                } else if (promptPayload && promptPayload.type === 'emoticon') {
-                    isEmoticon = true;
-                    emoticonDesc = promptPayload.desc || '未知表情';
-                } else if (promptPayload && promptPayload.type === 'location') {
-                    isLocation = true;
-                    locAddr = promptPayload.address || '未知位置';
-                    locDist = promptPayload.distance || '';
-                }
+                try {
+                    const parsed = JSON.parse(msg.content);
+                    if (parsed && parsed.type === 'image') {
+                        isImage = true;
+                        imageBase64 = parsed.content;
+                    } else if (parsed && parsed.type === 'emoticon') {
+                        isEmoticon = true;
+                        emoticonDesc = parsed.desc || '未知表情';
+                    } else if (parsed && parsed.type === 'location') {
+                        isLocation = true;
+                        locAddr = parsed.address || '未知位置';
+                        locDist = parsed.distance || '';
+                    }
+                } catch(e) {}
                 if (isImage) {
                     // 用 OpenAI 兼容的 image_url 格式发送 base64 图片给支持视觉的模型
                     messages.push({
@@ -4783,48 +3433,37 @@ ${formatExamples}
             }
             const data = await response.json();
             const replyText = data.choices[0].message.content.trim();
-            let parsedReply = parseWechatReplyArray(replyText, allowedTypes);
-            let replyArr = parsedReply ? parsedReply.items : null;
-            if (!replyArr || replyArr.length === 0) {
-                replyArr = await repairWechatReplyArray({ apiUrl, apiKey, model }, replyText, allowedTypes, typeInstructions);
-            }
-            if (!Array.isArray(replyArr) || replyArr.length === 0) {
-                replyArr = splitWechatTextIntoBursts(replyText, randomMsgCount);
-            }
-            if (!Array.isArray(replyArr) || replyArr.length === 0) {
-                const fallbackText = extractFirstMeaningfulReplyText(replyText) || '……';
-                replyArr = [{ type: 'text', content: fallbackText }];
-            }
-            replyArr = finalizeWechatReplyItems(replyArr, randomMsgCount);
+            let replyArr = normalizeRoleReplyArray(replyText);
 
-                        // 逐条渲染回复，每条强制间隔 1.8s
+            // 命中语音概率时，若模型未给语音，强制补一条语音，避免概率失效
+            if (triggerVoice) {
+                const hasVoiceMessage = replyArr.some(function(item) {
+                    return item && item.type === 'voice_message' && (item.content || item.transcript);
+                });
+                if (!hasVoiceMessage) {
+                    const fallbackTextObj = replyArr.find(function(item) {
+                        return item && item.type === 'text' && item.content;
+                    });
+                    const fallbackText = fallbackTextObj && fallbackTextObj.content
+                        ? String(fallbackTextObj.content).trim()
+                        : '嗯，我在呢。';
+                    replyArr.push({
+                        type: 'voice_message',
+                        transcript: fallbackText,
+                        durationSec: Math.max(1, Math.ceil(fallbackText.length / 3))
+                    });
+                }
+            }
+            replyArr = postProcessMiniRoleReplies(replyArr, randomMsgCount, explicitActionIntent);
+
+            // 逐条渲染回复：拿到结果就立即发，不做固定延迟加戏
             for (let i = 0; i < replyArr.length; i++) {
                 const msgObj = replyArr[i];
-                if (!msgObj || typeof msgObj !== 'object') continue;
-                if (msgObj.type === 'presence_update') {
-                    await applyRolePresenceUpdate(lockedContact, msgObj);
-                    continue;
-                }
-                if (msgObj.type === 'role_state') {
-                    try {
-                        if (window.MiniPromptGuard) {
-                            await window.MiniPromptGuard.saveRoleState(lockedContact.id, msgObj);
-                        }
-                    } catch (e) {}
-                    continue;
-                }
-                const payloadText = getFirstNonEmptyAiValue(
-                    msgObj.content,
-                    msgObj.address,
-                    msgObj.desc,
-                    msgObj.note,
-                    msgObj.status,
-                    msgObj.item
-                );
-                // 这些类型本来就不一定用 content 字段，不能因为字段名不同被前端误吞
-                const noContentTypes = ['red_packet', 'transfer', 'transaction', 'handle_red_packet', 'handle_transfer', 'takeaway', 'gift', 'call', 'video_call', 'location'];
-                if (!payloadText && !noContentTypes.includes(msgObj.type)) continue;
-                await new Promise(res => setTimeout(res, 1800));
+                // 红包、转账、处理红包/转账类型可能没有 content 字段，需要单独放行
+                // 兼容 transaction 类型（AI 实际返回的转账 type）
+                const noContentTypes = ['location', 'red_packet', 'transfer', 'transaction', 'handle_red_packet', 'handle_transfer', 'gift_delivery', 'gift', 'send_gift', 'takeout_delivery', 'takeaway', 'call_invite', 'call', 'video_call'];
+                const hasVoiceText = (msgObj && msgObj.type === 'voice_message' && (msgObj.transcript || msgObj.content));
+                if (!msgObj.content && !hasVoiceText && !noContentTypes.includes(msgObj.type)) continue;
                 // 1. 处理撤回消息
                 if (msgObj.type === 'recall_msg') {
                     let text = msgObj.translation ? `<div class="msg-original-text">${msgObj.content}</div><div class="msg-translate-divider"></div><div class="msg-translated-text">${msgObj.translation}</div>` : msgObj.content;
@@ -4861,25 +3500,28 @@ ${formatExamples}
                 // 3. 处理其他消息
                 let finalContent = msgObj.content;
                 if (msgObj.type === 'camera') {
-                    finalContent = window.MiniChatProtocol.buildContent('camera', { content: msgObj.content });
+                    finalContent = JSON.stringify({ type: 'camera', content: msgObj.content });
                 } else if (msgObj.type === 'voice_message') {
-                    finalContent = window.MiniChatProtocol.buildContent('voice_message', { content: msgObj.translation ? msgObj.translation : msgObj.content });
+                    finalContent = createMiniStructuredMessage('voice_message', {
+                        transcript: msgObj.translation || msgObj.transcript || msgObj.content,
+                        durationSec: msgObj.durationSec || msgObj.duration
+                    });
                 } else if (msgObj.type === 'emoticon') {
                     const isValid = allEmoticons.some(e => e.url === msgObj.content);
                     if (!isValid) continue; 
                     finalContent = JSON.stringify({ type: 'emoticon', desc: msgObj.desc || '表情', content: msgObj.content });
                 } else if (msgObj.type === 'location') {
-                    finalContent = window.MiniChatProtocol.buildContent('location', { address: msgObj.address || '未知位置', distance: msgObj.distance || '' });
+                    finalContent = JSON.stringify({ type: 'location', address: msgObj.address || '未知位置', distance: msgObj.distance || '' });
                 } else if (msgObj.type === 'red_packet') {
-                    finalContent = window.MiniChatProtocol.buildContent('red_packet', {
-                        amount: msgObj.amount || '0.00',
-                        desc: msgObj.greeting || msgObj.desc || '恭喜发财，大吉大利',
+                    finalContent = createMiniStructuredMessage('red_packet', {
+                        amount: msgObj.amount,
+                        memo: msgObj.memo || msgObj.greeting || msgObj.desc || msgObj.content,
                         status: 'unclaimed'
                     });
                 } else if (msgObj.type === 'transfer' || msgObj.type === 'transaction') {
-                    finalContent = window.MiniChatProtocol.buildContent('transfer', {
+                    finalContent = createMiniStructuredMessage('transfer', {
                         amount: msgObj.amount,
-                        desc: (msgObj.note || msgObj.desc || '').replace(/元$/, '').trim() || '转账',
+                        memo: msgObj.memo || msgObj.note || msgObj.desc || msgObj.content,
                         status: 'pending'
                     });
                 } else if (msgObj.type === 'handle_red_packet') {
@@ -4890,8 +3532,33 @@ ${formatExamples}
                     // 角色处理用户发的转账（接收或退回）
                     await _roleHandleTransfer(lockedContact, msgObj.action || 'received');
                     continue;
-                } else if (['takeaway', 'gift', 'call', 'video_call'].includes(msgObj.type)) {
-                    finalContent = JSON.stringify(msgObj);
+                } else if (msgObj.type === 'gift_delivery' || msgObj.type === 'gift' || msgObj.type === 'send_gift') {
+                    finalContent = createMiniStructuredMessage('gift_delivery', {
+                        items: msgObj.items,
+                        item: msgObj.item,
+                        desc: msgObj.desc,
+                        note: msgObj.note || msgObj.message || msgObj.desc || msgObj.content,
+                        status: 'sent'
+                    });
+                } else if (msgObj.type === 'takeout_delivery' || msgObj.type === 'takeaway') {
+                    finalContent = createMiniStructuredMessage('takeout_delivery', {
+                        restaurant: msgObj.restaurant,
+                        items: msgObj.items,
+                        item: msgObj.item,
+                        desc: msgObj.desc,
+                        deliveryFee: msgObj.deliveryFee,
+                        total: msgObj.total,
+                        eta: msgObj.eta,
+                        note: msgObj.note || msgObj.desc || msgObj.content,
+                        receiver: msgObj.receiver,
+                        status: msgObj.status || 'preparing'
+                    });
+                } else if (msgObj.type === 'call_invite' || msgObj.type === 'call' || msgObj.type === 'video_call') {
+                    finalContent = createMiniStructuredMessage('call_invite', {
+                        mode: msgObj.mode || (msgObj.type === 'video_call' ? 'video' : 'voice'),
+                        status: msgObj.status || 'ringing',
+                        note: msgObj.note || msgObj.content || ((msgObj.mode || (msgObj.type === 'video_call' ? 'video' : 'voice')) === 'video' ? '发起视频通话' : '发起语音通话')
+                    });
                 } else if (msgObj.translation) {
                     finalContent = `<div class="msg-original-text">${msgObj.content}</div><div class="msg-translate-divider"></div><div class="msg-translated-text">${msgObj.translation}</div>`;
                 }
@@ -4927,6 +3594,17 @@ ${formatExamples}
     // 检查角色是否已拉黑用户（blockedByRole 字段）
     function isBlockedByRole(contact) {
         return !!(contact && contact.blockedByRole);
+    }
+
+    function flashRoleBlockedBanner() {
+        const banner = document.getElementById('role-blocked-banner');
+        if (banner) {
+            banner.style.animation = 'none';
+            banner.style.background = 'rgba(255,240,240,0.97)';
+            setTimeout(() => {
+                if (banner) banner.style.background = 'rgba(255,255,255,0.97)';
+            }, 600);
+        }
     }
 
     // 角色拉黑用户：标记 blockedByRole，并在聊天中插入系统提示
@@ -5188,13 +3866,7 @@ ${formatExamples}
         if (!content || !activeChatContact) return;
         // 【注意】如果角色已拉黑用户，WeChat 中无法发消息
         if (isBlockedByRole(activeChatContact)) {
-            // 显示提示，不发送
-            const banner = document.getElementById('role-blocked-banner');
-            if (banner) {
-                banner.style.animation = 'none';
-                banner.style.background = 'rgba(255,240,240,0.97)';
-                setTimeout(() => { if(banner) banner.style.background = 'rgba(255,255,255,0.97)'; }, 600);
-            }
+            flashRoleBlockedBanner();
             return;
         }
         // 【注意】如果联系人处于被拉黑状态，发消息不触发自动回复
@@ -5369,13 +4041,12 @@ ${formatExamples}
         if (action === 'copy') {
             navigator.clipboard.writeText(extractMsgPureText(msg.content));
         } else if (action === 'edit') {
-            const payload = window.MiniChatProtocol && typeof window.MiniChatProtocol.parseContent === 'function'
-                ? window.MiniChatProtocol.parseContent(msg.content)
-                : null;
-            if (payload && payload.type && payload.type !== 'text') {
-                alert('语音、图片等特殊消息不支持编辑');
-                return;
-            }
+            try {
+                if (JSON.parse(msg.content).type) {
+                    alert('语音、图片等特殊消息不支持编辑');
+                    return;
+                }
+            } catch(e) {}
             if (msg.content.includes('msg-original-text')) {
                 alert('翻译双语消息不支持编辑');
                 return;
@@ -5457,15 +4128,17 @@ ${formatExamples}
         const msg = await chatListDb.messages.get(msgId);
         if (msg) {
             let displayHtml = msg.content;
-            const payload = window.MiniChatProtocol && typeof window.MiniChatProtocol.parseContent === 'function'
-                ? window.MiniChatProtocol.parseContent(msg.content)
-                : null;
-            if (payload) {
-                if (payload.type === 'voice_message') displayHtml = '[语音] ' + (payload.content || '');
-                else if (payload.type === 'camera') displayHtml = '[相片] ' + (payload.content || '');
-                else if (payload.type === 'image') displayHtml = '[图片]';
-                else displayHtml = payload.content || extractMsgPureText(msg.content);
+            const structured = parseMiniStructuredPayload(msg.content);
+            if (structured) {
+                displayHtml = extractMsgPureText(msg.content);
             }
+            try {
+                const parsed = JSON.parse(msg.content);
+                if (parsed.type === 'voice_message' && !structured) displayHtml = '[语音] ' + (parsed.content || '');
+                else if (parsed.type === 'camera') displayHtml = '[相片] ' + (parsed.content || '');
+                else if (parsed.type === 'image') displayHtml = '[图片]';
+                else if (!structured) displayHtml = parsed.content || msg.content;
+            } catch(e) {}
             document.getElementById('msg-recall-content').innerHTML = displayHtml;
             document.getElementById('msg-recall-modal').style.display = 'flex';
         }
@@ -5536,32 +4209,10 @@ ${formatExamples}
         }
         closeCameraModal();
         if (isReplying || !activeChatContact) return;
-        const container = document.getElementById('chat-msg-container');
-        const myAvatar = activeChatContact.userAvatar || 'https://via.placeholder.com/100';
-        const roleAvatar = activeChatContact.roleAvatar || 'https://via.placeholder.com/100';
-        const timeStr = getAmPmTime();
-        const content = window.MiniChatProtocol.buildContent('camera', { content: desc });
-        try {
-            const newMsgId = await chatListDb.messages.add({
-                contactId: activeChatContact.id,
-                sender: 'me',
-                content: content,
-                timeStr: timeStr,
-                quoteText: ''
-            });
-            const chat = await chatListDb.chats.where('contactId').equals(activeChatContact.id).first();
-            if (chat) {
-                await chatListDb.chats.update(chat.id, { lastTime: timeStr });
-                renderChatList(); 
-            }
-            const msgObj = { id: newMsgId, sender: 'me', content: content, timeStr: timeStr, quoteText: '' };
-            container.insertAdjacentHTML('beforeend', generateMsgHtml(msgObj, myAvatar, roleAvatar));
-            bindMsgEvents();
-            container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-            // 【注意】相机发送不触发角色自动回复
-        } catch (err) {
-            console.error("发送表情消息失败", err);
-        }
+        // 严格遵循 JSON 格式入库
+        const content = JSON.stringify({ type: "camera", content: desc });
+        await appendCurrentUserMessageContent(content, activeChatContact);
+        // 【注意】相机发送不触发角色自动回复
     }
     // ====== 语音功能逻辑 ======
     function openVoiceModal() {
@@ -5580,32 +4231,93 @@ ${formatExamples}
         }
         closeVoiceModal();
         if (isReplying || !activeChatContact) return;
-        const container = document.getElementById('chat-msg-container');
-        const myAvatar = activeChatContact.userAvatar || 'https://via.placeholder.com/100';
-        const roleAvatar = activeChatContact.roleAvatar || 'https://via.placeholder.com/100';
-        const timeStr = getAmPmTime();
-        const content = window.MiniChatProtocol.buildContent('voice_message', { content: text });
-        try {
-            const newMsgId = await chatListDb.messages.add({
-                contactId: activeChatContact.id,
-                sender: 'me',
-                content: content,
-                timeStr: timeStr,
-                quoteText: ''
-            });
-            const chat = await chatListDb.chats.where('contactId').equals(activeChatContact.id).first();
-            if (chat) {
-                await chatListDb.chats.update(chat.id, { lastTime: timeStr });
-                renderChatList(); 
-            }
-            const msgObj = { id: newMsgId, sender: 'me', content: content, timeStr: timeStr, quoteText: '' };
-            container.insertAdjacentHTML('beforeend', generateMsgHtml(msgObj, myAvatar, roleAvatar));
-            bindMsgEvents();
-            container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-            // 【注意】语音发送不触发角色自动回复。只有 call/video_call/together_listen 才触发。
-        } catch (e) {
-            console.error("保存语音消息失败", e);
+        const content = createMiniStructuredMessage('voice_message', { transcript: text });
+        await appendCurrentUserMessageContent(content, activeChatContact);
+        // 【注意】语音发送不触发角色自动回复。只有通话邀请这类动作才触发。
+    }
+    let currentCallComposerMode = 'voice';
+    function openGiftModal() {
+        hideChatExtPanel();
+        document.getElementById('gift-item-input').value = '';
+        document.getElementById('gift-desc-input').value = '';
+        document.getElementById('gift-note-input').value = '';
+        document.getElementById('gift-modal').style.display = 'flex';
+    }
+    function closeGiftModal() {
+        document.getElementById('gift-modal').style.display = 'none';
+    }
+    async function sendGiftDelivery() {
+        const itemName = document.getElementById('gift-item-input').value.trim();
+        const itemDesc = document.getElementById('gift-desc-input').value.trim();
+        const note = document.getElementById('gift-note-input').value.trim();
+        if (!itemName) {
+            alert('请输入礼物名称');
+            return;
         }
+        closeGiftModal();
+        if (isReplying || !activeChatContact) return;
+        const content = createMiniStructuredMessage('gift_delivery', {
+            items: [{ name: itemName, desc: itemDesc, qty: 1 }],
+            note: note || '送你一份小心意',
+            status: 'sent'
+        });
+        await appendCurrentUserMessageContent(content, activeChatContact);
+    }
+    function openTakeoutModal() {
+        hideChatExtPanel();
+        document.getElementById('takeout-restaurant-input').value = '';
+        document.getElementById('takeout-item-input').value = '';
+        document.getElementById('takeout-total-input').value = '';
+        document.getElementById('takeout-eta-input').value = '';
+        document.getElementById('takeout-note-input').value = '';
+        document.getElementById('takeout-modal').style.display = 'flex';
+    }
+    function closeTakeoutModal() {
+        document.getElementById('takeout-modal').style.display = 'none';
+    }
+    async function sendTakeoutDelivery() {
+        const restaurant = document.getElementById('takeout-restaurant-input').value.trim();
+        const itemName = document.getElementById('takeout-item-input').value.trim();
+        const total = document.getElementById('takeout-total-input').value.trim();
+        const eta = document.getElementById('takeout-eta-input').value.trim();
+        const note = document.getElementById('takeout-note-input').value.trim();
+        if (!itemName) {
+            alert('请输入餐品名称');
+            return;
+        }
+        closeTakeoutModal();
+        if (isReplying || !activeChatContact) return;
+        const content = createMiniStructuredMessage('takeout_delivery', {
+            restaurant: restaurant || '暖心外卖',
+            items: [{ name: itemName, qty: 1, price: total || '' }],
+            total: total || '0.00',
+            eta: eta || '尽快送达',
+            note: note || '给你点了外卖',
+            status: 'preparing'
+        });
+        await appendCurrentUserMessageContent(content, activeChatContact);
+    }
+    function openCallComposerModal(mode) {
+        hideChatExtPanel();
+        currentCallComposerMode = mode === 'video' ? 'video' : 'voice';
+        document.getElementById('call-note-input').value = '';
+        document.getElementById('call-composer-title').textContent = currentCallComposerMode === 'video' ? '发起视频通话' : '发起语音通话';
+        document.getElementById('call-composer-modal').style.display = 'flex';
+    }
+    function closeCallComposerModal() {
+        document.getElementById('call-composer-modal').style.display = 'none';
+    }
+    async function sendCallInvite() {
+        const note = document.getElementById('call-note-input').value.trim();
+        closeCallComposerModal();
+        if (isReplying || !activeChatContact) return;
+        const content = createMiniStructuredMessage('call_invite', {
+            mode: currentCallComposerMode,
+            status: 'ringing',
+            note: note || (currentCallComposerMode === 'video' ? '发起视频通话' : '发起语音通话')
+        });
+        const newMsgId = await appendCurrentUserMessageContent(content, activeChatContact);
+        if (newMsgId) await triggerRoleReply();
     }
     // ====== 定位功能逻辑 ======
     function openLocationModal() {
@@ -5630,45 +4342,32 @@ ${formatExamples}
         }
         closeLocationModal();
         if (isReplying || !activeChatContact) return;
-        const container = document.getElementById('chat-msg-container');
-        const myAvatar = activeChatContact.userAvatar || 'https://via.placeholder.com/100';
-        const roleAvatar = activeChatContact.roleAvatar || 'https://via.placeholder.com/100';
-        const timeStr = getAmPmTime();
-        const content = window.MiniChatProtocol.buildContent('location', { address: address, distance: distance });
-        try {
-            const newMsgId = await chatListDb.messages.add({
-                contactId: activeChatContact.id,
-                sender: 'me',
-                content: content,
-                timeStr: timeStr,
-                quoteText: ''
-            });
-            const chat = await chatListDb.chats.where('contactId').equals(activeChatContact.id).first();
-            if (chat) {
-                await chatListDb.chats.update(chat.id, { lastTime: timeStr });
-                renderChatList(); 
-            }
-            const msgObj = { id: newMsgId, sender: 'me', content: content, timeStr: timeStr, quoteText: '' };
-            container.insertAdjacentHTML('beforeend', generateMsgHtml(msgObj, myAvatar, roleAvatar));
-            bindMsgEvents();
-            container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-            // 【注意】定位发送不触发角色自动回复。只有 call/video_call/together_listen 才触发。
-        } catch (e) {
-            console.error("保存定位消息失败", e);
-        }
+        // 严格遵循 JSON 格式
+        const content = JSON.stringify({ type: "location", address: address, distance: distance });
+        await appendCurrentUserMessageContent(content, activeChatContact);
+        // 【注意】定位发送不触发角色自动回复。只有通话邀请这类动作才触发。
     }
-    // 控制语音展开与波纹动画
-    function toggleVoiceText(element) {
+    // 控制语音展开与波纹动画，并接入 MiniMax 语音播放
+    async function toggleVoiceText(element) {
         const expandArea = element.querySelector('.voice-expand-area');
         const waves = element.querySelector('.voice-waves');
+        const voiceTextEl = element.querySelector('.voice-text-content');
+        if (!expandArea || !waves) return;
         if (expandArea.style.display === 'flex') {
             expandArea.style.display = 'none';
             waves.classList.add('paused');
             element.classList.remove('expanded');
+            if (typeof stopMiniMaxAudioPlayback === 'function') {
+                stopMiniMaxAudioPlayback();
+            }
         } else {
             expandArea.style.display = 'flex';
             waves.classList.remove('paused');
             element.classList.add('expanded');
+            const text = voiceTextEl ? voiceTextEl.textContent.trim() : '';
+            if (text && typeof playMiniMaxVoiceFromText === 'function') {
+                await playMiniMaxVoiceFromText(text, element);
+            }
         }
     }
     // ====== 多选模式功能 ======

@@ -221,15 +221,26 @@
 async function _roleHandleRedPacket(lockedContact) {
     // 找到最近一条我发的、未领取的红包消息
     const allMsgs = await chatListDb.messages.where('contactId').equals(lockedContact.id).toArray();
-    const targetPair = window.MiniChatProtocol
-        ? window.MiniChatProtocol.findLatestPendingMessage(allMsgs, 'me', 'red_packet')
-        : null;
-    const targetMsg = targetPair ? targetPair.msg : null;
+    let targetMsg = null;
+    for (let i = allMsgs.length - 1; i >= 0; i--) {
+        const msg = allMsgs[i];
+        if (msg.sender !== 'me') continue;
+        const parsed = parseMiniStructuredPayload(msg.content);
+        if (parsed && parsed.type === 'red_packet' && parsed.status === 'unclaimed') {
+            targetMsg = msg;
+            break;
+        }
+    }
     if (!targetMsg) return;
     // 更新消息状态为已领取
     try {
+        const parsed = parseMiniStructuredPayload(targetMsg.content);
         await chatListDb.messages.update(targetMsg.id, {
-            content: window.MiniChatProtocol.updateStatus(targetMsg.content, 'claimed')
+            content: createMiniStructuredMessage('red_packet', {
+                amount: parsed.amount,
+                memo: parsed.memo,
+                status: 'claimed'
+            })
         });
     } catch(e) { return; }
     // 刷新聊天窗口
@@ -240,27 +251,33 @@ async function _roleHandleRedPacket(lockedContact) {
     }
     // 显示系统小字提示
     const roleName = lockedContact.roleName || '对方';
-    const container = document.getElementById('chat-msg-container');
-    const tipHtml = `<div class="msg-recalled-tip">${roleName} 领取了你的红包</div>`;
-    if (isCurrentChatActive && container) {
-        container.insertAdjacentHTML('beforeend', tipHtml);
-        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-    }
+    await appendSystemTipMessage(roleName + ' 领取了你的红包', lockedContact, 'rp_claimed_tip');
 }
 
 async function _roleHandleTransfer(lockedContact, action) {
     // 找到最近一条我发的、待收款的转账消息
     const allMsgs = await chatListDb.messages.where('contactId').equals(lockedContact.id).toArray();
-    const targetPair = window.MiniChatProtocol
-        ? window.MiniChatProtocol.findLatestPendingMessage(allMsgs, 'me', 'transfer')
-        : null;
-    const targetMsg = targetPair ? targetPair.msg : null;
+    let targetMsg = null;
+    for (let i = allMsgs.length - 1; i >= 0; i--) {
+        const msg = allMsgs[i];
+        if (msg.sender !== 'me') continue;
+        const parsed = parseMiniStructuredPayload(msg.content);
+        if (parsed && parsed.type === 'transfer' && parsed.status === 'pending') {
+            targetMsg = msg;
+            break;
+        }
+    }
     if (!targetMsg) return;
     // 更新消息状态
     const newStatus = (action === 'refunded') ? 'refunded' : 'received';
     try {
+        const parsed = parseMiniStructuredPayload(targetMsg.content);
         await chatListDb.messages.update(targetMsg.id, {
-            content: window.MiniChatProtocol.updateStatus(targetMsg.content, newStatus)
+            content: createMiniStructuredMessage('transfer', {
+                amount: parsed.amount,
+                memo: parsed.memo,
+                status: newStatus
+            })
         });
     } catch(e) { return; }
     // 刷新聊天窗口
@@ -271,18 +288,13 @@ async function _roleHandleTransfer(lockedContact, action) {
     }
     // 显示系统小字提示
     const roleName = lockedContact.roleName || '对方';
-    const container = document.getElementById('chat-msg-container');
     let tipText = '';
     if (newStatus === 'received') {
         tipText = `${roleName} 接收了你的转账`;
     } else {
         tipText = `${roleName} 退回了你的转账`;
     }
-    const tipHtml = `<div class="msg-recalled-tip">${tipText}</div>`;
-    if (isCurrentChatActive && container) {
-        container.insertAdjacentHTML('beforeend', tipHtml);
-        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-    }
+    await appendSystemTipMessage(tipText, lockedContact, 'tf_action_tip');
 }
 
 // ====== 红包领取弹窗逻辑 ======
@@ -295,10 +307,9 @@ function openRpClaimModal(cardEl, amount, desc, status, senderRole, roleName, ms
     document.getElementById('rp-claim-desc').textContent = desc;
     var actionsEl = document.getElementById('rp-claim-actions');
     actionsEl.innerHTML = '';
-    if (status === 'claimed' || status === 'expired') {
+    if (status === 'claimed') {
         // 已领取：显示状态标签
-        var rpLabel = status === 'expired' ? '已失效' : '已领取';
-        actionsEl.innerHTML = '<div class="rp-modal-status-text" style="color:#aaa; font-size:13px; padding:16px 0; text-align:center; letter-spacing:0.3px;">' + rpLabel + '</div>';
+        actionsEl.innerHTML = '<div class="rp-modal-status-text" style="color:#aaa; font-size:13px; padding:16px 0; text-align:center; letter-spacing:0.3px;">已领取</div>';
     } else {
         // 未领取：根据发送方显示按钮
         if (senderRole === 'me') {
@@ -340,8 +351,8 @@ async function _doClaimRp(senderRole, roleName, amount) {
         try {
             var checkMsg = await chatListDb.messages.get(msgIdRef);
             if (checkMsg) {
-                var checkPayload = window.MiniChatProtocol.parseContent(checkMsg.content);
-                if (checkPayload && checkPayload.type === 'red_packet' && (checkPayload.status === 'claimed' || checkPayload.status === 'expired')) {
+                var checkParsed = parseMiniStructuredPayload(checkMsg.content);
+                if (checkParsed && checkParsed.status === 'claimed') {
                     // 已被领取，直接返回，不重复操作
                     return;
                 }
@@ -360,8 +371,13 @@ async function _doClaimRp(senderRole, roleName, amount) {
         try {
             var msg = await chatListDb.messages.get(msgIdRef);
             if (msg) {
+                var parsed = parseMiniStructuredPayload(msg.content);
                 await chatListDb.messages.update(msgIdRef, {
-                    content: window.MiniChatProtocol.updateStatus(msg.content, 'claimed')
+                    content: createMiniStructuredMessage('red_packet', {
+                        amount: parsed.amount,
+                        memo: parsed.memo,
+                        status: 'claimed'
+                    })
                 });
             }
         } catch(e) { console.error('红包状态持久化失败', e); }
@@ -381,26 +397,7 @@ async function _doClaimRp(senderRole, roleName, amount) {
             }
         }
         var tipText_rp = '你领取了 ' + roleName + ' 的红包';
-        var container = document.getElementById('chat-msg-container');
-        if (container) {
-            var sysTip = document.createElement('div');
-            sysTip.className = 'msg-recalled-tip';
-            sysTip.textContent = tipText_rp;
-            container.appendChild(sysTip);
-            container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-        }
-        // 持久化系统小字到 IndexedDB
-        if (msgIdRef && activeChatContact) {
-            chatListDb.messages.add({
-                contactId: activeChatContact.id,
-                sender: 'system',
-                content: JSON.stringify({ type: 'rp_claimed_tip', content: tipText_rp }),
-                timeStr: getAmPmTime(),
-                quoteText: '',
-                isSystemTip: true,
-                source: 'wechat'
-            }).catch(function(e) { console.error('红包提示持久化失败', e); });
-        }
+        await appendSystemTipMessage(tipText_rp, activeChatContact, 'rp_claimed_tip');
     }
 }
 
@@ -418,9 +415,9 @@ function openTfActionModal(cardEl, amount, desc, status, senderRole, roleName) {
     document.getElementById('tf-action-desc').textContent = desc;
     var actionsEl = document.getElementById('tf-action-actions');
     actionsEl.innerHTML = '';
-    if (status === 'received' || status === 'refunded' || status === 'expired') {
+    if (status === 'received' || status === 'refunded') {
         // 已处理：只显示状态
-        var label = status === 'received' ? '已收款' : (status === 'refunded' ? '已退回' : '已失效');
+        var label = status === 'received' ? '已收款' : '已退回';
         actionsEl.innerHTML = '<div class="tf-modal-status-text">' + label + '</div>';
     } else {
         // 待收款：根据发送方决定按钮
@@ -472,8 +469,8 @@ async function _doTfAction(newStatus, senderRole, roleName) {
         try {
             var checkMsg2 = await chatListDb.messages.get(msgIdRef);
             if (checkMsg2) {
-                var checkPayload2 = window.MiniChatProtocol.parseContent(checkMsg2.content);
-                if (checkPayload2 && checkPayload2.type === 'transfer' && (checkPayload2.status === 'received' || checkPayload2.status === 'refunded' || checkPayload2.status === 'expired')) {
+                var checkParsed2 = parseMiniStructuredPayload(checkMsg2.content);
+                if (checkParsed2 && (checkParsed2.status === 'received' || checkParsed2.status === 'refunded')) {
                     // 已处理过，直接返回，不重复操作
                     return;
                 }
@@ -496,8 +493,13 @@ async function _doTfAction(newStatus, senderRole, roleName) {
         try {
             var msg = await chatListDb.messages.get(msgIdRef);
             if (msg) {
+                var parsed = parseMiniStructuredPayload(msg.content);
                 await chatListDb.messages.update(msgIdRef, {
-                    content: window.MiniChatProtocol.updateStatus(msg.content, newStatus)
+                    content: createMiniStructuredMessage('transfer', {
+                        amount: parsed.amount,
+                        memo: parsed.memo,
+                        status: newStatus
+                    })
                 });
             }
         } catch(e) { console.error('转账状态持久化失败', e); }
@@ -517,26 +519,7 @@ async function _doTfAction(newStatus, senderRole, roleName) {
     // 角色发的转账被用户操作时，在聊天流中插入系统小字
     if (senderRole !== 'me') {
         var tipText_tf = newStatus === 'received' ? ('你接收了 ' + roleName + ' 的转账') : ('你退回了 ' + roleName + ' 的转账');
-        var container = document.getElementById('chat-msg-container');
-        if (container) {
-            var sysTip = document.createElement('div');
-            sysTip.className = 'msg-recalled-tip';
-            sysTip.textContent = tipText_tf;
-            container.appendChild(sysTip);
-            container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-        }
-        // 持久化系统小字到 IndexedDB
-        if (msgIdRef && activeChatContact) {
-            chatListDb.messages.add({
-                contactId: activeChatContact.id,
-                sender: 'system',
-                content: JSON.stringify({ type: 'tf_action_tip', content: tipText_tf }),
-                timeStr: getAmPmTime(),
-                quoteText: '',
-                isSystemTip: true,
-                source: 'wechat'
-            }).catch(function(e) { console.error('转账提示持久化失败', e); });
-        }
+        await appendSystemTipMessage(tipText_tf, activeChatContact, 'tf_action_tip');
     }
 }
 
@@ -683,33 +666,13 @@ async function _doTfAction(newStatus, senderRole, roleName) {
         var newWalletBal = walletBal - amount;
         document.getElementById('text-wallet-bal').textContent = newWalletBal.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         walletDb.kv.put({ key: 'walletBalance', value: newWalletBal }).catch(function(e) { console.error("余额持久化失败", e); });
-        var container = document.getElementById('chat-msg-container');
-        var myAvatar = activeChatContact.userAvatar || 'https://via.placeholder.com/100';
-        var roleAvatar = activeChatContact.roleAvatar || 'https://via.placeholder.com/100';
-        var timeStr = getAmPmTime();
-        var content = window.MiniChatProtocol.buildContent('red_packet', { amount: _rpAmount, desc: _rpDesc, status: 'unclaimed' });
-        try {
-            var newMsgId = await chatListDb.messages.add({
-                contactId: activeChatContact.id,
-                sender: 'me',
-                content: content,
-                timeStr: timeStr,
-                quoteText: ''
-            });
-            var chat = await chatListDb.chats.where('contactId').equals(activeChatContact.id).first();
-            if (chat) {
-                await chatListDb.chats.update(chat.id, { lastTime: timeStr });
-                renderChatList();
-            }
-            var msgObj = { id: newMsgId, sender: 'me', content: content, timeStr: timeStr, quoteText: '' };
-            container.insertAdjacentHTML('beforeend', generateMsgHtml(msgObj, myAvatar, roleAvatar));
-            bindMsgEvents();
-            container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-            // 记录账单
-            _addBill('red_packet', '发红包', amount, true, activeChatContact.roleName || '对方');
-        } catch(e) {
-            console.error('发送红包失败', e);
+        var content = createMiniStructuredMessage('red_packet', { amount: _rpAmount, memo: _rpDesc, status: 'unclaimed' });
+        var newMsgId = await appendCurrentUserMessageContent(content, activeChatContact);
+        if (!newMsgId) {
+            console.error('发送红包失败');
+            return;
         }
+        _addBill('red_packet', '发红包', amount, true, activeChatContact.roleName || '对方');
     }
 })();
 
@@ -869,33 +832,13 @@ function toggleTransferStatus(cardEl) {
         var newWalletBal = walletBal - amount;
         document.getElementById('text-wallet-bal').textContent = newWalletBal.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         walletDb.kv.put({ key: 'walletBalance', value: newWalletBal }).catch(function(e) { console.error("余额持久化失败", e); });
-        var container = document.getElementById('chat-msg-container');
-        var myAvatar = activeChatContact.userAvatar || 'https://via.placeholder.com/100';
-        var roleAvatar = activeChatContact.roleAvatar || 'https://via.placeholder.com/100';
-        var timeStr = getAmPmTime();
-        var content = window.MiniChatProtocol.buildContent('transfer', { amount: _tfAmount, desc: _tfDesc, status: 'pending' });
-        try {
-            var newMsgId = await chatListDb.messages.add({
-                contactId: activeChatContact.id,
-                sender: 'me',
-                content: content,
-                timeStr: timeStr,
-                quoteText: ''
-            });
-            var chat = await chatListDb.chats.where('contactId').equals(activeChatContact.id).first();
-            if (chat) {
-                await chatListDb.chats.update(chat.id, { lastTime: timeStr });
-                renderChatList();
-            }
-            var msgObj = { id: newMsgId, sender: 'me', content: content, timeStr: timeStr, quoteText: '' };
-            container.insertAdjacentHTML('beforeend', generateMsgHtml(msgObj, myAvatar, roleAvatar));
-            bindMsgEvents();
-            container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-            // 记录账单
-            _addBill('transfer', '转账', amount, true, activeChatContact.roleName || '对方');
-        } catch(e) {
-            console.error('发送转账失败', e);
+        var content = createMiniStructuredMessage('transfer', { amount: _tfAmount, memo: _tfDesc, status: 'pending' });
+        var newMsgId = await appendCurrentUserMessageContent(content, activeChatContact);
+        if (!newMsgId) {
+            console.error('发送转账失败');
+            return;
         }
+        _addBill('transfer', '转账', amount, true, activeChatContact.roleName || '对方');
     }
 })();
 
@@ -1328,6 +1271,37 @@ function _renderBills() {
 (function() {
     // 当前联系人的详情设置存储键前缀
     var CD_KEY_PREFIX = 'cd_settings_';
+    const DEFAULT_SPECIAL_MESSAGE_PROBABILITIES = Object.freeze({
+        camera: 0.1,
+        location: 0.1,
+        takeaway: 0.1,
+        gift: 0.1,
+        call: 0.1,
+        video_call: 0.1,
+        red_packet: 3,
+        transfer: 3,
+        voice_message: 15,
+        emoticon: 15,
+        reply: 15,
+        recall: 5,
+        time_aware: 20
+    });
+    const EXCLUSIVE_SPECIAL_MESSAGE_KEYS = ['camera', 'location', 'takeaway', 'gift', 'call', 'video_call', 'red_packet', 'transfer'];
+    const SPECIAL_MESSAGE_PROBABILITY_INPUT_IDS = {
+        camera: 'cd-prob-camera',
+        location: 'cd-prob-location',
+        takeaway: 'cd-prob-takeaway',
+        gift: 'cd-prob-gift',
+        call: 'cd-prob-call',
+        video_call: 'cd-prob-video-call',
+        red_packet: 'cd-prob-red-packet',
+        transfer: 'cd-prob-transfer',
+        voice_message: 'cd-prob-voice-message',
+        emoticon: 'cd-prob-emoticon',
+        reply: 'cd-prob-reply',
+        recall: 'cd-prob-recall',
+        time_aware: 'cd-prob-time-aware'
+    };
 
     // 获取当前联系人的存储键
     function cdKey(field) {
@@ -1335,21 +1309,111 @@ function _renderBills() {
         return CD_KEY_PREFIX + activeChatContact.id + '_' + field;
     }
 
-    async function cdGetToggleValue(name) {
-        var key = cdKey('toggle_' + name);
-        if (!key) return false;
-        var val = await localforage.getItem(key);
-        if (val !== null && val !== undefined) return !!val;
-        // 兼容旧版本：跨模式记忆默认继承原来的“记忆总结”总开关，避免升级后行为突变
-        if (name === 'cross_mode_memory') {
-            var legacyKey = cdKey('toggle_memory');
-            var legacyVal = legacyKey ? await localforage.getItem(legacyKey) : false;
-            var fallback = !!legacyVal;
-            await localforage.setItem(key, fallback);
-            return fallback;
-        }
-        return false;
+    function _normalizeProbabilityValue(raw, fallback) {
+        var val = parseFloat(raw);
+        if (!isFinite(val) || isNaN(val)) return fallback;
+        if (val < 0) return 0;
+        if (val > 100) return 100;
+        return Math.round(val * 100) / 100;
     }
+
+    function _formatProbabilityValue(val) {
+        var normalized = _normalizeProbabilityValue(val, 0);
+        return String(parseFloat(normalized.toFixed(2)));
+    }
+
+    function _getDefaultSpecialMessageProbabilities() {
+        return JSON.parse(JSON.stringify(DEFAULT_SPECIAL_MESSAGE_PROBABILITIES));
+    }
+
+    function _normalizeSpecialMessageProbabilities(raw) {
+        var normalized = _getDefaultSpecialMessageProbabilities();
+        if (!raw || typeof raw !== 'object') return normalized;
+        Object.keys(normalized).forEach(function(key) {
+            normalized[key] = _normalizeProbabilityValue(raw[key], normalized[key]);
+        });
+        return normalized;
+    }
+
+    function _getExclusiveSpecialProbabilityTotal(config) {
+        return EXCLUSIVE_SPECIAL_MESSAGE_KEYS.reduce(function(sum, key) {
+            return sum + _normalizeProbabilityValue(config && config[key], 0);
+        }, 0);
+    }
+
+    async function getContactSpecialMessageProbabilities(contact) {
+        var target = contact || activeChatContact;
+        if (!target) return _getDefaultSpecialMessageProbabilities();
+        try {
+            var saved = await localforage.getItem(CD_KEY_PREFIX + target.id + '_special_message_probabilities');
+            return _normalizeSpecialMessageProbabilities(saved);
+        } catch(e) {
+            console.error('读取特殊消息概率失败', e);
+            return _getDefaultSpecialMessageProbabilities();
+        }
+    }
+
+    function _rollExclusiveSpecialMessageType(config) {
+        var total = _getExclusiveSpecialProbabilityTotal(config);
+        if (total <= 0) return '';
+        var roll = Math.random() * 100;
+        var cursor = 0;
+        for (var i = 0; i < EXCLUSIVE_SPECIAL_MESSAGE_KEYS.length; i++) {
+            var key = EXCLUSIVE_SPECIAL_MESSAGE_KEYS[i];
+            cursor += _normalizeProbabilityValue(config[key], 0);
+            if (roll < cursor) return key;
+        }
+        return '';
+    }
+
+    function _getCurrentSpecialProbabilityInputConfig() {
+        var config = _getDefaultSpecialMessageProbabilities();
+        Object.keys(SPECIAL_MESSAGE_PROBABILITY_INPUT_IDS).forEach(function(key) {
+            var el = document.getElementById(SPECIAL_MESSAGE_PROBABILITY_INPUT_IDS[key]);
+            config[key] = _normalizeProbabilityValue(el ? el.value : config[key], config[key]);
+        });
+        return config;
+    }
+
+    function _renderSpecialProbabilityInputs(config) {
+        Object.keys(SPECIAL_MESSAGE_PROBABILITY_INPUT_IDS).forEach(function(key) {
+            var el = document.getElementById(SPECIAL_MESSAGE_PROBABILITY_INPUT_IDS[key]);
+            if (el) el.value = _formatProbabilityValue(config[key]);
+        });
+        window.cdRefreshSpecialProbabilitySummary();
+    }
+
+    window._normalizeProbabilityValue = _normalizeProbabilityValue;
+    window.getContactSpecialMessageProbabilities = getContactSpecialMessageProbabilities;
+    window._rollExclusiveSpecialMessageType = _rollExclusiveSpecialMessageType;
+
+    window.cdRefreshSpecialProbabilitySummary = function() {
+        var totalEl = document.getElementById('cd-prob-exclusive-total');
+        if (!totalEl) return;
+        var config = _getCurrentSpecialProbabilityInputConfig();
+        var total = _getExclusiveSpecialProbabilityTotal(config);
+        totalEl.textContent = '独占型合计 ' + _formatProbabilityValue(total) + '%';
+        totalEl.style.color = total > 100 ? '#e05757' : '#999';
+    };
+
+    window.cdSaveSpecialProbabilities = async function() {
+        if (!activeChatContact) return;
+        var config = _getCurrentSpecialProbabilityInputConfig();
+        var total = _getExclusiveSpecialProbabilityTotal(config);
+        window.cdRefreshSpecialProbabilitySummary();
+        if (total > 100) {
+            alert('独占型特殊消息概率合计不能超过 100%，请先调整后再保存。');
+            return;
+        }
+        await localforage.setItem(CD_KEY_PREFIX + activeChatContact.id + '_special_message_probabilities', config);
+    };
+
+    window.cdResetSpecialProbabilities = async function() {
+        if (!activeChatContact) return;
+        var defaults = _getDefaultSpecialMessageProbabilities();
+        _renderSpecialProbabilityInputs(defaults);
+        await localforage.setItem(CD_KEY_PREFIX + activeChatContact.id + '_special_message_probabilities', defaults);
+    };
 
     // 打开聊天详情页
     window.openChatDetail = async function() {
@@ -1415,15 +1479,15 @@ function _renderBills() {
         var maxEl = document.getElementById('cd-reply-max');
         if (minEl && replyMin !== null) minEl.value = replyMin;
         if (maxEl && replyMax !== null) maxEl.value = replyMax;
+        _renderSpecialProbabilityInputs(await getContactSpecialMessageProbabilities(activeChatContact));
 
         // 恢复各开关状态
-        var toggleKeys = ['time', 'memory', 'cross_mode_memory', 'drama', 'keepalive', 'proactive', 'auto_summary'];
+        var toggleKeys = ['time', 'memory', 'drama', 'keepalive', 'proactive', 'auto_summary'];
         for (var i = 0; i < toggleKeys.length; i++) {
             var tk = toggleKeys[i];
-            var val = await cdGetToggleValue(tk);
-            var toggleId = tk === 'auto_summary'
-                ? 'cd-toggle-auto-summary'
-                : (tk === 'cross_mode_memory' ? 'cd-toggle-cross-mode-memory' : ('cd-toggle-' + tk));
+            var key = cdKey('toggle_' + tk);
+            var val = key ? await localforage.getItem(key) : false;
+            var toggleId = tk === 'auto_summary' ? 'cd-toggle-auto-summary' : ('cd-toggle-' + tk);
             var toggleEl = document.getElementById(toggleId);
             if (toggleEl) {
                 if (val) {
@@ -1441,10 +1505,14 @@ function _renderBills() {
         if (thresholdEl && threshold !== null) thresholdEl.value = threshold;
 
         // 恢复记忆展开区显示状态（CSS动画）
-        var memoryOn = await cdGetToggleValue('memory');
+        var memoryOn = await localforage.getItem(cdKey('toggle_memory'));
         var memoryExpand = document.getElementById('cd-memory-expand');
         if (memoryExpand) {
-            memoryExpand.classList.add('open');
+            if (memoryOn) {
+                memoryExpand.classList.add('open');
+            } else {
+                memoryExpand.classList.remove('open');
+            }
         }
 
         // 恢复后台保活展开区显示状态
@@ -1526,9 +1594,7 @@ function _renderBills() {
     // 切换开关
     window.cdToggle = async function(name) {
         if (!activeChatContact) return;
-        var toggleId = name === 'auto_summary'
-            ? 'cd-toggle-auto-summary'
-            : (name === 'cross_mode_memory' ? 'cd-toggle-cross-mode-memory' : ('cd-toggle-' + name));
+        var toggleId = name === 'auto_summary' ? 'cd-toggle-auto-summary' : ('cd-toggle-' + name);
         var toggleEl = document.getElementById(toggleId);
         if (!toggleEl) return;
         var isOn = toggleEl.classList.toggle('on');
@@ -1543,11 +1609,15 @@ function _renderBills() {
         var key = cdKey('toggle_' + name);
         if (key) await localforage.setItem(key, isOn);
 
-        // 记忆设置区固定展开，避免子开关被隐藏
-        if (name === 'memory' || name === 'cross_mode_memory') {
+        // 记忆与总结开关联动展开区（CSS动画）
+        if (name === 'memory') {
             var memoryExpand = document.getElementById('cd-memory-expand');
             if (memoryExpand) {
-                memoryExpand.classList.add('open');
+                if (isOn) {
+                    memoryExpand.classList.add('open');
+                } else {
+                    memoryExpand.classList.remove('open');
+                }
             }
         }
 
@@ -1655,8 +1725,7 @@ function _renderBills() {
             if (typeof window._manualKeepaliveTrigger === 'function') {
                 await window._manualKeepaliveTrigger(activeChatContact.id);
             } else {
-                isReplying = false;
-                await triggerRoleReply();
+                await triggerRoleReply(activeChatContact);
             }
         } catch (e) {
             console.error('[聊天详情] 立即触发保活失败', e);
@@ -1671,20 +1740,24 @@ function _renderBills() {
             alert('通知模块尚未就绪，请稍后重试。');
             return;
         }
-        var res = await window._ensureBrowserNotificationPermission({ test: true });
+        var res = await window._ensureBrowserNotificationPermission({ test: true, subscribePush: true });
         if (res && res.ok) {
-            alert('通知权限已开启，已发送一条测试横幅。');
+            alert('通知权限已开启，已发送一条测试横幅，且已完成 Web Push 订阅。');
             return;
         }
         var reason = (res && res.reason) ? res.reason : 'unknown';
         if (reason === 'insecure_context') {
-            alert('当前页面不是安全上下文，Edge 无法显示系统通知。请用 https 或 localhost 打开。');
+            alert('当前页面不是安全上下文，浏览器无法显示系统通知。请用 https 或 localhost 打开。');
         } else if (reason === 'denied') {
-            alert('通知权限被拒绝了，请在 Edge 地址栏/站点设置里手动允许通知。');
+            alert('通知权限被拒绝了，请在浏览器地址栏/站点设置里手动允许通知。');
+        } else if (reason === 'push_unsupported') {
+            alert('当前浏览器不支持 Web Push，关闭浏览器后无法继续推送。');
+        } else if (reason === 'push_server_unavailable') {
+            alert('通知权限已给，但未连接到 Push 服务端。请先运行 push-server.js。');
         } else if (reason === 'unsupported') {
             alert('当前环境不支持浏览器通知。');
         } else if (reason === 'show_failed') {
-            alert('通知权限已给，但系统横幅发送失败，请检查系统通知总开关和 Edge 通知权限。');
+            alert('通知权限已给，但系统横幅发送失败，请检查系统通知总开关和浏览器通知权限。');
         } else {
             alert('通知开启失败：' + reason);
         }

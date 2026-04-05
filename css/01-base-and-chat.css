@@ -37,20 +37,6 @@
             opacity: 0;
             transition: opacity 0.25s ease;
         }
-            /* 顶部灵动岛 */
-            body > .phone-shell::before {
-                content: '';
-                position: absolute;
-                top: 12px;
-                left: 50%;
-                transform: translateX(-50%);
-                width: 120px;
-                height: 34px;
-                background: #000;
-                border-radius: 20px;
-                z-index: 99999;
-                pointer-events: none;
-            }
             /* phone-screen 在壳内撑满 */
             body > .phone-shell > .phone-screen {
                 width: 100%;
@@ -262,50 +248,106 @@
             flex-direction: column;
             padding-top: 0;
         }
-        .app-back svg {
-            width: 20px !important;
-            height: 20px !important;
-            stroke-width: 2.5 !important;
-        }
+        .app-back svg { display: none !important; }
         .app-header-action svg {
-            width: 20px !important;
-            height: 20px !important;
-            stroke-width: 1.2 !important;
+            width: 18px !important;
+            height: 18px !important;
+            stroke-width: 1.8 !important;
         }
-        /* 所有页面导航栏统一高度为 60px，以 WeChat 聊天页面为准 */
+        /* 轻量化导航：左侧灰点 + 左对齐双行标题 + 右侧悬浮按钮 */
         .app-header, .offline-header {
-            height: 60px !important; 
-            min-height: 60px !important;
-            max-height: 60px !important;
-            padding: 0 20px; 
+            height: 68px !important; 
+            min-height: 68px !important;
+            max-height: 68px !important;
+            padding: 10px 10px 8px 4px;
             display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
+            align-items: flex-start;
+            justify-content: flex-start;
+            gap: 6px;
             position: relative; 
             margin-top: 0;
             flex-shrink: 0; 
-            background: rgba(255, 255, 255, 0.85); 
-            backdrop-filter: blur(25px); 
-            -webkit-backdrop-filter: blur(25px);
+            background: transparent;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
             z-index: 10; 
             border-bottom: none;
             box-sizing: border-box;
         }
-        /* 导航栏圆形立体按钮样式 */
         .app-back, .app-header-action {
             color: #555; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
-            width: 36px; height: 36px; border-radius: 50%;
-            background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-            z-index: 1; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1;
+            transition: all 0.18s ease;
         }
-        .app-back:active, .app-header-action:active { 
-            transform: scale(0.9); box-shadow: 0 2px 6px rgba(0,0,0,0.04); background: #fafafa;
+        .app-back {
+            width: 22px;
+            min-width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            background: transparent !important;
+            box-shadow: none !important;
+            border: none;
+            margin-top: 6px;
+        }
+        .app-back::before {
+            content: '';
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: #8f8f8f;
+        }
+        .app-back:active { transform: scale(0.9); }
+        .app-back:active::before { background: #9a9a9a; }
+        .app-header-action {
+            width: auto;
+            min-width: 30px;
+            height: 30px;
+            border-radius: 12px;
+            padding: 0 10px;
+            background: rgba(255,255,255,0.58) !important;
+            border: 1px solid rgba(0,0,0,0.08);
+            box-shadow: none !important;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            margin-top: 1px;
+        }
+        .app-header-action:active {
+            transform: translateY(1px) scale(0.97);
+            background: rgba(255,255,255,0.74) !important;
         }
         .app-title {
-            position: absolute; left: 0; right: 0; text-align: center;
-            font-size: 17px; font-weight: 800; color: #222; letter-spacing: 0.5px;
-            pointer-events: none; text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+            position: relative;
+            left: auto;
+            right: auto;
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            flex: 1;
+            min-width: 0;
+            padding-left: 0;
+            font-size: 17px;
+            font-weight: 700;
+            color: #222;
+            letter-spacing: 0.2px;
+            line-height: 1.05;
+            pointer-events: none;
+            text-shadow: none;
+        }
+        .app-title::after {
+            content: attr(data-subtitle);
+            margin-top: 4px;
+            font-size: 10px;
+            font-weight: 250;
+            letter-spacing: 1.5px;
+            color: #b9b9b9;
+            text-transform: uppercase;
+            line-height: 1;
+        }
+        .app-title:not([data-subtitle])::after {
+            content: 'SECTION';
         }
         .app-body {
             flex: 1; display: flex; flex-direction: column; align-items: center; padding: 20px 20px 40px 20px;
@@ -343,12 +385,6 @@
         }
         .virtual-phone img {
             width: 100%; height: 100%; object-fit: cover;
-        }
-        .virtual-notch {
-            position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-            width: 40px; height: 10px; background: #fff;
-            border-bottom-left-radius: 6px; border-bottom-right-radius: 6px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.03);
         }
         .btn-restore {
             margin-top: 0; 

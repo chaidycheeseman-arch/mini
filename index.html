@@ -41,10 +41,16 @@
             } catch(e) {}
         })();
     </script>
-    <!-- PWA 配置，用于触发 Edge 安装为应用 -->
+    <!-- PWA 配置：支持 Chrome/Firefox/Safari 安装为应用 -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#ffffff">
-    <link rel="apple-touch-icon" href="icon-192.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Mini Phone">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
 </head>
 <body>
 <div class="phone-shell">
@@ -54,7 +60,10 @@
         <div class="notif-avatar"><img id="notif-avatar-img" src=""></div>
         <div class="notif-content">
             <div class="notif-header">
-                <span class="notif-name" id="notif-name-text"></span>
+                <div class="notif-title-row">
+                    <span class="notif-name" id="notif-name-text"></span>
+                    <span class="notif-app-chip" id="notif-app-chip">WeChat</span>
+                </div>
                 <span class="notif-time" id="notif-time-text"></span>
             </div>
             <div class="notif-text" id="notif-msg-text"></div>
@@ -245,7 +254,6 @@
                     <div class="virtual-phone editable" id="wallpaper-preview" style="transform: scale(0.9);">
                         <div class="virtual-phone-screen">
                             <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="preview" loading="lazy" decoding="async">
-                            <div class="virtual-notch"></div>
                         </div>
                     </div>
                     <div class="action-buttons" style="margin-top: 15px;">
@@ -411,6 +419,70 @@
                     </div>
                 </div>
             </div>
+            <div class="theme-accordion-item" id="accordion-api-voice">
+                <div class="theme-section-header" onclick="toggleThemeSection('accordion-api-voice')">
+                    <span>API 语音</span>
+                    <div class="theme-section-arrow">›</div>
+                </div>
+                <div class="theme-section-body" style="align-items: flex-start;">
+                    <div class="settings-group mini-voice-group">
+                        <label>MiniMax 语音 API</label>
+                        <div class="mini-voice-card">
+                            <div class="settings-group" style="margin-bottom: 12px;">
+                                <label style="margin-bottom: 6px;">版本选择</label>
+                                <select id="mm-region" class="settings-input">
+                                    <option value="cn">国内版（api.minimaxi.com）</option>
+                                    <option value="global">海外版（api.minimax.io）</option>
+                                </select>
+                            </div>
+                            <div class="settings-group" style="margin-bottom: 12px;">
+                                <label style="margin-bottom: 6px;">MiniMax API 密钥</label>
+                                <input type="password" id="mm-api-key" class="settings-input" placeholder="输入 MiniMax API Key">
+                            </div>
+                            <div class="settings-group" style="margin-bottom: 12px;">
+                                <label style="margin-bottom: 6px;">Group ID</label>
+                                <input type="text" id="mm-group-id" class="settings-input" placeholder="输入 Group ID">
+                            </div>
+                            <div class="settings-group" style="margin-bottom: 12px;">
+                                <label style="margin-bottom: 6px;">语音 ID</label>
+                                <div class="settings-row mini-voice-row">
+                                    <input type="text" id="mm-voice-id" class="settings-input" placeholder="例如：male-qn-qingse">
+                                    <button id="mm-test-btn" class="settings-btn" type="button" onclick="testMiniMaxConnection()">测试</button>
+                                </div>
+                            </div>
+                            <div class="settings-group" style="margin-bottom: 12px;">
+                                <label style="margin-bottom: 6px;">语言</label>
+                                <select id="mm-lang" class="settings-input">
+                                    <option value="zh">中文</option>
+                                    <option value="en">English</option>
+                                    <option value="ja">日本語</option>
+                                    <option value="ko">한국어</option>
+                                    <option value="yue">粤语</option>
+                                </select>
+                            </div>
+                            <div class="settings-group" style="margin-bottom: 0;">
+                                <label style="margin-bottom: 6px;">语速 <span id="mm-speed-val">1.0</span></label>
+                                <input type="range" id="mm-speed" class="settings-slider" min="0.5" max="3.0" step="0.1" value="1.0">
+                                <div id="mm-test-tip" class="mini-test-tip"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="action-buttons" style="flex-wrap: wrap; margin-top: 10px;">
+                        <div class="btn-restore" onclick="saveVoiceSettings()">保存</div>
+                        <div class="btn-restore" onclick="saveAsVoicePreset()">存为预设</div>
+                        <div class="btn-restore" onclick="openVoicePresetManager()">管理预设</div>
+                    </div>
+                </div>
+            </div>
+            <div class="theme-accordion-item runtime-debug-entry">
+                <div class="theme-section-header runtime-debug-entry-btn" onclick="openRuntimeDebugPanel()">
+                    <div class="runtime-settings-link-copy">
+                        <span>后台日志</span>
+                        <small>进入管理系统里的 Debug 调试面板</small>
+                    </div>
+                    <div class="theme-section-arrow">›</div>
+                </div>
+            </div>
             <!-- 数据管理折叠项 -->
             <div class="theme-accordion-item" id="accordion-data">
                 <div class="theme-section-header" onclick="toggleThemeSection('accordion-data')">
@@ -430,10 +502,44 @@
             </div>
         </div>
     </div>
+    <div id="runtime-debug-app" class="full-app-page">
+        <div class="app-header">
+            <div class="app-back" onclick="closeRuntimeDebugPanel()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </div>
+            <div class="app-title" data-subtitle="DEBUG PANEL">Debug 调试面板</div>
+            <div style="width:30px;"></div>
+        </div>
+        <button class="runtime-debug-fab" type="button" aria-label="清空调试日志" title="清空调试日志" onclick="clearRuntimeLogViewer()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18"></path>
+                <path d="M8 6V4.8A1.8 1.8 0 0 1 9.8 3h4.4A1.8 1.8 0 0 1 16 4.8V6"></path>
+                <path d="M6.5 6l.8 11.1A2 2 0 0 0 9.29 19h5.42a2 2 0 0 0 1.99-1.89L17.5 6"></path>
+                <path d="M10 10.5v5"></path>
+                <path d="M14 10.5v5"></path>
+            </svg>
+        </button>
+        <div class="app-body runtime-debug-body">
+            <div class="runtime-debug-card">
+                <div class="runtime-debug-section-head">
+                    <div>
+                        <div class="runtime-debug-title">运行状态</div>
+                        <div id="runtime-log-meta" class="runtime-log-meta">正在读取日志...</div>
+                    </div>
+                    <button class="settings-btn runtime-debug-copy-btn" type="button" onclick="copyRuntimeLogViewer()">复制日志</button>
+                </div>
+                <div id="runtime-debug-status" class="runtime-debug-status-grid"></div>
+            </div>
+            <div class="runtime-debug-card runtime-debug-log-card">
+                <div class="runtime-debug-title">运行日志</div>
+                <div id="runtime-log-list" class="runtime-log-list"></div>
+            </div>
+        </div>
+    </div>
     <div id="preset-manager" onclick="if(event.target === this) closePresetManager()">
         <div class="preset-card">
             <div class="preset-header">
-                <span>预设管理</span>
+                <span id="preset-manager-title">预设管理</span>
             </div>
             <div id="preset-list">
             </div>
@@ -981,6 +1087,7 @@
                         <option value="英">英</option>
                         <option value="日">日</option>
                         <option value="韩">韩</option>
+                        <option value="粤">粤</option>
                         <option value="法">法</option>
                         <option value="泰">泰</option>
                     </select>
@@ -1200,9 +1307,6 @@
             <div class="cp-side-btn cp-side-btn-right" style="top:160px;height:80px;"></div>
             <!-- 手机屏幕 -->
             <div class="cp-phone-screen" id="cp-phone-screen">
-                <!-- 灵动岛 -->
-                <div class="cp-dynamic-island"></div>
-
                 <!-- 锁屏层 -->
                 <div class="cp-lock-screen" id="cp-lock-screen">
                     <!-- 锁屏壁纸 -->
@@ -1489,13 +1593,21 @@
             <div style="padding: 20px; display: flex; flex-direction: column; gap: 15px;">
                 <div class="settings-group" style="margin-bottom: 0;">
                     <div style="display: flex; flex-direction: column; gap: 12px;" id="export-checkbox-list">
+                        <div style="display:flex; justify-content:flex-end;">
+                            <div id="batch-export-select-all-btn" class="btn-restore" style="padding:6px 12px; font-size:12px;" onclick="toggleBatchExportSelectAll()">取消全选</div>
+                        </div>
+                        <div style="font-size:12px; color:#888; font-weight:600; margin-top:2px;">核心配置</div>
                         <label class="wb-radio-label"><input type="checkbox" value="settings" checked> API与基础设置</label>
                         <label class="wb-radio-label"><input type="checkbox" value="theme" checked> 主题与壁纸</label>
+                        <label class="wb-radio-label"><input type="checkbox" value="voice" checked> 语音配置与缓存 (MiniMax)</label>
+                        <div style="font-size:12px; color:#888; font-weight:600; margin-top:8px;">角色与聊天</div>
                         <label class="wb-radio-label"><input type="checkbox" value="worldbook" checked> 世界书数据</label>
                         <label class="wb-radio-label"><input type="checkbox" value="contacts" checked> 联系人与聊天记录</label>
                         <label class="wb-radio-label"><input type="checkbox" value="masks" checked> 面具预设</label>
+                        <div style="font-size:12px; color:#888; font-weight:600; margin-top:8px;">素材资源</div>
                         <label class="wb-radio-label"><input type="checkbox" value="emoticons" checked> 表情包库</label>
-                        <label class="wb-radio-label"><input type="checkbox" value="images" checked> 图片资源(头像/背景等)</label>
+                        <label class="wb-radio-label"><input type="checkbox" value="images" checked> 图片资源 (头像/背景等)</label>
+                        <div style="font-size:12px; color:#aaa; font-weight:600; margin-top:8px;">未开发模块</div>
                         <label class="wb-radio-label" style="color: #aaa;"><input type="checkbox" value="diary" disabled> 日记数据 (未开发)</label>
                         <label class="wb-radio-label" style="color: #aaa;"><input type="checkbox" value="forum" disabled> 论坛数据 (未开发)</label>
                         <label class="wb-radio-label" style="color: #aaa;"><input type="checkbox" value="shopping" disabled> 购物数据 (未开发)</label>
@@ -1518,7 +1630,7 @@
     <div id="sms-app" class="full-app-page" style="background:#fff; padding-top:0;">
         <!-- 信息列表页 -->
         <div id="sms-tab-list" style="display:flex; flex-direction:column; height:100%;">
-                    <div class="app-header" style="background:#fff; border-bottom:1px solid #f2f2f2;">
+                    <div class="app-header" style="background:#fff;">
                 <div class="app-back" onclick="closeSmsApp()" style="background:transparent; box-shadow:none;">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
                 </div>
@@ -1542,13 +1654,13 @@
         <!-- 信息聊天窗口 -->
         <div id="sms-chat-window" style="display:none; flex-direction:column; height:100%; background:#fff;">
             <!-- 顶部导航 -->
-            <div class="app-header" style="background:#fff; border-bottom:1px solid #f2f2f2;">
+            <div class="app-header" style="background:#fff;">
                 <div class="app-back" onclick="closeSmsChat()" style="background:transparent; box-shadow:none;">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
                 </div>
-                <div style="display:flex; flex-direction:column; align-items:center; flex:1;">
+                <div class="sms-chat-title-group">
                     <div class="app-title" id="sms-chat-name" style="position:static; font-size:16px;">联系人</div>
-                    <div style="font-size:11px; color:#999; margin-top:1px;" id="sms-chat-sub">短信</div>
+                    <div id="sms-chat-sub">TEXT MESSAGE</div>
                 </div>
                 <div style="width:36px;"></div>
             </div>
@@ -1611,10 +1723,10 @@
 <!-- ====== 聊天界面页面 (极致线条审美版) ====== -->
     <div id="chat-window" class="full-app-page">
         <div class="app-header">
-            <div class="app-back" onclick="closeChatWindow()">
+            <div class="app-back" onclick="closeChatWindow(event)">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
             </div>
-            <div class="app-title" id="chat-current-name" onclick="openHeartVoice()" style="cursor:pointer;">角色姓名</div>
+            <div class="app-title" id="chat-current-name" data-subtitle-fixed="CHAT" onclick="openHeartVoice()" style="cursor:pointer;">角色姓名</div>
             <div class="app-header-action" onclick="openRoleProfile()">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="5" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><circle cx="12" cy="19" r="1.5"></circle></svg>
             </div>
@@ -1655,22 +1767,22 @@
                     <span class="chat-ext-text">定位</span>
                 </div>
                 <!-- 7. 外卖 -->
-                <div class="chat-ext-item">
+                <div class="chat-ext-item" onclick="openTakeoutModal()">
                     <div class="chat-ext-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg></div>
                     <span class="chat-ext-text">外卖</span>
                 </div>
                 <!-- 8. 礼物 -->
-                <div class="chat-ext-item">
+                <div class="chat-ext-item" onclick="openGiftModal()">
                     <div class="chat-ext-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 12 20 22 4 22 4 12"></polyline><rect x="2" y="7" width="20" height="5"></rect><line x1="12" y1="22" x2="12" y2="7"></line><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path></svg></div>
                     <span class="chat-ext-text">礼物</span>
                 </div>
                 <!-- 9. 电话 -->
-                <div class="chat-ext-item">
+                <div class="chat-ext-item" onclick="openCallComposerModal('voice')">
                     <div class="chat-ext-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg></div>
                     <span class="chat-ext-text">电话</span>
                 </div>
                 <!-- 10. 视频 -->
-                <div class="chat-ext-item">
+                <div class="chat-ext-item" onclick="openCallComposerModal('video')">
                     <div class="chat-ext-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg></div>
                     <span class="chat-ext-text">视频</span>
                 </div>
@@ -1984,6 +2096,68 @@
                 </div>
                 <div class="action-buttons" style="margin-top: 10px;">
                     <div class="btn-restore" onclick="sendLocationMessage()">发送</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 礼物发送弹窗 -->
+    <div id="gift-modal" onclick="if(event.target === this) closeGiftModal()" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 200; backdrop-filter: blur(5px); justify-content: center; align-items: center;">
+        <div class="preset-card" style="width: 85%;">
+            <div class="preset-header" style="justify-content: center;"><span>送礼物</span></div>
+            <div style="padding: 20px; display: flex; flex-direction: column; gap: 15px;">
+                <div class="settings-group" style="margin-bottom: 0;">
+                    <label>礼物名称</label>
+                    <input type="text" id="gift-item-input" class="settings-input" placeholder="例如：香水 / 项链 / 手账">
+                </div>
+                <div class="settings-group" style="margin-bottom: 0;">
+                    <label>礼物描述（可不填）</label>
+                    <input type="text" id="gift-desc-input" class="settings-input" placeholder="例如：偏木质香，适合你">
+                </div>
+                <textarea id="gift-note-input" class="settings-input" style="height: 90px; resize: none;" placeholder="想对对方说的话..."></textarea>
+                <div class="action-buttons" style="margin-top: 5px;">
+                    <div class="btn-restore" onclick="sendGiftDelivery()">发送</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 外卖发送弹窗 -->
+    <div id="takeout-modal" onclick="if(event.target === this) closeTakeoutModal()" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 200; backdrop-filter: blur(5px); justify-content: center; align-items: center;">
+        <div class="preset-card" style="width: 85%;">
+            <div class="preset-header" style="justify-content: center;"><span>点外卖</span></div>
+            <div style="padding: 20px; display: flex; flex-direction: column; gap: 15px;">
+                <div class="settings-group" style="margin-bottom: 0;">
+                    <label>商家名</label>
+                    <input type="text" id="takeout-restaurant-input" class="settings-input" placeholder="例如：Moon Cafe">
+                </div>
+                <div class="settings-group" style="margin-bottom: 0;">
+                    <label>餐品</label>
+                    <input type="text" id="takeout-item-input" class="settings-input" placeholder="例如：生椰拿铁 / 轻食沙拉">
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <div class="settings-group" style="margin-bottom: 0; flex:1;">
+                        <label>总价</label>
+                        <input type="number" id="takeout-total-input" class="settings-input" placeholder="0.00" inputmode="decimal">
+                    </div>
+                    <div class="settings-group" style="margin-bottom: 0; flex:1;">
+                        <label>预计送达</label>
+                        <input type="text" id="takeout-eta-input" class="settings-input" placeholder="约30分钟">
+                    </div>
+                </div>
+                <textarea id="takeout-note-input" class="settings-input" style="height: 90px; resize: none;" placeholder="附言..."></textarea>
+                <div class="action-buttons" style="margin-top: 5px;">
+                    <div class="btn-restore" onclick="sendTakeoutDelivery()">发送</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 通话邀请弹窗 -->
+    <div id="call-composer-modal" onclick="if(event.target === this) closeCallComposerModal()" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 200; backdrop-filter: blur(5px); justify-content: center; align-items: center;">
+        <div class="preset-card" style="width: 85%;">
+            <div class="preset-header" style="justify-content: center;"><span id="call-composer-title">发起通话</span></div>
+            <div style="padding: 20px; display: flex; flex-direction: column; gap: 15px;">
+                <textarea id="call-note-input" class="settings-input" style="height: 90px; resize: none;" placeholder="写一句邀请说明，例如：方便的话接一下，我想听听你的声音"></textarea>
+                <div class="action-buttons" style="margin-top: 5px;">
+                    <div class="btn-restore" onclick="sendCallInvite()">发送邀请</div>
                 </div>
             </div>
         </div>
@@ -2499,20 +2673,48 @@
                 <div class="cd-section-item" style="cursor:default;">
                     <div class="cd-item-label-group">
                         <span class="cd-item-label">每轮回复条数</span>
-                        <span class="cd-item-desc">角色严格按范围随机输出</span>
+                        <span class="cd-item-desc">角色按范围随机输出，实际运行上限 10 条</span>
                     </div>
                     <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
                         <div style="display:flex; align-items:center; gap:4px;">
                             <span style="font-size:11px; color:#aaa;">至少</span>
-                            <input type="number" id="cd-reply-min" class="cd-count-input" min="1" max="20" value="1" placeholder="1" oninput="cdSaveReplyCount()">
+                            <input type="number" id="cd-reply-min" class="cd-count-input" min="1" max="10" value="1" placeholder="1" oninput="cdSaveReplyCount()">
                             <span style="font-size:11px; color:#aaa;">条</span>
                         </div>
                         <span style="font-size:11px; color:#ccc;">—</span>
                         <div style="display:flex; align-items:center; gap:4px;">
                             <span style="font-size:11px; color:#aaa;">最多</span>
-                            <input type="number" id="cd-reply-max" class="cd-count-input" min="1" max="20" value="6" placeholder="6" oninput="cdSaveReplyCount()">
+                            <input type="number" id="cd-reply-max" class="cd-count-input" min="1" max="10" value="6" placeholder="6" oninput="cdSaveReplyCount()">
                             <span style="font-size:11px; color:#aaa;">条</span>
                         </div>
+                    </div>
+                </div>
+                <div class="cd-divider"></div>
+                <div class="cd-section-item" style="align-items:flex-start; cursor:default;">
+                    <div class="cd-item-label-group" style="padding-top:2px;">
+                        <span class="cd-item-label">特殊消息概率</span>
+                        <span class="cd-item-desc">独占型消息合计需 ≤ 100%，Mini 会严格按这里触发</span>
+                    </div>
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
+                        <div id="cd-prob-exclusive-total" style="font-size:11px; color:#999;">独占型合计 0%</div>
+                        <div onclick="cdResetSpecialProbabilities()" style="font-size:11px; color:#666; background:#f5f5f7; border-radius:999px; padding:4px 10px; cursor:pointer; user-select:none;">恢复默认</div>
+                    </div>
+                </div>
+                <div style="padding:0 16px 16px;">
+                    <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px 10px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">相片</span><input id="cd-prob-camera" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.1" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">定位</span><input id="cd-prob-location" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.1" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">外卖</span><input id="cd-prob-takeaway" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.1" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">礼物</span><input id="cd-prob-gift" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.1" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">电话</span><input id="cd-prob-call" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.1" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">视频</span><input id="cd-prob-video-call" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.1" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">红包</span><input id="cd-prob-red-packet" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="3" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">转账</span><input id="cd-prob-transfer" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="3" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">语音</span><input id="cd-prob-voice-message" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="15" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">表情包</span><input id="cd-prob-emoticon" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="15" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">引用</span><input id="cd-prob-reply" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="15" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">撤回</span><input id="cd-prob-recall" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="5" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">时间感知</span><input id="cd-prob-time-aware" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="20" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
                     </div>
                 </div>
             </div>
@@ -3113,14 +3315,32 @@
 </div>
 </div><!-- phone-shell end -->
 <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-<script src="js/core/bootstrap.js"></script>
-<script src="js/home/home-and-novel.js"></script>
-<script src="js/wallet/wallet-and-wechat.js"></script>
-<script src="js/messaging/sms-and-notify.js"></script>
+<script src="js/core/runtime-log.js"></script>
+<script src="js/core/runtime-shell.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/worldbook-and-apps.js"></script>
+<script src="js/core/theme-tools.js"></script>
+<script src="js/core/masks-and-emoticons.js"></script>
+<script src="js/core/contacts-and-chatlist.js"></script>
+<script src="js/home/novel-entry.js"></script>
+<script src="js/home/wechat-chat.js"></script>
+<script src="js/home/wechat-moments.js"></script>
+<script src="js/home/data-tools.js"></script>
+<script src="js/wallet/stock-and-assist.js"></script>
+<script src="js/wallet/red-packet.js"></script>
+<script src="js/wallet/transfer.js"></script>
+<script src="js/wallet/payment-and-bills.js"></script>
+<script src="js/wallet/chat-detail.js"></script>
+<script src="js/wallet/pay-password-and-block-requests.js"></script>
+<script src="js/messaging/sms.js"></script>
+<script src="js/messaging/shura.js"></script>
+<script src="js/messaging/background-notify.js"></script>
 <script src="js/device/check-phone.js"></script>
-<script src="js/meetlove/meetlove-and-offline.js"></script>
+<script src="js/meetlove/meetlove.js"></script>
+<script src="js/meetlove/heart-voice.js"></script>
+<script src="js/meetlove/offline.js"></script>
 
-<!-- 注册 Service Worker，用于触发 Edge 安装为应用 -->
+<!-- 注册 Service Worker，满足 PWA 安装与后台通知条件 -->
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {

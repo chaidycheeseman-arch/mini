@@ -37,20 +37,6 @@
             opacity: 0;
             transition: opacity 0.25s ease;
         }
-            /* 顶部灵动岛 */
-            body > .phone-shell::before {
-                content: '';
-                position: absolute;
-                top: 12px;
-                left: 50%;
-                transform: translateX(-50%);
-                width: 120px;
-                height: 34px;
-                background: #000;
-                border-radius: 20px;
-                z-index: 99999;
-                pointer-events: none;
-            }
             /* phone-screen 在壳内撑满 */
             body > .phone-shell > .phone-screen {
                 width: 100%;
@@ -89,13 +75,6 @@
         .swiper-pagination { display: none !important; }
         .swiper-pagination-bullet { display: none !important; }
         .page-content { padding: 30px 22px 120px 22px; display: flex; flex-direction: column; gap: 18px; height: 100%; }
-        .page-content-page-two { gap: 12px !important; }
-        .page-content-page-two .top-music-bar { margin-top: 0; margin-bottom: 0; }
-        .page-content-page-three {
-            gap: 0 !important;
-            padding-top: 14px !important;
-            justify-content: flex-start;
-        }
         .widget-common {
             background: var(--widget-bg);
             border-radius: 35px;
@@ -239,44 +218,7 @@
         .icon-img { width: 63px; height: 63px; background: #fff; border-radius: 17px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .icon-img img { width: 100%; height: 100%; object-fit: cover; }
         /* 修复：给 Dock 添加明确的层级 z-index: 50，防止被 Swiper 遮挡无法点击 */
-        .dock { position: absolute; bottom: 16px; left: 20px; right: 20px; height: 98px; padding: 20px 0 10px; box-sizing: border-box; background: rgba(255,255,255,0.45); border-radius: 35px; backdrop-filter: blur(25px); display: flex; justify-content: center; gap: 30px; align-items: flex-end; z-index: 50; overflow: visible; }
-        .dock-page-indicator {
-            position: absolute;
-            left: 50%;
-            bottom: 122px;
-            transform: translateX(-50%);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            z-index: 60;
-            padding: 8px 12px;
-            border-radius: 999px;
-            background: rgba(255,255,255,0.42);
-            backdrop-filter: blur(18px);
-            -webkit-backdrop-filter: blur(18px);
-            box-shadow: 0 10px 24px rgba(0,0,0,0.08);
-            pointer-events: auto;
-        }
-        .dock-page-dot {
-            appearance: none;
-            -webkit-appearance: none;
-            display: block;
-            width: 7px;
-            min-width: 7px;
-            height: 7px;
-            margin: 0;
-            padding: 0;
-            border: 0;
-            border-radius: 999px;
-            background: rgba(34,34,34,0.24);
-            box-shadow: none;
-            cursor: pointer;
-            transition: width 0.22s ease, background 0.22s ease, transform 0.22s ease, opacity 0.22s ease;
-        }
-        .dock-page-dot.active { width: 22px; background: rgba(34,34,34,0.68); }
-        .dock-page-dot:active { transform: scale(0.92); }
-        .dock-page-dot:focus-visible { outline: 2px solid rgba(34,34,34,0.24); outline-offset: 2px; }
+        .dock { position: absolute; bottom: 16px; left: 20px; right: 20px; height: 95px; background: rgba(255,255,255,0.45); border-radius: 35px; backdrop-filter: blur(25px); display: flex; justify-content: center; gap: 30px; align-items: center; z-index: 50; }
         .dock-icon { width: 63px; height: 63px; border-radius: 17px; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden; position: relative; cursor: pointer; transition: transform 0.1s; }
         .dock-icon:active { transform: scale(0.95); }
         .dock-icon img { width: 100%; height: 100%; object-fit: cover; }
@@ -286,229 +228,6 @@
         .polaroid-container { background: white; padding: 10px 10px 30px 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); cursor: pointer; }
         .polaroid-img-box { background: #f0f0f0; width: 100%; aspect-ratio: 1 / 1; overflow: hidden; }
         .polaroid-img-box img { width: 100%; height: 100%; object-fit: cover; }
-        .third-page-top-widget {
-            flex: 0 0 auto;
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            padding: 0;
-            overflow: visible;
-        }
-        .third-page-goth-widget {
-            position: relative;
-            width: 100%;
-            min-height: 236px;
-            padding: 16px 16px 14px;
-            border-radius: 34px;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            gap: 14px;
-            background: transparent;
-            border: 0;
-            box-shadow: 0 18px 36px rgba(0,0,0,0.12);
-            isolation: isolate;
-        }
-        .third-page-goth-bg {
-            position: absolute;
-            inset: 0;
-            z-index: 0;
-            background: linear-gradient(135deg, #ddd6cf 0%, #b8c7d9 48%, #f2ebe2 100%);
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            cursor: pointer;
-            line-height: 0;
-        }
-        .third-page-goth-bg img {
-            display: none;
-        }
-        .third-page-goth-widget > * {
-            position: relative;
-            z-index: 1;
-        }
-        .third-page-goth-widget > .third-page-goth-bg {
-            z-index: 0;
-        }
-        .third-page-goth-widget::before,
-        .third-page-goth-widget::after {
-            content: "";
-            position: absolute;
-            pointer-events: none;
-        }
-        .third-page-goth-widget::before {
-            inset: 0;
-            background:
-                linear-gradient(180deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.08) 24%, rgba(0,0,0,0.18) 100%),
-                radial-gradient(circle at 22% 18%, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 20%),
-                radial-gradient(circle at 78% 24%, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 24%);
-            opacity: 1;
-        }
-        .third-page-goth-widget::after {
-            display: none;
-        }
-        .third-page-goth-gallery {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 12px;
-            align-items: stretch;
-        }
-        .third-page-goth-card {
-            position: relative;
-            min-width: 0;
-            aspect-ratio: 1 / 1;
-            border-radius: 20px;
-            overflow: hidden;
-            background: rgba(255,255,255,0.34);
-            border: 1px solid rgba(255,255,255,0.3);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.12);
-            cursor: pointer;
-        }
-        .third-page-goth-card::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background:
-                radial-gradient(circle at 28% 18%, rgba(255,255,255,0.26) 0%, rgba(255,255,255,0) 24%),
-                linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0) 35%, rgba(0,0,0,0.08) 100%);
-            pointer-events: none;
-            z-index: 1;
-        }
-        .third-page-goth-card img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-            filter: none;
-            background: linear-gradient(180deg, #d5d8df 0%, #b7c3cf 100%);
-        }
-        .third-page-goth-footer {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            gap: 12px;
-            align-items: end;
-        }
-        .third-page-goth-copy {
-            min-width: 0;
-            color: #ffffff;
-            padding: 0;
-            background: none;
-            border: 0;
-            box-shadow: none;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.22);
-            align-self: end;
-        }
-        .third-page-goth-deco {
-            font-size: 11px;
-            line-height: 1.35;
-            letter-spacing: 0.2em;
-            color: rgba(255,255,255,0.86);
-            margin-bottom: 6px;
-            white-space: normal;
-        }
-        .third-page-goth-title {
-            font-size: clamp(18px, 4.6vw, 21px);
-            line-height: 1.06;
-            font-weight: 700;
-            font-family: "Times New Roman", Georgia, serif;
-            color: #ffffff;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.22);
-            white-space: normal;
-            overflow-wrap: anywhere;
-        }
-        .third-page-goth-power {
-            display: flex;
-            align-items: flex-end;
-            flex-shrink: 0;
-        }
-        .third-page-goth-power-ring {
-            --battery-progress: 12%;
-            --battery-fill-scale: 0.12;
-            position: relative;
-            width: 76px;
-            height: 76px;
-            border-radius: 50%;
-            background: transparent;
-            box-shadow: 0 10px 24px rgba(0,0,0,0.14);
-        }
-        .third-page-goth-power-ring::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            border-radius: 50%;
-            background: conic-gradient(from 220deg, rgba(255,255,255,0.98) 0 var(--battery-progress), rgba(255,255,255,0.22) var(--battery-progress) 100%);
-            -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 10px), #000 calc(100% - 9px));
-            mask: radial-gradient(farthest-side, transparent calc(100% - 10px), #000 calc(100% - 9px));
-        }
-        .third-page-goth-power-core {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1;
-        }
-        .third-page-goth-battery-icon {
-            position: relative;
-            width: 19px;
-            height: 30px;
-            border-radius: 8px;
-            border: 2px solid rgba(255,255,255,0.96);
-            background: transparent;
-            box-shadow: 0 1px 6px rgba(255,255,255,0.18);
-        }
-        .third-page-goth-battery-icon::before {
-            content: "";
-            position: absolute;
-            top: -5px;
-            left: 50%;
-            width: 10px;
-            height: 4px;
-            border-radius: 999px 999px 0 0;
-            background: rgba(255,255,255,0.96);
-            transform: translateX(-50%);
-        }
-        .third-page-goth-battery-icon::after {
-            content: "";
-            position: absolute;
-            left: 3px;
-            right: 3px;
-            top: 3px;
-            bottom: 3px;
-            border-radius: 4px;
-            background: rgba(255,255,255,0.96);
-            transform: scaleY(var(--battery-fill-scale));
-            transform-origin: center bottom;
-        }
-        .third-page-top-widget .editable,
-        .third-page-top-widget .editable img {
-            background-color: transparent !important;
-        }
-        @media (max-width: 420px) {
-            .page-content-page-three { padding-top: 10px !important; }
-            .dock-page-indicator {
-                bottom: 118px;
-                padding: 7px 11px;
-            }
-            .third-page-goth-widget {
-                min-height: 224px;
-                padding: 14px 14px 12px;
-                border-radius: 30px;
-                gap: 12px;
-            }
-            .third-page-goth-gallery { gap: 10px; }
-            .third-page-goth-card { border-radius: 18px; }
-            .third-page-goth-title { font-size: 17px; }
-            .third-page-goth-power-ring {
-                width: 66px;
-                height: 66px;
-            }
-            .third-page-goth-battery-icon {
-                width: 17px;
-                height: 27px;
-            }
-        }
         /* 菜单面板样式 */
         #menu-panel {
             position: absolute; z-index: 1000; background: var(--panel-bg);
@@ -539,50 +258,106 @@
             flex-direction: column;
             padding-top: 0;
         }
-        .app-back svg {
-            width: 20px !important;
-            height: 20px !important;
-            stroke-width: 2.5 !important;
-        }
+        .app-back svg { display: none !important; }
         .app-header-action svg {
-            width: 20px !important;
-            height: 20px !important;
-            stroke-width: 1.2 !important;
+            width: 18px !important;
+            height: 18px !important;
+            stroke-width: 1.8 !important;
         }
-        /* 所有页面导航栏统一高度为 60px，以 WeChat 聊天页面为准 */
+        /* 轻量化导航：左侧黑点 + 左对齐双行标题 + 右侧悬浮按钮 */
         .app-header, .offline-header {
-            height: 60px !important; 
-            min-height: 60px !important;
-            max-height: 60px !important;
-            padding: 0 20px; 
+            height: 78px !important;
+            min-height: 78px !important;
+            max-height: 78px !important;
+            padding: 14px 12px 10px 6px;
             display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
+            align-items: flex-start;
+            justify-content: flex-start;
+            gap: 8px;
             position: relative; 
             margin-top: 0;
             flex-shrink: 0; 
-            background: rgba(255, 255, 255, 0.85); 
-            backdrop-filter: blur(25px); 
-            -webkit-backdrop-filter: blur(25px);
+            background: transparent;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
             z-index: 10; 
             border-bottom: none;
             box-sizing: border-box;
         }
-        /* 导航栏圆形立体按钮样式 */
         .app-back, .app-header-action {
-            color: #555; cursor: pointer;
+            color: #1f1f1f; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
-            width: 36px; height: 36px; border-radius: 50%;
-            background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-            z-index: 1; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1;
+            transition: all 0.18s ease;
         }
-        .app-back:active, .app-header-action:active { 
-            transform: scale(0.9); box-shadow: 0 2px 6px rgba(0,0,0,0.04); background: #fafafa;
+        .app-back {
+            width: 26px;
+            min-width: 26px;
+            height: 26px;
+            border-radius: 999px;
+            background: transparent !important;
+            box-shadow: none !important;
+            border: none;
+            margin-top: 10px;
+        }
+        .app-back::before {
+            content: '';
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: #111;
+        }
+        .app-back:active { transform: scale(0.9); }
+        .app-back:active::before { background: #2a2a2a; }
+        .app-header-action {
+            width: 32px;
+            min-width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            padding: 0;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            margin-top: 6px;
+        }
+        .app-header-action:active {
+            transform: translateY(1px) scale(0.97);
+            background: transparent !important;
         }
         .app-title {
-            position: absolute; left: 0; right: 0; text-align: center;
-            font-size: 17px; font-weight: 800; color: #222; letter-spacing: 0.5px;
-            pointer-events: none; text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+            position: relative;
+            left: auto;
+            right: auto;
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            flex: 1;
+            min-width: 0;
+            padding: 5px 0 0;
+            font-size: 19px;
+            font-weight: 700;
+            color: #222;
+            letter-spacing: 0.15px;
+            line-height: 1;
+            pointer-events: none;
+            text-shadow: none;
+        }
+        .app-title::after {
+            content: attr(data-subtitle);
+            margin-top: 6px;
+            font-size: 11px;
+            font-weight: 300;
+            letter-spacing: 1.8px;
+            color: #a8a8a8;
+            text-transform: uppercase;
+            line-height: 1;
+        }
+        .app-title:not([data-subtitle])::after {
+            content: 'SECTION';
         }
         .app-body {
             flex: 1; display: flex; flex-direction: column; align-items: center; padding: 20px 20px 40px 20px;
@@ -620,12 +395,6 @@
         }
         .virtual-phone img {
             width: 100%; height: 100%; object-fit: cover;
-        }
-        .virtual-notch {
-            position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-            width: 40px; height: 10px; background: #fff;
-            border-bottom-left-radius: 6px; border-bottom-right-radius: 6px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.03);
         }
         .btn-restore {
             margin-top: 0; 
@@ -679,6 +448,11 @@
         .settings-input { width: 100%; padding: 12px 14px; border: 1px solid #eee; border-radius: 12px; font-size: 14px; background: #fff; outline: none; box-shadow: inset 0 2px 5px rgba(0,0,0,0.01); transition: border-color 0.2s; color: #444; }
         .settings-input:focus { border-color: #d0d0d0; }
         .settings-row { display: flex; gap: 10px; align-items: center; }
+        .mini-voice-group { margin-top: 4px; }
+        .mini-voice-card { background: #fafafa; border: 1px solid #f1f1f1; border-radius: 14px; padding: 12px; }
+        .mini-voice-row .settings-input { flex: 1; min-width: 0; }
+        .mini-voice-row .settings-btn { min-width: 64px; padding: 12px 14px; }
+        .mini-test-tip { display: none; font-size: 11px; color: #8b8b8b; margin-top: 8px; line-height: 1.3; }
         .settings-btn { padding: 12px 18px; background: #fff; border: 1px solid #eee; border-radius: 12px; font-size: 13px; cursor: pointer; color: #444; flex-shrink: 0; transition: background 0.2s; font-weight: 500; box-shadow: 0 2px 8px rgba(0,0,0,0.02);}
         .settings-btn:active { background: #f5f5f5; }
         .settings-slider { flex: 1; height: 4px; border-radius: 2px; background: #eee; outline: none; -webkit-appearance: none; }
@@ -738,88 +512,21 @@
         .wb-radio-label input[type="radio"] { accent-color: #666; width: 14px; height: 14px; }
         /* ====== WeChat 应用专属样式 (精美重制版 Dock) ====== */
         .wechat-dock {
-            position: absolute;
-            left: 50%;
-            bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
-            transform: translateX(-50%);
-            width: calc(100% - 28px);
-            max-width: 286px;
-            min-height: 74px;
-            padding: 10px 12px;
-            border-radius: 30px;
-            background: rgba(252,253,255,0.96);
-            border: none;
-            box-shadow: 0 18px 42px rgba(15,23,42,0.18), 0 4px 14px rgba(15,23,42,0.08);
-            backdrop-filter: none;
-            -webkit-backdrop-filter: none;
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 6px;
-            align-items: center;
-            z-index: 100;
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 290px; height: 68px; background: rgba(255,255,255,0.85);
+            border-radius: 34px; display: flex; justify-content: space-evenly; align-items: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.06); z-index: 100;
+            backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.7);
         }
-        .wechat-dock-btn {
-            width: 58px;
-            height: 54px;
-            margin: 0 auto;
-            min-width: 0;
-            border-radius: 18px;
-            color: #6f7a88;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 0;
-            padding: 0;
-            user-select: none;
-            cursor: pointer;
-            transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+        .wechat-dock-btn { 
+            width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;
+            color: #b0b0b0; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; border-radius: 16px;
         }
-        .wechat-dock-btn-icon {
-            width: 32px;
-            height: 32px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            line-height: 0;
-            flex-shrink: 0;
-        }
-        .wechat-dock-btn svg {
-            width: 28px;
-            height: 28px;
-            stroke-width: 2.2;
-            stroke: currentColor;
-            fill: none;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-            display: block;
-            vector-effect: non-scaling-stroke;
-        }
-        .wechat-dock-btn-label {
-            display: none !important;
-            visibility: hidden;
-            opacity: 0;
-            width: 0;
-            height: 0;
-            overflow: hidden;
-        }
-        .wechat-dock-btn.active {
-            color: #253244;
-            background: linear-gradient(180deg, #ffffff 0%, #f3f6fb 100%);
-            border-radius: 999px;
-            box-shadow: 0 10px 22px rgba(36,54,78,0.16);
-            transform: translateY(-3px);
-        }
-        .wechat-dock-btn:active { transform: translateY(1px) scale(0.97); }
-        .wechat-tab-page {
-            display: none;
-            width: 100%;
-            height: 100%;
-            flex-direction: column;
-            box-sizing: border-box;
-            padding-bottom: 0;
-            overflow: hidden;
-        }
+        .wechat-dock-btn.active { color: #333; transform: translateY(-2px); }
+        /* 增加 flex-shrink: 0 防止 SVG 受到 flex 挤压变形 */
+        .wechat-dock-btn svg { width: 24px; height: 24px; stroke-width: 2; transition: all 0.2s; flex-shrink: 0; }
+        .wechat-dock-btn.active svg { transform: scale(1.1); stroke-width: 2.5; }
+        .wechat-tab-page { display: none; width: 100%; height: 100%; flex-direction: column; }
         .wechat-tab-page.active { display: flex; }
         /* 消息列表区域增加轻微覆盖，避免背景在边缘露出 */
         #wechat-tab-msg .app-body {
@@ -835,15 +542,7 @@
             background: #f7f7f7;
         }
         /* 朋友圈样式 */
-        .moments-container {
-            width: 100%;
-            height: 100%;
-            overflow-y: auto;
-            background: #f6f7f9;
-            position: relative;
-            box-sizing: border-box;
-            padding-bottom: 108px;
-        }
+        .moments-container { width: 100%; height: 100%; overflow-y: auto; background: #f6f7f9; position: relative; }
         .moments-cover { width: 100%; height: 45vh; background: #eee; position: relative; overflow: visible; }
         .moments-cover img { width: 100%; height: 100%; object-fit: cover; }
         .moments-float-btn {
@@ -853,7 +552,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            top: 16px;
+            top: 12px;
             z-index: 12;
             color: #fff;
             cursor: pointer;
@@ -861,27 +560,16 @@
             border: none;
             border-radius: 0;
             backdrop-filter: none;
-            -webkit-backdrop-filter: none;
-            box-shadow: none;
             -webkit-tap-highlight-color: transparent;
             transition: transform 0.15s ease;
         }
         .moments-float-btn svg {
             width: 22px;
             height: 22px;
-            stroke-width: 2.15;
+            stroke-width: 2.2;
             stroke-linecap: round;
             stroke-linejoin: round;
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.52)) drop-shadow(0 6px 14px rgba(0,0,0,0.28));
-        }
-        .moments-float-btn-refresh { background: transparent; }
-        .moments-float-btn-compose { background: transparent; }
-        .moments-float-btn-refresh.is-spinning svg {
-            animation: moments-refresh-spin 0.55s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        @keyframes moments-refresh-spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+            filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5)) drop-shadow(0 5px 12px rgba(0,0,0,0.32));
         }
         .moments-float-btn:active { transform: translateY(1px) scale(0.93); }
         .moments-user-info {
@@ -891,12 +579,6 @@
         .moments-avatar-sq { width: 85px; height: 85px; background: #fff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.12); overflow: hidden; border: 3px solid #fff; flex-shrink: 0; }
         .moments-avatar-sq img { width: 100%; height: 100%; object-fit: cover; }
         .moments-feed { margin-top: 60px; padding: 20px; color: #666; text-align: left; font-size: 12px; position: relative; z-index: 10; }
-        #wechat-tab-msg .app-body,
-        #wechat-tab-contacts .app-body,
-        #wechat-tab-me .app-body {
-            box-sizing: border-box;
-            padding-bottom: 108px !important;
-        }
         #moments-empty-tip { color: #bbb; text-align: center; font-size: 12px; padding: 12px 0 8px; }
         .moments-post-list { display: flex; flex-direction: column; gap: 18px; }
         .moments-post-card {
@@ -912,15 +594,6 @@
         .moments-post-main { flex: 1; min-width: 0; }
         .moments-post-name-row { display: flex; align-items: center; gap: 8px; }
         .moments-post-name { font-size: 14px; color: #4f6f95; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .moments-post-author-tag {
-            font-size: 10px;
-            color: #5d78a6;
-            border: 1px solid #d7e2f7;
-            background: #f2f7ff;
-            border-radius: 999px;
-            padding: 2px 6px;
-            line-height: 1;
-        }
         .moments-post-text { margin-top: 5px; font-size: 13px; line-height: 1.6; color: #333; word-break: break-word; white-space: pre-wrap; }
         .moments-post-meta { margin-top: 7px; font-size: 11px; color: #9a9a9a; display: flex; gap: 8px; flex-wrap: wrap; }
         .moments-post-images {
@@ -933,61 +606,43 @@
         }
         .moments-post-footer { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
         .moments-post-time { font-size: 11px; color: #aaa; flex-shrink: 0; }
-        .moments-post-actions { display: flex; gap: 12px; align-items: center; flex-wrap: nowrap; justify-content: flex-end; }
+        .moments-post-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
         .moments-post-action {
-            width: 18px;
-            height: 18px;
-            min-width: 18px;
-            min-height: 18px;
-            flex: 0 0 18px;
-            border-radius: 0;
+            width: 30px;
+            height: 30px;
+            border-radius: 10px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            color: #aaa;
+            color: #66707d;
             cursor: pointer;
             user-select: none;
-            border: none;
-            background: transparent;
-            box-shadow: none;
+            border: 1px solid #e8ebf0;
+            background: #f7f8fa;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
             padding: 0;
             transition: transform 0.15s ease, color 0.2s ease, opacity 0.2s ease;
             font-family: inherit;
             -webkit-appearance: none;
             appearance: none;
-            line-height: 0;
-            overflow: hidden;
         }
-        .moments-post-action svg,
-        .moments-post-action .moments-action-glyph {
-            width: 18px;
-            height: 18px;
-            stroke-width: 2.1;
+        .moments-post-action svg {
+            width: 17px;
+            height: 17px;
+            stroke-width: 1.9;
             fill: none;
             stroke: currentColor;
             stroke-linecap: round;
             stroke-linejoin: round;
             flex-shrink: 0;
             display: block;
-            vector-effect: non-scaling-stroke;
         }
-        .moments-post-action .moments-action-glyph path,
-        .moments-post-action .moments-action-glyph polyline,
-        .moments-post-action .moments-action-glyph line,
-        .moments-post-action .moments-action-glyph rect { vector-effect: non-scaling-stroke; }
-        .moments-post-action:hover { color: #666; }
-        .moments-post-action:active { transform: scale(0.92); color: #666; }
-        .moments-post-action.moments-post-action-like,
-        .moments-post-action.active-like,
-        .moments-post-action.moments-post-action-comment,
-        .moments-post-action.moments-post-action-star,
-        .moments-post-action.delete {
-            color: #aaa;
-            border-color: transparent;
-            background: transparent;
-        }
-        .moments-post-action.active-like { color: #666; }
+        .moments-post-action:active { transform: scale(0.9); }
+        .moments-post-action.active-like { color: #da5e78; border-color: #ffd8e2; background: #fff2f5; }
+        .moments-post-action.moments-post-action-comment { color: #5f6e80; }
+        .moments-post-action.moments-post-action-star { color: #5f6e80; }
         .moments-post-action.heart-loading { color: #a8afb9; pointer-events: none; opacity: 0.72; }
+        .moments-post-action.delete { color: #8a919d; }
         .moments-post-cameras {
             margin-top: 9px;
             display: grid;
@@ -997,25 +652,21 @@
         }
         .moments-post-camera-card {
             border: 1px solid #eceef2;
-            border-radius: 12px;
-            background: linear-gradient(180deg, #fcfcfd 0%, #f4f6f9 100%);
+            border-radius: 10px;
+            background: #fafbfc;
             color: #666;
-            padding: 10px 12px;
-            min-height: 72px;
+            padding: 8px;
+            min-height: 64px;
             display: flex;
-            align-items: flex-start;
-            justify-content: center;
+            flex-direction: column;
+            gap: 6px;
+            justify-content: flex-start;
         }
-        .moments-post-camera-card svg { display: none; }
-        .moments-post-camera-card span { font-size: 12px; line-height: 1.58; color: #435061; word-break: break-word; display: block; }
+        .moments-post-camera-card svg { width: 15px; height: 15px; stroke-width: 2; color: #7e8794; }
+        .moments-post-camera-card span { font-size: 11px; line-height: 1.45; color: #555; word-break: break-word; }
         .moments-post-comments {
             margin-top: 10px; background: #f7f8fa; border-radius: 12px; padding: 9px 11px;
             display: flex; flex-direction: column; gap: 5px;
-        }
-        .moments-post-likes {
-            margin-top: 8px;
-            color: #7a5a66;
-            background: #faf4f6;
         }
         .moments-post-comment { font-size: 12px; color: #444; line-height: 1.5; word-break: break-word; }
         .moments-post-comment b { color: #5f7fa8; font-weight: 600; }
@@ -1065,21 +716,22 @@
         .moments-compose-item { position: relative; width: 100%; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: #f5f5f5; border: 1px solid #efefef; }
         .moments-compose-item img { width: 100%; height: 100%; object-fit: cover; }
         .moments-compose-camera-item {
-            padding: 10px;
+            padding: 8px;
             display: flex;
+            flex-direction: column;
             justify-content: center;
-            align-items: flex-start;
-            background: linear-gradient(180deg, #fcfcfd 0%, #f4f6f9 100%);
+            gap: 6px;
+            background: #fafbfc;
             border-color: #eceef2;
         }
-        .moments-compose-camera-icon { display: none; }
+        .moments-compose-camera-icon { display: flex; color: #7e8794; }
         .moments-compose-camera-icon svg { width: 16px; height: 16px; stroke-width: 2; }
         .moments-compose-camera-text {
-            font-size: 12px;
-            color: #435061;
-            line-height: 1.55;
+            font-size: 11px;
+            color: #555;
+            line-height: 1.4;
             word-break: break-word;
-            max-height: 100%;
+            max-height: 44px;
             overflow: hidden;
         }
         .moments-compose-remove {
@@ -1222,164 +874,6 @@
         }
         .moments-comment-btn.primary { color: #555; border-color: #e5e5e5; }
         .moments-comment-btn:active { background: #f5f5f5; transform: scale(0.97); }
-        .moments-auto-card {
-            width: 90%;
-            max-width: 346px;
-            max-height: 84%;
-            overflow-y: auto;
-            background: linear-gradient(160deg, #f7f8fb 0%, #f3f5f8 100%);
-            border-radius: 24px;
-            border: 1px solid #dde3ea;
-            box-shadow: 0 20px 60px rgba(10, 20, 30, 0.2);
-            padding: 16px 14px 14px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .moments-auto-title {
-            font-size: 16px;
-            font-weight: 750;
-            color: #1f2a37;
-            text-align: center;
-            padding: 2px 2px 8px;
-            border-bottom: 1px solid rgba(130, 150, 170, 0.16);
-        }
-        .moments-auto-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            font-size: 13px;
-            color: #3f4653;
-            border: 1px solid #e1e6ee;
-            background: rgba(255,255,255,0.66);
-            border-radius: 14px;
-            padding: 10px 12px;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
-        }
-        .moments-auto-row-stack {
-            flex-direction: column;
-            align-items: stretch;
-        }
-        .moments-auto-input {
-            width: 100%;
-            height: 38px;
-            border-radius: 12px;
-            font-size: 13px;
-            border-color: #dbe2eb;
-            background: #fff;
-        }
-        .moments-auto-textarea {
-            height: 74px;
-            border-radius: 12px;
-            font-size: 12px;
-            line-height: 1.55;
-            resize: none;
-            border-color: #dbe2eb;
-            background: #fff;
-        }
-        .moments-auto-contact-list {
-            max-height: 128px;
-            overflow-y: auto;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            border: 1px solid #dde4ec;
-            border-radius: 12px;
-            padding: 10px;
-            background: #f7f9fc;
-        }
-        .moments-auto-contact-chip {
-            border-radius: 12px;
-            border: 1px solid #dbe3ec;
-            background: #fff;
-            color: #495669;
-            font-size: 12px;
-            line-height: 1;
-            padding: 8px 11px;
-            cursor: pointer;
-            user-select: none;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.025);
-        }
-        .moments-auto-contact-chip.active {
-            color: #253346;
-            background: #edf2f8;
-            border-color: #c8d4e3;
-        }
-        .moments-auto-actions {
-            display: flex;
-            gap: 8px;
-        }
-        .moments-auto-btn {
-            flex: 1;
-            height: 36px;
-            border-radius: 12px;
-            border: 1px solid #d6dde7;
-            background: #ffffff;
-            color: #3f4958;
-            font-size: 12px;
-            font-weight: 650;
-            cursor: pointer;
-        }
-        .moments-auto-btn-primary {
-            background: #2f3540;
-            border-color: #2f3540;
-            color: #fff;
-        }
-        .moments-auto-actions-send {
-            margin-top: 4px;
-        }
-        .moments-auto-btn-send-all {
-            height: 42px;
-            border: none;
-            border-radius: 21px;
-            background: #fff;
-            color: #666;
-            font-size: 13px;
-            font-weight: 500;
-            letter-spacing: 0.8px;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.08);
-        }
-        .moments-auto-btn.moments-auto-btn-send-all:active {
-            background: #f8f8f8;
-            transform: scale(0.97);
-        }
-        .moments-auto-btn:active { transform: scale(0.98); }
-        .moments-auto-switch {
-            position: relative;
-            width: 42px;
-            height: 24px;
-            flex-shrink: 0;
-        }
-        .moments-auto-switch input {
-            position: absolute;
-            opacity: 0;
-            pointer-events: none;
-        }
-        .moments-auto-switch span {
-            position: absolute;
-            inset: 0;
-            background: #d5dde1;
-            border-radius: 14px;
-            transition: background 0.2s;
-        }
-        .moments-auto-switch span::after {
-            content: '';
-            position: absolute;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            left: 3px;
-            top: 3px;
-            background: #fff;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.18);
-            transition: transform 0.2s;
-        }
-        .moments-auto-switch input:checked + span { background: #43c46c; }
-        .moments-auto-switch input:checked + span::after { transform: translateX(18px); }
-        .moments-auto-json-tip {
-            display: none;
-        }
         /* 我 页面样式 */
         .me-header { width: 100%; padding: 40px 20px 20px 20px; display: flex; flex-direction: column; align-items: center; gap: 15px; }
         .me-avatar-big { width: 120px; height: 120px; border-radius: 50%; overflow: hidden; background: #eee; box-shadow: 0 8px 25px rgba(0,0,0,0.05); }
@@ -1414,331 +908,153 @@
 .theme-section-body { display: none; padding: 20px 15px; flex-direction: column; align-items: center; background: #fff; border-top: 1px solid #fafafa; border-radius: 0 0 22px 22px; overflow: hidden; }
 .theme-accordion-item.active .theme-section-body { display: flex; }
 .theme-accordion-item.active .theme-section-arrow { transform: rotate(90deg); color: #999; }
-.theme-security-card {
-    width: 100%;
-    background: linear-gradient(180deg, #ffffff 0%, #fbfbfb 100%);
-    border: 1px solid #f1f1f1;
-    border-radius: 20px;
-    padding: 16px 18px;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.03);
-}
-.theme-security-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
-.theme-security-copy {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-.theme-security-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: #333;
-    letter-spacing: 0.3px;
-}
-.theme-security-desc {
-    font-size: 12px;
-    line-height: 1.55;
-    color: #888;
-}
-.theme-security-meta {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid #f5f5f5;
-    font-size: 11px;
-    line-height: 1.6;
-    color: #b0b0b0;
-}
-.theme-security-actions {
-    width: 100%;
-}
-.theme-security-actions .btn-restore {
-    min-width: 0;
-    flex: 1;
-    text-align: center;
-}
-.theme-lock-wallpaper-card {
-    width: 100%;
-    background: linear-gradient(180deg, #ffffff 0%, #f7f8fb 100%);
-    border: 1px solid #eef1f5;
-    border-radius: 20px;
-    padding: 14px;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.03);
-    box-sizing: border-box;
-}
-.theme-lock-wallpaper-preview {
-    width: 100%;
-    height: 122px;
+.runtime-debug-entry-btn { padding: 18px 22px; }
+.runtime-settings-link-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.runtime-settings-link-copy small { font-size: 11px; color: #a8a8a8; line-height: 1.35; padding-left: 12px; }
+.runtime-debug-fab {
+    position: absolute;
+    top: 76px;
+    right: 18px;
+    width: 44px;
+    height: 44px;
+    border: 1px solid rgba(0,0,0,0.06);
     border-radius: 16px;
-    background: linear-gradient(140deg, #f4f5f7 0%, #ebeff4 100%);
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.45);
-}
-.theme-lock-wallpaper-title {
-    margin-top: 14px;
-    font-size: 14px;
-    font-weight: 600;
-    color: #333b47;
-    letter-spacing: 0.3px;
-}
-.theme-lock-wallpaper-desc {
-    margin-top: 8px;
-    font-size: 12px;
-    line-height: 1.65;
-    color: #7f8896;
-}
-.theme-lock-wallpaper-actions {
-    width: 100%;
-    justify-content: flex-start;
-}
-.theme-lock-wallpaper-actions .btn-restore {
-    min-width: 126px;
-    text-align: center;
-}
-.theme-switch {
-    width: 50px;
-    height: 30px;
-    border: 0;
-    border-radius: 999px;
-    background: #d7d7db;
-    position: relative;
-    cursor: pointer;
-    transition: background 0.22s ease;
-    flex-shrink: 0;
-}
-.theme-switch-thumb {
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.16);
-    transition: transform 0.22s ease;
-}
-.theme-switch.active {
-    background: #4cd964;
-}
-.theme-switch.active .theme-switch-thumb {
-    transform: translateX(20px);
-}
-.btn-restore.is-disabled {
-    opacity: 0.45;
-    pointer-events: none;
-}
-
-/* ====== 主手机锁屏层 ====== */
-.main-lock-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 1600;
+    background: rgba(255,255,255,0.94);
+    color: #6e7682;
     display: flex;
-    align-items: stretch;
+    align-items: center;
     justify-content: center;
-    overflow: hidden;
-    isolation: isolate;
+    box-shadow: 0 10px 26px rgba(0,0,0,0.10);
+    cursor: pointer;
+    z-index: 12;
+    backdrop-filter: blur(10px);
 }
-.main-lock-wallpaper {
-    position: absolute;
-    inset: 0;
+.runtime-debug-fab svg { width: 18px; height: 18px; }
+.runtime-debug-fab:active { transform: scale(0.94); }
+.runtime-debug-body {
+    align-items: stretch !important;
+    gap: 14px;
+    padding: 16px 18px 28px !important;
+    background:
+        radial-gradient(circle at top right, rgba(214,225,238,0.45), transparent 32%),
+        linear-gradient(180deg, #f7f9fc 0%, #f2f5f9 100%);
 }
-.main-lock-wallpaper,
-.main-passcode-wallpaper {
-    background: linear-gradient(140deg, #f4f5f7 0%, #ebeff4 100%);
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-}
-.main-lock-wallpaper {
-    transform: scale(1.03);
-    filter: saturate(0.94) brightness(0.9);
-}
-.main-passcode-wallpaper {
-    transform: scale(1.08);
-    filter: blur(18px) saturate(0.82) brightness(0.62);
-}
-.main-lock-screen,
-.main-passcode-screen {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-}
-.main-lock-screen-blur {
-    background: linear-gradient(180deg, rgba(10,14,24,0.18) 0%, rgba(10,14,24,0.28) 100%);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-}
-.main-passcode-blur {
-    background: linear-gradient(180deg, rgba(6,10,18,0.24) 0%, rgba(6,10,18,0.56) 100%);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-}
-.cp-lock-content.main-lock-screen-content {
-    padding: 146px 16px 138px;
-    justify-content: flex-start;
-}
-.cp-passcode-content.main-lock-content {
-    position: relative;
-    z-index: 2;
+.runtime-debug-card {
     width: 100%;
+    background: rgba(255,255,255,0.96);
+    border: 1px solid rgba(233,237,243,0.95);
+    border-radius: 24px;
+    padding: 16px;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    min-height: 100%;
-    padding: 244px 22px 12px;
+    gap: 14px;
+    box-shadow: 0 10px 30px rgba(31,41,55,0.05);
+}
+.runtime-debug-section-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
     gap: 12px;
 }
-.main-lock-badge {
-    padding: 7px 14px;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.16);
-    border: 1px solid rgba(255,255,255,0.2);
-    font-size: 11px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: rgba(255,255,255,0.74);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-}
-.main-lock-title {
-    font-size: 30px;
-    line-height: 1.05;
-    font-weight: 700;
-    color: #fff;
-    letter-spacing: 0.02em;
-    text-align: center;
-}
-.main-lock-hint {
-    margin-bottom: 2px;
-}
-.main-lock-note {
-    max-width: 260px;
-    text-align: center;
-    font-size: 12px;
-    line-height: 1.55;
-    color: rgba(255,255,255,0.66);
-    margin-bottom: 0;
-}
-.main-lock-screen .cp-lock-notif.main-lock-notif {
-    margin-top: 26px;
-    width: calc(100% - 8px);
-    max-width: none;
-}
-.cp-lock-notif.main-lock-notif {
-    padding: 14px 15px;
-    gap: 12px;
-    border-radius: 20px;
-    background: rgba(255,255,255,0.2);
-}
-.cp-lock-notif.main-lock-notif:active {
-    background: rgba(255,255,255,0.24);
-}
-.cp-lock-notif.main-lock-notif .main-lock-notif-icon {
-    width: 52px;
-    height: 52px;
-    border-radius: 14px;
-    background: linear-gradient(135deg, rgba(248,250,253,0.28), rgba(190,198,210,0.16));
-    border: 1px solid rgba(255,255,255,0.16);
-    overflow: hidden;
-}
-.cp-lock-notif.main-lock-notif .main-lock-notif-icon img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-}
-.cp-lock-notif.main-lock-notif .main-lock-notif-icon span {
-    font-size: 13px;
-    font-weight: 800;
-    color: rgba(255,255,255,0.92);
-    letter-spacing: 0.01em;
-    text-transform: none;
-    line-height: 1;
-}
-.main-lock-notif-body {
-    flex: 1;
+.runtime-debug-title { font-size: 14px; font-weight: 700; color: #313740; line-height: 1.2; }
+.runtime-debug-copy-btn { padding: 10px 14px; border-radius: 14px; }
+.runtime-log-meta { font-size: 12px; color: #8f97a2; line-height: 1.5; margin-top: 5px; }
+.runtime-debug-status-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.runtime-debug-status-item {
     min-width: 0;
+    background: #f7f9fc;
+    border: 1px solid #edf1f5;
+    border-radius: 16px;
+    padding: 10px 12px;
     display: flex;
     flex-direction: column;
     gap: 4px;
 }
-.main-lock-notif-head {
+.runtime-debug-status-item.is-good { background: #f6fbf8; border-color: #dfeee4; }
+.runtime-debug-status-item.is-warn { background: #fffaf2; border-color: #f1e4c9; }
+.runtime-debug-status-item.is-bad { background: #fff7f7; border-color: #f2dddd; }
+.runtime-debug-status-label {
+    font-size: 11px;
+    color: #98a1ad;
+    letter-spacing: 0.2px;
+}
+.runtime-debug-status-value {
+    font-size: 13px;
+    color: #3b4450;
+    font-weight: 600;
+    line-height: 1.45;
+    word-break: break-word;
+}
+.runtime-log-list { width: 100%; display: flex; flex-direction: column; gap: 12px; }
+.runtime-log-item {
+    width: 100%;
+    background: #fbfcfd;
+    border: 1px solid #edf1f5;
+    border-radius: 18px;
+    padding: 12px 14px;
+}
+.runtime-log-item[data-level="error"] { background: #fff7f7; border-color: #f4dddd; }
+.runtime-log-item[data-level="warn"] { background: #fffaf2; border-color: #f2e4c8; }
+.runtime-log-item[data-level="info"] { background: #f6fbff; border-color: #d9eaf6; }
+.runtime-log-head {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 10px;
+    margin-bottom: 8px;
 }
-.main-lock-notif-app,
-.main-lock-notif-time {
+.runtime-log-head-left {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+}
+.runtime-log-badge {
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #eef2f6;
+    color: #5e6773;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+}
+.runtime-log-item[data-level="error"] .runtime-log-badge { background: #ffe8e8; color: #c75858; }
+.runtime-log-item[data-level="warn"] .runtime-log-badge { background: #ffefd8; color: #c18a38; }
+.runtime-log-item[data-level="info"] .runtime-log-badge { background: #e3f1fb; color: #4e83ab; }
+.runtime-log-source {
+    max-width: 100%;
+    padding: 4px 8px;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.04);
+    color: #8b95a1;
     font-size: 11px;
-    color: rgba(255,255,255,0.62);
-    line-height: 1;
+    line-height: 1.2;
+    word-break: break-all;
 }
-.main-lock-notif-time {
+.runtime-log-time {
+    font-size: 11px;
+    color: #adb4be;
+    line-height: 1.4;
     flex-shrink: 0;
 }
-.main-lock-notif-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: rgba(255,255,255,0.96);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.runtime-log-line {
+    font-size: 12px;
+    color: #3e4652;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
 }
-.main-lock-notif-text {
-    white-space: nowrap;
-}
-.main-lock-notif[data-has-unread="true"] .main-lock-notif-app {
-    color: rgba(255,255,255,0.7);
-}
-.main-lock-notif[data-has-unread="true"] .main-lock-notif-time {
-    color: rgba(255,255,255,0.78);
-}
-.main-lock-numpad {
-    margin-top: auto;
-    margin-bottom: 4px;
-}
-.main-lock-actions {
-    display: flex;
-    gap: 10px;
+.runtime-log-empty {
     width: 100%;
-    max-width: 250px;
-    margin-top: 14px;
-}
-.main-lock-action {
-    flex: 1;
-    border: 0;
+    padding: 22px 12px;
+    text-align: center;
+    color: #b1b7c0;
+    font-size: 12px;
     border-radius: 18px;
-    padding: 11px 14px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
-}
-.main-lock-action:active {
-    transform: scale(0.97);
-}
-.main-lock-action-secondary {
-    background: rgba(255,255,255,0.12);
-    color: rgba(255,255,255,0.82);
-    border: 1px solid rgba(255,255,255,0.14);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-}
-.main-lock-action-primary {
-    background: rgba(255,255,255,0.95);
-    color: #2e3138;
-}
-.main-lock-action.is-disabled {
-    opacity: 0.45;
-    pointer-events: none;
+    border: 1px dashed #e2e6ec;
+    background: #fafbfc;
 }
 /* ====== 表情包库专属样式 ====== */
 .emoticon-header-actions { display: flex; gap: 12px; align-items: center; }
@@ -1847,17 +1163,49 @@
 /* ====== 聊天窗口 (Chat) 线条主义审美重构 ====== */
 #chat-window { background: #f6f6f6; z-index: 120; display: none; }
 /* 聊天窗口导航栏：纯白背景，强制覆盖毛玻璃 */
-#wechat-app .app-header,
-#wechat-tab-msg .app-header,
-#wechat-tab-contacts .app-header,
-#wechat-tab-me .app-header,
 #chat-window > .app-header,
 #chat-window .app-header {
     background: #ffffff !important;
     background-color: #ffffff !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-    box-shadow: 0 1px 0 rgba(0,0,0,0.06) !important;
+    box-shadow: none !important;
+    border-bottom: none !important;
+}
+.sms-chat-title-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    min-width: 0;
+    padding-top: 5px;
+}
+#sms-app .app-header {
+    border-bottom: none !important;
+    box-shadow: none !important;
+}
+#sms-chat-window .app-title {
+    width: 100%;
+    flex: 0 1 auto;
+    align-items: center;
+    text-align: center;
+    justify-content: center;
+    padding-top: 0;
+    font-size: 19px !important;
+}
+#sms-chat-window .app-title::after {
+    content: none;
+}
+#sms-chat-sub {
+    width: 100%;
+    text-align: center;
+    font-size: 11px;
+    color: #a3a3a3;
+    letter-spacing: 1.8px;
+    line-height: 1;
+    margin-top: 6px;
+    text-transform: uppercase;
 }
 .chat-body { 
     flex: 1; overflow-y: auto; padding: 20px 8px 110px 8px; 
@@ -1903,13 +1251,9 @@
     background: transparent; color: #333;
     resize: none;
     line-height: 1.45;
-    height: 22px;
-    min-height: 22px;
+    min-height: 20px;
     max-height: 120px;
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    overflow-y: hidden;
+    overflow-y: auto;
     display: block;
 }
 /* 纯线条风按钮 */
@@ -2340,6 +1684,84 @@
     line-height: 1.4;
     word-wrap: break-word;
     white-space: pre-wrap;
+}
+/* ====== 统一动作卡片样式 ====== */
+.chat-special-card {
+    width: 236px;
+    border-radius: 22px;
+    padding: 14px 15px 12px;
+    border: 1px solid rgba(0,0,0,0.05);
+    box-shadow: 0 12px 28px rgba(20,20,20,0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    color: #3c352f;
+    overflow: hidden;
+}
+.special-gift-card {
+    background: linear-gradient(135deg, #fffaf3 0%, #f7eee1 100%);
+}
+.special-takeout-card {
+    background: linear-gradient(135deg, #f5fbf4 0%, #e8f3e3 100%);
+    color: #2f4a31;
+}
+.special-call-card {
+    background: linear-gradient(135deg, #f4f7fb 0%, #e6edf7 100%);
+    color: #30445f;
+}
+.special-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.special-card-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: inherit;
+    flex-shrink: 0;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.65);
+}
+.special-card-icon svg {
+    width: 20px;
+    height: 20px;
+}
+.special-card-meta {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.special-card-kicker {
+    font-size: 11px;
+    color: rgba(0,0,0,0.42);
+    letter-spacing: 0.4px;
+}
+.special-card-title {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.35;
+    color: inherit;
+}
+.special-card-note {
+    font-size: 12px;
+    line-height: 1.55;
+    color: rgba(0,0,0,0.62);
+    background: rgba(255,255,255,0.52);
+    border-radius: 14px;
+    padding: 10px 12px;
+}
+.special-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    color: rgba(0,0,0,0.52);
 }
 /* ====== 修复第一页方形组件放大字体溢出问题 ====== */
 .grid-layout-p1 .widget-common {

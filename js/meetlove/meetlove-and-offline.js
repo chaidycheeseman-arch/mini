@@ -938,7 +938,6 @@ var HV_HISTORY_KEY = 'hv_history_';
     var activeOfflineContact = null;
     var activeOfflineBubbleMsgId = null;
     var offlineReplying = false;
-    var offlineReplyingContactId = null;
 
     function formatOfflineTimestamp(ts) {
         var d = new Date(ts);
@@ -948,168 +947,6 @@ var HV_HISTORY_KEY = 'hv_history_';
         var h = String(d.getHours()).padStart(2, '0');
         var min = String(d.getMinutes()).padStart(2, '0');
         return y + '\u5e74' + mo + '\u6708' + day + '\u65e5 ' + h + ':' + min;
-    }
-
-    function extractOfflineStructuredReply(payload) {
-        if (payload === null || payload === undefined) return '';
-        if (typeof payload === 'string') return payload.trim();
-        if (Array.isArray(payload)) {
-            return payload.map(extractOfflineStructuredReply).filter(Boolean).join('\n').trim();
-        }
-        if (typeof payload === 'object') {
-            var directKeys = ['content', 'reply', 'text', 'message', 'output', 'result'];
-            for (var i = 0; i < directKeys.length; i++) {
-                var key = directKeys[i];
-                if (payload[key] !== undefined && payload[key] !== null) {
-                    var direct = extractOfflineStructuredReply(payload[key]);
-                    if (direct) return direct;
-                }
-            }
-            if (Array.isArray(payload.choices) && payload.choices[0]) {
-                var choice = payload.choices[0];
-                var fromChoice = extractOfflineStructuredReply(choice.message || choice.delta || choice.text || choice.content);
-                if (fromChoice) return fromChoice;
-            }
-        }
-        return '';
-    }
-
-    function tryExtractOfflineStructuredText(text) {
-        var source = String(text || '').trim();
-        if (!source) return '';
-        try {
-            var direct = extractOfflineStructuredReply(JSON.parse(source));
-            if (direct) return direct;
-        } catch (e) {}
-
-        var firstBrace = source.indexOf('{');
-        var lastBrace = source.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace > firstBrace) {
-            try {
-                var objText = source.slice(firstBrace, lastBrace + 1);
-                var objResult = extractOfflineStructuredReply(JSON.parse(objText));
-                if (objResult) return objResult;
-            } catch (e2) {}
-        }
-
-        var firstBracket = source.indexOf('[');
-        var lastBracket = source.lastIndexOf(']');
-        if (firstBracket !== -1 && lastBracket > firstBracket) {
-            try {
-                var arrText = source.slice(firstBracket, lastBracket + 1);
-                var arrResult = extractOfflineStructuredReply(JSON.parse(arrText));
-                if (arrResult) return arrResult;
-            } catch (e3) {}
-        }
-
-        var contentMatch = source.match(/"content"\s*:\s*"([\s\S]*?)"/i);
-        if (contentMatch && contentMatch[1]) {
-            return contentMatch[1]
-                .replace(/\\"/g, '"')
-                .replace(/\\n/g, '\n')
-                .replace(/\\t/g, '    ')
-                .trim();
-        }
-        return '';
-    }
-
-    function sanitizeOfflineReplyText(rawText) {
-        var text = String(rawText === null || rawText === undefined ? '' : rawText).trim();
-        if (!text) return '';
-
-        var structured = tryExtractOfflineStructuredText(text);
-        if (structured) text = structured;
-
-        var fenceMatch = text.match(/```(?:json|text|markdown)?\s*([\s\S]*?)\s*```/i);
-        if (fenceMatch && fenceMatch[1]) {
-            var fencedBody = fenceMatch[1].trim();
-            var fencedStructured = tryExtractOfflineStructuredText(fencedBody);
-            text = fencedStructured || fencedBody;
-        }
-
-        text = text.replace(/```[\w-]*\s*/g, '').replace(/```/g, '').trim();
-        text = text.replace(/\r\n?/g, '\n');
-        text = text.replace(/^\s*(?:回复|正文|内容|角色回复|输出)\s*[:：]\s*/i, '');
-        text = text.replace(/\u200b/g, '');
-        if (text.indexOf('\n') === -1 && text.indexOf('\\n') !== -1) {
-            text = text.replace(/\\n/g, '\n');
-        }
-        text = text.replace(/\\"/g, '"');
-        text = text.replace(/\*\*([^*]+)\*\*/g, '*$1*');
-        text = text.replace(/^[ \t]*(?:json|text|markdown)[ \t]*\n/i, '');
-        text = text.replace(/[ \t]+\n/g, '\n');
-        text = text.replace(/\n{3,}/g, '\n\n');
-        return text.trim();
-    }
-
-    function appendOfflineFormattedLine(parent, lineText) {
-        var text = String(lineText || '');
-        if (!text) return;
-        var tokenReg = /(\*[^*\n]+\*|“[^”\n]+”|"[^"\n]+"|「[^」\n]+」)/g;
-        var lastIndex = 0;
-        var match;
-        while ((match = tokenReg.exec(text)) !== null) {
-            if (match.index > lastIndex) {
-                parent.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
-            }
-            var token = match[0];
-            if (token.charAt(0) === '*') {
-                var em = document.createElement('em');
-                em.className = 'offline-narration';
-                em.textContent = token.slice(1, -1).trim();
-                parent.appendChild(em);
-            } else {
-                var span = document.createElement('span');
-                span.className = 'offline-dialogue';
-                span.textContent = token;
-                parent.appendChild(span);
-            }
-            lastIndex = match.index + token.length;
-        }
-        if (lastIndex < text.length) {
-            parent.appendChild(document.createTextNode(text.slice(lastIndex)));
-        }
-    }
-
-    function renderOfflineBubbleText(parent, rawContent, shouldSanitize) {
-        var safeContent = shouldSanitize ? sanitizeOfflineReplyText(rawContent) : String(rawContent || '');
-        var lines = safeContent ? safeContent.split('\n') : [''];
-        lines.forEach(function(line, idx) {
-            if (idx > 0) parent.appendChild(document.createElement('br'));
-            var narrationMatch = line.trim().match(/^\*([^*\n]+)\*$/);
-            if (narrationMatch) {
-                var em = document.createElement('em');
-                em.className = 'offline-narration offline-narration-block';
-                em.textContent = narrationMatch[1].trim();
-                parent.appendChild(em);
-                return;
-            }
-            appendOfflineFormattedLine(parent, line);
-        });
-    }
-
-    function removeOfflineTypingIndicator(contactId) {
-        var container = document.getElementById('offline-msg-container');
-        if (!container) return;
-        var selector = '.offline-typing-row' + (contactId ? '[data-contact-id="' + String(contactId) + '"]' : '');
-        container.querySelectorAll(selector).forEach(function(node) {
-            if (node && node.parentNode) node.parentNode.removeChild(node);
-        });
-    }
-
-    function showOfflineTypingIndicator(contact) {
-        if (!contact) return;
-        var app = document.getElementById('offline-chat-app');
-        var container = document.getElementById('offline-msg-container');
-        if (!app || app.style.display !== 'flex' || !container) return;
-        if (!activeOfflineContact || activeOfflineContact.id !== contact.id) return;
-        removeOfflineTypingIndicator(contact.id);
-        var typingRow = buildOfflineBubble({ sender: 'role', content: '', timestamp: Date.now(), isTyping: true });
-        if (!typingRow) return;
-        typingRow.classList.add('offline-typing-row');
-        typingRow.setAttribute('data-contact-id', String(contact.id));
-        container.appendChild(typingRow);
-        requestAnimationFrame(function() { container.scrollTop = container.scrollHeight; });
     }
 
     window.openOfflineChat = function() {
@@ -1126,17 +963,9 @@ var HV_HISTORY_KEY = 'hv_history_';
         }
         var app = document.getElementById('offline-chat-app');
         if (app) app.style.display = 'flex';
-        Promise.resolve(loadOfflineMessages()).then(function() {
-            if (offlineReplying && offlineReplyingContactId === activeOfflineContact.id) {
-                showOfflineTypingIndicator(activeOfflineContact);
-            }
-        });
+        loadOfflineMessages();
         var input = document.getElementById('offline-input-field');
-        if (input) {
-            input.value = '';
-            input.style.height = 'auto';
-            if (typeof autoGrowTextarea === 'function') autoGrowTextarea(input);
-        }
+        if (input) { input.value = ''; input.style.height = 'auto'; }
     };
 
     window.closeOfflineChat = function() {
@@ -1722,9 +1551,6 @@ var HV_HISTORY_KEY = 'hv_history_';
         try {
             var msgs = await offlineDb.messages.where('contactId').equals(activeOfflineContact.id).toArray();
             msgs.forEach(function(msg) { container.appendChild(buildOfflineBubble(msg)); });
-            if (offlineReplying && offlineReplyingContactId === activeOfflineContact.id) {
-                showOfflineTypingIndicator(activeOfflineContact);
-            }
             requestAnimationFrame(function() { container.scrollTop = container.scrollHeight; });
         } catch(e) { console.error('load offline messages failed', e); }
     }
@@ -1787,31 +1613,42 @@ var HV_HISTORY_KEY = 'hv_history_';
         header.appendChild(avatarInner);
         header.appendChild(meta);
 
-        // 气泡正文（支持换行、行内旁白、对话高亮；正在回复时显示占位）
+        // 气泡正文（旁白灰色斜体，对话黑色正体）
         var textEl = document.createElement('div');
         textEl.className = 'offline-bubble-text';
-        if (msg && msg.isTyping) {
-            bubble.classList.add('offline-bubble-typing');
-            textEl.classList.add('offline-bubble-text-typing');
-            var typingLabel = document.createElement('span');
-            typingLabel.className = 'offline-typing-label';
-            typingLabel.textContent = '正在回复';
-            var typingDots = document.createElement('span');
-            typingDots.className = 'offline-typing-dots';
-            for (var dotIdx = 0; dotIdx < 3; dotIdx++) {
-                var dot = document.createElement('span');
-                dot.className = 'offline-typing-dot';
-                typingDots.appendChild(dot);
+        // 解析 *旁白* 和 "对话" 格式
+        var rawContent = msg.content || '';
+        var lines = rawContent.split('\n');
+        lines.forEach(function(line, idx) {
+            if (idx > 0) {
+                textEl.appendChild(document.createTextNode('\n'));
             }
-            textEl.appendChild(typingLabel);
-            textEl.appendChild(typingDots);
-        } else {
-            renderOfflineBubbleText(textEl, msg.content || '', !isMe);
-        }
+            // 检测整行是否为旁白（以*开头和*结尾）
+            var narrationMatch = line.match(/^\*(.+)\*$/);
+            if (narrationMatch) {
+                var em = document.createElement('em');
+                em.className = 'offline-narration';
+                em.textContent = narrationMatch[1];
+                textEl.appendChild(em);
+            } else {
+                // 在行内查找"对话"片段并高亮为黑色
+                var parts = line.split(/([""][^""]*[""])/);
+                parts.forEach(function(part) {
+                    if (part.match(/^[""][^""]*[""]$/)) {
+                        var span = document.createElement('span');
+                        span.className = 'offline-dialogue';
+                        span.textContent = part;
+                        textEl.appendChild(span);
+                    } else if (part) {
+                        textEl.appendChild(document.createTextNode(part));
+                    }
+                });
+            }
+        });
 
         bubble.appendChild(header);
         bubble.appendChild(textEl);
-        if (msg && msg.id && !msg.isTyping) {
+        if (msg && msg.id) {
             bubble.setAttribute('data-msg-id', String(msg.id));
             bubble.style.cursor = 'pointer';
             bubble.addEventListener('click', function(e) {
@@ -1840,7 +1677,6 @@ var HV_HISTORY_KEY = 'hv_history_';
             });
             input.value = '';
             input.style.height = 'auto';
-            if (typeof autoGrowTextarea === 'function') autoGrowTextarea(input);
             var msg = { id: newId, contactId: activeOfflineContact.id, sender: 'me', content: content, timestamp: ts };
             container.appendChild(buildOfflineBubble(msg));
             requestAnimationFrame(function() { container.scrollTop = container.scrollHeight; });
@@ -1851,7 +1687,6 @@ var HV_HISTORY_KEY = 'hv_history_';
     async function triggerOfflineRoleReply(contact, userText) {
         if (offlineReplying) return;
         offlineReplying = true;
-        offlineReplyingContactId = contact ? contact.id : null;
         var container = document.getElementById('offline-msg-container');
         try {
             var apiUrl = await localforage.getItem('miffy_api_url');
@@ -1859,17 +1694,6 @@ var HV_HISTORY_KEY = 'hv_history_';
             var model = await localforage.getItem('miffy_api_model');
             var temp = parseFloat(await localforage.getItem('miffy_api_temp')) || 0.7;
             if (!apiUrl || !apiKey || !model) return;
-            var settings = await localforage.getItem('offline_settings_' + contact.id) || {};
-            var crossModeMemorySaved = await localforage.getItem('cd_settings_' + contact.id + '_toggle_cross_mode_memory');
-            var summaryMemorySaved = await localforage.getItem('cd_settings_' + contact.id + '_toggle_memory');
-            var crossModeMemoryOn = (crossModeMemorySaved === null || crossModeMemorySaved === undefined)
-                ? !!summaryMemorySaved
-                : !!crossModeMemorySaved;
-            var wordMin = Math.max(20, parseInt(settings.wordMin, 10) || 100);
-            var wordMax = Math.max(wordMin, parseInt(settings.wordMax, 10) || 500);
-            var perspective = settings.perspective || 'second';
-            var writingStyle = settings.writingStyle ? String(settings.writingStyle).trim() : '';
-            var plotBg = settings.plotBg ? String(settings.plotBg).trim() : '';
             var ctxRaw = await localforage.getItem('miffy_api_ctx');
             var ctxLimit = (ctxRaw !== null && ctxRaw !== '') ? parseInt(ctxRaw) : 10;
             var allMsgs = await offlineDb.messages.where('contactId').equals(contact.id).toArray();
@@ -1887,23 +1711,13 @@ var HV_HISTORY_KEY = 'hv_history_';
             var timeStr = now.getFullYear() + '\u5e74' + (now.getMonth()+1) + '\u6708' + now.getDate() + '\u65e5 ' +
                 weeks2[now.getDay()] + ' ' +
                 String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-            var perspectiveMap = {
-                first: '以第一人称叙述角色的感受和动作，多用“我”。',
-                second: '以第二人称与用户共处的视角推进，多用“你”来贴近互动。',
-                third: '以第三人称或镜头感描写两人的动作、氛围和场景。'
-            };
             var sysPrompt = '你与用户开启了可感知、真实、沉浸式的线下见面。\n' +
                 '全程以陪伴呈现，只输出细腻、有画面感、贴近现实的情景描写与剧情推进，注重沉浸感。不允许替用户做出回复。\n' +
-                '【格式要求】旁白使用灰色斜体（用星号包裹：*旁白内容*），对话内容放在双引号内（如："你好"），允许自然换行，但只能输出正文，不要输出JSON格式，直接输出纯文本。\n' +
-                '【硬性禁止】禁止输出代码块、JSON、Markdown标题、分点列表、注释、格式说明、角色标签、content:、``` 等任何结构化包裹。\n' +
-                '【字数】本次总字数控制在 ' + wordMin + '-' + wordMax + ' 字之间。即使想写长，也只能继续剧情正文，不得为了凑字数改成提纲、代码或说明。\n' +
-                '【视角】' + (perspectiveMap[perspective] || perspectiveMap.second) + '\n' +
+                '【格式要求】旁白使用灰色斜体（用星号包裹：*旁白内容*），对话内容放在双引号内（如："你好"），每次只输出1段连贯的叙述，不要输出JSON格式，直接输出纯文本。\n' +
                 '【时间】' + timeStr + '\n';
             if (contact.roleDetail) sysPrompt += '角色设定：' + contact.roleDetail + '\n';
             if (contact.userDetail) sysPrompt += '用户设定：' + contact.userDetail + '\n';
-            if (writingStyle) sysPrompt += '文风要求：' + writingStyle + '\n';
-            if (plotBg) sysPrompt += '当前剧情背景：' + plotBg + '\n';
-            if (crossModeMemoryOn && recentOnlineMsgs.length > 0) {
+            if (recentOnlineMsgs.length > 0) {
                 var roleName = contact.roleName || '角色';
                 var onlineMemoryText = recentOnlineMsgs.map(function(m) {
                     var sender = m.sender === 'me' ? '用户' : roleName;
@@ -1921,7 +1735,6 @@ var HV_HISTORY_KEY = 'hv_history_';
             if (recentMsgs.length > 0 && recentMsgs[recentMsgs.length - 1].sender !== 'me') {
                 messages.push({ role: 'user', content: '请紧接上一段线下剧情继续自然推进。' });
             }
-            showOfflineTypingIndicator(contact);
             var cleanApiUrl = apiUrl.replace(/\/+$/, '').replace(/\/v1$/, '');
             var endpoint = cleanApiUrl + '/v1/chat/completions';
             var response = await fetch(endpoint, {
@@ -1931,12 +1744,12 @@ var HV_HISTORY_KEY = 'hv_history_';
             });
             if (!response.ok) return;
             var data = await response.json();
-            var replyText = '';
-            if (data && data.choices && data.choices[0] && data.choices[0].message) {
-                replyText = data.choices[0].message.content || '';
-            }
-            replyText = sanitizeOfflineReplyText(replyText);
-            if (!replyText) return;
+            var replyText = data.choices[0].message.content.trim();
+            try {
+                var parsed = JSON.parse(replyText);
+                if (parsed && parsed.content) replyText = parsed.content;
+                else if (Array.isArray(parsed) && parsed[0] && parsed[0].content) replyText = parsed[0].content;
+            } catch(e2) {}
             var replyTs = Date.now();
             var replyId = await offlineDb.messages.add({
                 contactId: contact.id,
@@ -1951,25 +1764,16 @@ var HV_HISTORY_KEY = 'hv_history_';
                 requestAnimationFrame(function() { container.scrollTop = container.scrollHeight; });
             }
         } catch(e) { console.error('offline role reply failed', e); }
-        finally {
-            removeOfflineTypingIndicator(offlineReplyingContactId);
-            offlineReplying = false;
-            offlineReplyingContactId = null;
-        }
+        finally { offlineReplying = false; }
     }
 
     document.addEventListener('DOMContentLoaded', function() {
         var offlineInput = document.getElementById('offline-input-field');
         if (offlineInput) {
             offlineInput.addEventListener('input', function() {
-                if (typeof autoGrowTextarea === 'function') {
-                    autoGrowTextarea(this);
-                } else {
-                    this.style.height = 'auto';
-                    this.style.height = Math.min(this.scrollHeight, 100) + 'px';
-                }
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 100) + 'px';
             });
-            if (typeof autoGrowTextarea === 'function') autoGrowTextarea(offlineInput);
         }
         var offlineContainer = document.getElementById('offline-msg-container');
         if (offlineContainer) {

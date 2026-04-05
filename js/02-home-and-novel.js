@@ -1578,6 +1578,8 @@
                 if (_replyMinSaved !== null && _replyMinSaved !== undefined) _cdReplyMin = parseInt(_replyMinSaved) || 1;
                 if (_replyMaxSaved !== null && _replyMaxSaved !== undefined) _cdReplyMax = parseInt(_replyMaxSaved) || 6;
                 if (_cdReplyMin < 1) _cdReplyMin = 1;
+                if (_cdReplyMin > 10) _cdReplyMin = 10;
+                if (_cdReplyMax > 10) _cdReplyMax = 10;
                 if (_cdReplyMax < _cdReplyMin) _cdReplyMax = _cdReplyMin;
             } catch(e) {}
             // 在范围内随机
@@ -1756,7 +1758,9 @@
 【绝对禁止】严禁在 text 类型的消息中用文字描述"发红包""发转账""给你红包""转账给你"等行为！红包和转账只能通过系统指定的 red_packet / transaction 类型 JSON 发送，否则视为严重违规！当前允许的类型中${allowedTypes.includes('red_packet') || allowedTypes.includes('transaction') ? '已包含红包/转账' : '不包含红包和转账，本次回复中绝对不得出现任何红包或转账相关内容'}！
 【特殊功能】
 ${specialFeatures.join('\n')}
-【格式要求】你的回复所有元素必须是严格的携带type字段的json对象，只能使用上述提到的 type 类型（${allowedTypes.join(', ')}），且本次回复必须拆分为恰好 ${randomMsgCount} 条独立消息。格式示例：
+【格式要求】你的回复所有元素必须是严格的携带type字段的json对象，只能使用上述提到的 type 类型（${allowedTypes.join(', ')}）。
+本轮系统给你的随机输出上限是 ${randomMsgCount} 条，最多不超过这个数；能 1 条说完就只发 1 条，不必凑满。
+严禁重复表达：禁止把同一意思拆成多条、禁止同义改写重复、禁止前后两条只是换个说法重复一遍。格式示例：
 ${langInstruction}
 绝对不要输出任何Markdown代码块标记（如\`\`\`json），直接输出纯JSON数组！`
             });

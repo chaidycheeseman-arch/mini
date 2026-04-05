@@ -31,9 +31,45 @@
 .notif-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .notif-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
 .notif-header { display: flex; justify-content: space-between; align-items: center; }
-.notif-name { font-size: 14px; font-weight: 600; color: #333; }
+.notif-title-row {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.notif-name {
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.notif-app-chip {
+    flex-shrink: 0;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    color: #1f7a45;
+    background: rgba(7, 193, 96, 0.12);
+}
+.notification-banner[data-source="sms"] .notif-app-chip {
+    color: #2f6df6;
+    background: rgba(0, 122, 255, 0.12);
+}
 .notif-time { font-size: 11px; color: #999; }
-.notif-text { font-size: 13px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.notif-text {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
 /* ====== 性能优化：强制 GPU 硬件加速 ====== */
 /* 修复：full-app-page 不能加 will-change/translateZ，否则 display:none 的隐藏页面也会占据 GPU 合成层，
    在电脑端导致点击穿透失效（点设置打开WeChat、无法点击WeChat/小说/世界书等）*/

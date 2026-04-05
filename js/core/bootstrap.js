@@ -4,111 +4,6 @@ imgDb.version(1).stores({ images: 'id, src' });
 // 修复：whitePixel 是全局通用的 1x1 透明占位图，用于图标/头像未加载时的默认值，防止出现 ReferenceError
 const whitePixel = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
-window.MiniPromptGuard = window.MiniPromptGuard || (function() {
-    function clipText(value, maxLen) {
-        var text = '';
-        if (value === null || value === undefined) return text;
-        text = String(value).replace(/\s+/g, ' ').trim();
-        if (!maxLen || text.length <= maxLen) return text;
-        return text.slice(0, maxLen);
-    }
-
-    function extractJsonArrayText(rawText) {
-        var text = clipText(rawText, 120000);
-        if (!text) return '';
-        text = text.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
-        var firstBracket = text.indexOf('[');
-        var lastBracket = text.lastIndexOf(']');
-        if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-            return text.substring(firstBracket, lastBracket + 1);
-        }
-        return text;
-    }
-
-    function parseJsonArray(rawText) {
-        var cleaned = extractJsonArrayText(rawText);
-        if (!cleaned) {
-            return { ok: false, error: 'empty_response', raw: '' };
-        }
-        try {
-            var parsed = JSON.parse(cleaned);
-            if (!Array.isArray(parsed)) {
-                return { ok: false, error: 'not_array', raw: cleaned };
-            }
-            return { ok: true, data: parsed, raw: cleaned };
-        } catch (err) {
-            return { ok: false, error: err && err.message ? err.message : 'json_parse_failed', raw: cleaned };
-        }
-    }
-
-    function normalizeRoleState(state) {
-        if (!state || typeof state !== 'object') return null;
-        var normalized = {
-            mood: clipText(state.mood, 80),
-            bond: clipText(state.bond, 80),
-            focus: clipText(state.focus, 120),
-            style: clipText(state.style, 120),
-            updatedAt: Number(state.updatedAt) || Date.now()
-        };
-        if (!normalized.mood && !normalized.bond && !normalized.focus && !normalized.style) {
-            return null;
-        }
-        return normalized;
-    }
-
-    function buildRoleStatePrompt(state) {
-        var normalized = normalizeRoleState(state);
-        if (!normalized) {
-            return '当前没有锁定的隐藏状态锚点。请根据本轮对话自然建立情绪和语气，但一旦形成就保持连续，不要突然换人设。';
-        }
-        return [
-            '当前隐藏状态锚点（除非本轮对话明确改变，否则继续沿用）：',
-            '- 情绪底色：' + (normalized.mood || '未指定'),
-            '- 关系判断：' + (normalized.bond || '未指定'),
-            '- 当前执念：' + (normalized.focus || '未指定'),
-            '- 说话风格：' + (normalized.style || '未指定')
-        ].join('\n');
-    }
-
-    function buildRoleStateStorageKey(contactId) {
-        return 'mini_role_state_v1_' + String(contactId || '').trim();
-    }
-
-    async function loadRoleState(contactId) {
-        if (!contactId || typeof localforage === 'undefined') return null;
-        try {
-            var saved = await localforage.getItem(buildRoleStateStorageKey(contactId));
-            return normalizeRoleState(saved);
-        } catch (err) {
-            console.warn('[MiniPromptGuard] 读取角色状态失败', err);
-            return null;
-        }
-    }
-
-    async function saveRoleState(contactId, state) {
-        if (!contactId || typeof localforage === 'undefined') return null;
-        var normalized = normalizeRoleState(state);
-        if (!normalized) return null;
-        try {
-            await localforage.setItem(buildRoleStateStorageKey(contactId), normalized);
-            return normalized;
-        } catch (err) {
-            console.warn('[MiniPromptGuard] 保存角色状态失败', err);
-            return null;
-        }
-    }
-
-    return {
-        clipText: clipText,
-        extractJsonArrayText: extractJsonArrayText,
-        parseJsonArray: parseJsonArray,
-        normalizeRoleState: normalizeRoleState,
-        buildRoleStatePrompt: buildRoleStatePrompt,
-        loadRoleState: loadRoleState,
-        saveRoleState: saveRoleState
-    };
-})();
-
 // ====== 资产钱包持久化数据库 (Dexie.js + IndexedDB) ======
 const walletDb = new Dexie("miniPhoneWalletDB");
 walletDb.version(1).stores({
@@ -116,20 +11,6 @@ walletDb.version(1).stores({
     bankCards: '++id',   // 银行卡列表
     bills: '++id'        // 账单记录
 });
-
-function syncThirdWidgetBackgroundFromImg(imgEl) {
-    const bgEl = document.getElementById('third-widget-bg');
-    if (!bgEl || !imgEl) return;
-    const src = imgEl.getAttribute('src') || '';
-    bgEl.style.backgroundSize = 'cover';
-    bgEl.style.backgroundPosition = 'center';
-    bgEl.style.backgroundRepeat = 'no-repeat';
-    if (!src || src === whitePixel) {
-        bgEl.style.backgroundImage = '';
-        return;
-    }
-    bgEl.style.backgroundImage = `url(${src})`;
-}
 
 // 初始化钱包数据（页面加载时从 IndexedDB 恢复）
 async function initWalletData() {
@@ -200,32 +81,63 @@ function _buildBankCardElement(cardData) {
     tempDiv.innerHTML = html;
     return tempDiv.firstChild;
 }
-const appIconNames = ["小说", "日记", "购物", "论坛", "WeChat", "纪念日", "遇恋", "世界书", "占位1", "闲鱼", "查手机", "情侣空间", "信息", "音乐", "占位4", "占位5", "主题", "设置"];
+const appIconNames = ["小说", "日记", "购物", "论坛", "WeChat", "纪念日", "遇恋", "世界书", "占位1", "闲鱼", "查手机", "情侣空间", "信息", "占位3", "占位4", "占位5", "主题", "设置"];
 const themeIconGrid = document.getElementById('icon-theme-grid');
 const mainIcons = document.querySelectorAll('.icon-img img, .dock-icon img');
-const dockPageIndicator = document.getElementById('dock-page-indicator');
-const MAIN_LOCK_ENABLED_KEY = 'miffy_main_lock_enabled';
-const MAIN_LOCK_PASSCODE_KEY = 'miffy_main_lock_passcode';
-const MAIN_LOCK_WALLPAPER_KEY = 'miffy_main_lock_wallpaper';
-const mainLockState = {
-    enabled: false,
-    passcode: '',
-    wallpaper: '',
-    input: '',
-    draftPasscode: '',
-    mode: 'lockscreen',
-    pendingEnable: false,
-    notification: null,
-    pendingLaunchTarget: null
+const headerSubtitleMap = {
+    '主题': 'THEME',
+    '设置': 'SETTINGS',
+    '世界书': 'WORLDBOOK',
+    '消息': 'MESSAGES',
+    '联系人': 'CONTACTS',
+    '个人中心': 'PROFILE',
+    '资产钱包': 'WALLET',
+    '银行卡': 'BANK CARD',
+    '面具预设': 'MASK PRESETS',
+    '表情包库': 'STICKER LIBRARY',
+    '信息': 'INBOX',
+    '首页': 'HOME',
+    '聊天详情': 'CHAT DETAIL',
+    '发朋友圈': 'MOMENTS',
+    '理财': 'FINANCE',
+    '遇恋': 'MEETLOVE',
+    '匹配': 'MATCH',
+    '线下': 'OFFLINE',
+    '大厅设置': 'HALL SETTINGS',
+    '线下设置': 'OFFLINE SETTINGS'
 };
-const MAIN_LOCK_APP_META = {
-    'wechat-app': { label: 'WeChat', iconIndex: 4, fallback: '微' },
-    'sms-app': { label: '信息', iconIndex: 12, fallback: '信' },
-    'music-app': { label: '音乐', iconIndex: 13, fallback: '乐' },
-    'worldbook-app': { label: '世界书', iconIndex: 7, fallback: '书' },
-    'novel-app': { label: '小说', iconIndex: 0, fallback: '阅' },
-    'meetlove-app': { label: '遇恋', iconIndex: 6, fallback: '恋' }
-};
+
+function resolveHeaderSubtitle(rawText, isOfflineTitle) {
+    var raw = (rawText || '').trim();
+    var compact = raw.replace(/\s+/g, '');
+    if (!compact) return isOfflineTitle ? 'OFFLINE' : 'SECTION';
+    if (headerSubtitleMap[compact]) return headerSubtitleMap[compact];
+    var latinTokens = compact.match(/[A-Za-z0-9]+/g);
+    if (latinTokens && latinTokens.length) {
+        return latinTokens.join(' ').toUpperCase();
+    }
+    return isOfflineTitle ? 'OFFLINE' : 'SECTION';
+}
+
+function refreshHeaderSubtitles() {
+    document.querySelectorAll('.app-title, .offline-header-title').forEach(function(el) {
+        var isOfflineTitle = el.classList.contains('offline-header-title');
+        var subtitle = resolveHeaderSubtitle(el.textContent || '', isOfflineTitle);
+        el.setAttribute('data-subtitle', subtitle);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    refreshHeaderSubtitles();
+    if (!window.MutationObserver) return;
+    var timer = null;
+    var observer = new MutationObserver(function() {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(refreshHeaderSubtitles, 50);
+    });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+});
+
     // 修复电脑端：打开任意全屏应用前，先关闭其他所有全屏应用，防止多个 full-app-page 同时可见互相遮挡
     function openApp(appId) {
         document.querySelectorAll('.full-app-page').forEach(el => {
@@ -233,209 +145,6 @@ const MAIN_LOCK_APP_META = {
         });
         const app = document.getElementById(appId);
         if (app) app.style.display = 'flex';
-    }
-
-    function getMainLockAppMeta(appId) {
-        return MAIN_LOCK_APP_META[appId] || { label: 'Mini Phone', iconIndex: -1, fallback: 'Mini' };
-    }
-
-    function getMainLockAppIconSrc(appId) {
-        const meta = getMainLockAppMeta(appId);
-        if (typeof meta.iconIndex !== 'number' || meta.iconIndex < 0) return '';
-        const imgEl = mainIcons[meta.iconIndex];
-        if (!imgEl) return '';
-        const src = imgEl.getAttribute('src') || '';
-        return src && src !== whitePixel ? src : '';
-    }
-
-    function normalizeMainLockNotification(data) {
-        if (!data || typeof data !== 'object') return null;
-        const appId = data.appId || (data.contactId ? 'wechat-app' : 'sms-app');
-        const meta = getMainLockAppMeta(appId);
-        return {
-            appId: appId,
-            appName: String(data.appName || meta.label || 'Mini Phone'),
-            title: String(data.title || '').trim() || '新消息',
-            message: String(data.message || '').trim() || '你有一条新的未读消息',
-            timeStr: String(data.timeStr || '').trim(),
-            contactId: data.contactId || null,
-            fallbackText: String(data.fallbackText || meta.fallback || 'Mini')
-        };
-    }
-
-    function renderMainLockNotification() {
-        const notifEl = document.getElementById('main-lock-notif');
-        const appEl = document.getElementById('main-lock-notif-app');
-        const timeEl = document.getElementById('main-lock-notif-time');
-        const titleEl = document.getElementById('main-lock-notif-title');
-        const textEl = document.getElementById('main-lock-notif-text');
-        const iconImg = document.getElementById('main-lock-notif-icon-img');
-        const iconFallback = document.getElementById('main-lock-notif-icon-fallback');
-        if (!notifEl || !appEl || !timeEl || !titleEl || !textEl || !iconImg || !iconFallback) return;
-
-        const data = mainLockState.notification;
-        notifEl.setAttribute('data-has-unread', data ? 'true' : 'false');
-        if (!data) {
-            appEl.textContent = 'Mini Phone';
-            timeEl.textContent = '';
-            titleEl.textContent = '桌面已启用锁屏保护';
-            textEl.textContent = '双击横幅后可直接进入密码页。';
-            iconImg.style.display = 'none';
-            iconImg.src = whitePixel;
-            iconFallback.style.display = 'flex';
-            iconFallback.textContent = 'Mini';
-            return;
-        }
-
-        const iconSrc = getMainLockAppIconSrc(data.appId);
-        appEl.textContent = data.appName;
-        timeEl.textContent = data.timeStr;
-        titleEl.textContent = data.title;
-        textEl.textContent = data.message;
-        if (iconSrc) {
-            iconImg.src = iconSrc;
-            iconImg.style.display = 'block';
-            iconFallback.style.display = 'none';
-        } else {
-            iconImg.src = whitePixel;
-            iconImg.style.display = 'none';
-            iconFallback.style.display = 'flex';
-            iconFallback.textContent = data.fallbackText;
-        }
-    }
-
-    function bindMainLockNotificationGesture() {
-        const notifEl = document.getElementById('main-lock-notif');
-        if (!notifEl || notifEl._mainLockNotifBound) return;
-        notifEl._mainLockNotifBound = true;
-
-        let lastPointerUpAt = 0;
-        notifEl.addEventListener('pointerup', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (mainLockState.mode !== 'lockscreen') return;
-            const now = Date.now();
-            if (now - lastPointerUpAt > 320) {
-                lastPointerUpAt = now;
-                return;
-            }
-            lastPointerUpAt = 0;
-            const launchTarget = mainLockState.notification
-                ? { appId: mainLockState.notification.appId, contactId: mainLockState.notification.contactId || null }
-                : null;
-            if (!mainLockState.passcode) {
-                showMainLockMode('setup-entry');
-                return;
-            }
-            showMainLockMode('unlock', launchTarget ? { launchTarget: launchTarget } : undefined);
-        });
-    }
-
-    function openMainLockLaunchTarget(target) {
-        if (!target || !target.appId) return;
-        if (target.appId === 'wechat-app') {
-            openApp('wechat-app');
-            if (target.contactId && typeof enterChatWindow === 'function') {
-                enterChatWindow(target.contactId);
-            }
-            return;
-        }
-        if (target.appId === 'sms-app') {
-            const smsBtn = document.getElementById('app-btn-sms');
-            if (smsBtn) {
-                smsBtn.click();
-                return;
-            }
-        }
-        if (target.appId === 'music-app' && typeof window.openMusicApp === 'function') {
-            window.openMusicApp();
-            return;
-        }
-        openApp(target.appId);
-    }
-
-    function getMainLockDotCount() {
-        let count = 4;
-        if (mainLockState.mode === 'unlock' && mainLockState.passcode) {
-            count = mainLockState.passcode.length;
-        } else if (mainLockState.mode === 'setup-confirm' && mainLockState.draftPasscode) {
-            count = mainLockState.draftPasscode.length;
-        }
-        count = Math.max(count, mainLockState.input.length, 4);
-        return Math.min(6, count);
-    }
-
-    function ensureMainLockDots() {
-        const dotsEl = document.getElementById('main-lock-dots');
-        if (!dotsEl) return [];
-        const count = getMainLockDotCount();
-        if (dotsEl.children.length !== count) {
-            dotsEl.innerHTML = '';
-            for (let i = 0; i < count; i++) {
-                const dot = document.createElement('div');
-                dot.className = 'cp-dot';
-                dot.id = 'main-lock-dot-' + i;
-                dotsEl.appendChild(dot);
-            }
-        }
-        return Array.from(dotsEl.children);
-    }
-
-    window.pushMainLockUnreadBanner = function(data) {
-        mainLockState.notification = normalizeMainLockNotification(data);
-        renderMainLockNotification();
-    };
-
-    function updateDockPageIndicator(swiperInstance) {
-        if (!dockPageIndicator || !swiperInstance) return;
-        dockPageIndicator.querySelectorAll('.dock-page-dot').forEach((dot, index) => {
-            const isActive = index === swiperInstance.activeIndex;
-            dot.classList.toggle('active', isActive);
-            dot.setAttribute('aria-current', isActive ? 'page' : 'false');
-        });
-    }
-
-    function initDockPageIndicator(swiperInstance) {
-        if (!dockPageIndicator || !swiperInstance) return;
-        dockPageIndicator.innerHTML = '';
-        Array.from(swiperInstance.slides).forEach((_, index) => {
-            const dot = document.createElement('button');
-            dot.type = 'button';
-            dot.className = 'dock-page-dot';
-            dot.setAttribute('aria-label', '切换到第' + (index + 1) + '页');
-            dot.addEventListener('click', function(e) {
-                e.stopPropagation();
-                swiperInstance.slideTo(index);
-            });
-            dockPageIndicator.appendChild(dot);
-        });
-        updateDockPageIndicator(swiperInstance);
-    }
-
-    function setImportantStyle(el, styles) {
-        if (!el || !styles) return;
-        Object.keys(styles).forEach(function(key) {
-            el.style.setProperty(key, styles[key], 'important');
-        });
-    }
-
-    function applyHomeChromeGuards() {
-        const indicator = document.getElementById('dock-page-indicator');
-        if (indicator) {
-            setImportantStyle(indicator, {
-                display: 'inline-flex',
-                visibility: 'visible',
-                opacity: '1',
-                'pointer-events': 'auto'
-            });
-        }
-        document.querySelectorAll('.dock-page-dot').forEach(function(dot) {
-            setImportantStyle(dot, {
-                display: 'block',
-                appearance: 'none',
-                '-webkit-appearance': 'none'
-            });
-        });
     }
 
     const menu = document.getElementById('menu-panel');
@@ -446,15 +155,9 @@ const MAIN_LOCK_APP_META = {
         observeParents: true,
         on: {
             touchStart: function() { menu.style.display = 'none'; },
-            slideChange: function() {
-                menu.style.display = 'none';
-                updateDockPageIndicator(this);
-                applyHomeChromeGuards();
-            }
+            slideChange: function() { menu.style.display = 'none'; }
         }
     });
-    initDockPageIndicator(swiper);
-    applyHomeChromeGuards();
     let currentTargetId = null;
     function openImageMenuAtEvent(e, targetId) {
         const phoneScreen = document.querySelector('.phone-screen');
@@ -499,16 +202,8 @@ if(rw) rw.textContent = week;
     // 电量
     if(navigator.getBattery) navigator.getBattery().then(b => {
         const update = () => {
-            const percent = Math.round(b.level * 100);
             const bl = document.getElementById('battery-level');
-            if(bl) bl.style.width = percent + '%';
-            const thirdRing = document.getElementById('third-widget-battery-ring');
-            if (thirdRing) {
-                thirdRing.style.setProperty('--battery-progress', percent + '%');
-                thirdRing.style.setProperty('--battery-fill-scale', String(Math.max(0, Math.min(1, percent / 100))));
-            }
-            const thirdValue = document.getElementById('third-widget-battery-value');
-            if (thirdValue) thirdValue.textContent = percent + '%';
+            if(bl) bl.style.width = (b.level * 100) + '%';
         }
         update(); b.addEventListener('levelchange', update);
     });
@@ -581,28 +276,6 @@ if(rw) rw.textContent = week;
             }
             return;
         }
-        if (id === 'third-widget-bg') {
-            const target = document.getElementById(id);
-            const img = target ? target.querySelector('img') : null;
-            if (target) {
-                target.style.backgroundSize = 'cover';
-                target.style.backgroundPosition = 'center';
-                target.style.backgroundRepeat = 'no-repeat';
-            }
-            if (img) {
-                img.style.content = "normal";
-                img.src = src;
-                syncThirdWidgetBackgroundFromImg(img);
-            } else if (target) {
-                target.style.backgroundImage = `url(${src})`;
-            }
-            try {
-                await imgDb.images.put({ id: id, src: src });
-            } catch (e) {
-                console.error("图片存入IndexedDB失败", e);
-            }
-            return;
-        }
         const target = document.getElementById(id);
         if (!target) return;
         const img = target.querySelector('img');
@@ -660,7 +333,6 @@ async function initThemeIcons() {
 }
 window.addEventListener('DOMContentLoaded', async () => {
         // 修复电脑端加载时闪烁/延伸：页面加载完成后立即显示手机壳，不等待 DB
-        await initMainPhoneSecurity();
         const shell = document.querySelector('.phone-shell');
         if (shell) {
             requestAnimationFrame(() => { shell.style.opacity = '1'; });
@@ -690,16 +362,8 @@ window.addEventListener('DOMContentLoaded', async () => {
             const img = el.querySelector('img');
             if (img) {
                 img.src = imgMap[el.id] || whitePixel;
-                if (el.id === 'third-widget-bg') syncThirdWidgetBackgroundFromImg(img);
             }
         });
-        const thirdWidgetBgImg = document.querySelector('#third-widget-bg img');
-        if (thirdWidgetBgImg) {
-            syncThirdWidgetBackgroundFromImg(thirdWidgetBgImg);
-            new MutationObserver(() => {
-                syncThirdWidgetBackgroundFromImg(thirdWidgetBgImg);
-            }).observe(thirdWidgetBgImg, { attributes: true, attributeFilter: ['src'] });
-        }
         renderWorldbooks();
         await initThemeIcons();
 
@@ -747,16 +411,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
     function setWallpaper(src) {
         const screen = document.querySelector('.phone-screen');
-        if (!screen) return;
         if (src && !src.includes('via.placeholder.com')) {
             screen.style.background = `url(${src}) center/cover no-repeat`;
-            screen.dataset.wallpaperMode = 'custom';
         } else {
             screen.style.background = '';
-            screen.dataset.wallpaperMode = 'default';
         }
-        refreshMainLockBackdrop();
-        updateMainLockSettingsUI();
     }
     const previewImg = document.querySelector('#wallpaper-preview img');
     if (previewImg) {
@@ -801,556 +460,6 @@ window.addEventListener('DOMContentLoaded', async () => {
             }
         }
     }, 100);
-
-    function readMainLockConfig() {
-        try {
-            const storedPasscode = String(localStorage.getItem(MAIN_LOCK_PASSCODE_KEY) || '');
-            const passcode = /^\d{4,6}$/.test(storedPasscode) ? storedPasscode : '';
-            const enabled = localStorage.getItem(MAIN_LOCK_ENABLED_KEY) === '1' && !!passcode;
-            return { enabled, passcode };
-        } catch (e) {
-            return { enabled: false, passcode: '' };
-        }
-    }
-
-    async function loadMainLockWallpaper() {
-        try {
-            const storedWallpaper = await localforage.getItem(MAIN_LOCK_WALLPAPER_KEY);
-            mainLockState.wallpaper = typeof storedWallpaper === 'string' ? storedWallpaper : '';
-        } catch (e) {
-            mainLockState.wallpaper = '';
-        }
-    }
-
-    function persistMainLockConfig() {
-        try {
-            localStorage.setItem(MAIN_LOCK_ENABLED_KEY, mainLockState.enabled && mainLockState.passcode ? '1' : '0');
-            if (mainLockState.passcode) {
-                localStorage.setItem(MAIN_LOCK_PASSCODE_KEY, mainLockState.passcode);
-            } else {
-                localStorage.removeItem(MAIN_LOCK_PASSCODE_KEY);
-            }
-        } catch (e) {}
-    }
-
-    function getMainLockBackdropConfig() {
-        const screen = document.querySelector('.phone-screen');
-        const defaultBackdrop = {
-            backgroundColor: '#eef1f5',
-            backgroundImage: 'linear-gradient(140deg, #f4f5f7 0%, #ebeff4 100%)',
-            backgroundPosition: 'center',
-            backgroundSize: 'cover',
-            backgroundRepeat: 'no-repeat'
-        };
-        if (mainLockState.wallpaper) {
-            return {
-                backgroundColor: '',
-                backgroundImage: `url(${mainLockState.wallpaper})`,
-                backgroundPosition: 'center',
-                backgroundSize: 'cover',
-                backgroundRepeat: 'no-repeat'
-            };
-        }
-        if (!screen || screen.dataset.wallpaperMode !== 'custom') {
-            return defaultBackdrop;
-        }
-        const computed = window.getComputedStyle(screen);
-        return {
-            backgroundColor: computed.backgroundColor && computed.backgroundColor !== 'rgba(0, 0, 0, 0)' ? computed.backgroundColor : defaultBackdrop.backgroundColor,
-            backgroundImage: computed.backgroundImage && computed.backgroundImage !== 'none' ? computed.backgroundImage : defaultBackdrop.backgroundImage,
-            backgroundPosition: computed.backgroundPosition || defaultBackdrop.backgroundPosition,
-            backgroundSize: computed.backgroundSize || defaultBackdrop.backgroundSize,
-            backgroundRepeat: computed.backgroundRepeat || defaultBackdrop.backgroundRepeat
-        };
-    }
-
-    function applyMainLockBackdrop(el, backdrop) {
-        if (!el || !backdrop) return;
-        el.style.backgroundColor = backdrop.backgroundColor || '';
-        el.style.backgroundImage = backdrop.backgroundImage || '';
-        el.style.backgroundPosition = backdrop.backgroundPosition || 'center';
-        el.style.backgroundSize = backdrop.backgroundSize || 'cover';
-        el.style.backgroundRepeat = backdrop.backgroundRepeat || 'no-repeat';
-    }
-
-    function refreshMainLockBackdrop() {
-        const backdrop = getMainLockBackdropConfig();
-        ['main-lock-wallpaper', 'main-passcode-wallpaper', 'theme-lock-wallpaper-preview'].forEach(function(id) {
-            applyMainLockBackdrop(document.getElementById(id), backdrop);
-        });
-    }
-
-    function updateMainLockTime() {
-        const now = new Date();
-        const hh = String(now.getHours()).padStart(2, '0');
-        const mm = String(now.getMinutes()).padStart(2, '0');
-        const timeEl = document.getElementById('main-lock-time');
-        const dateEl = document.getElementById('main-lock-date');
-        if (timeEl) timeEl.textContent = hh + ':' + mm;
-        if (dateEl) {
-            const month = now.getMonth() + 1;
-            const day = now.getDate();
-            const week = ['周日','周一','周二','周三','周四','周五','周六'][now.getDay()];
-            dateEl.textContent = month + '月' + day + '日 ' + week;
-        }
-    }
-    setInterval(updateMainLockTime, 1000);
-
-    function bindMainLockSwipeGesture() {
-        const lockScreen = document.getElementById('main-lock-screen');
-        const swipeHint = document.getElementById('main-lock-swipe-hint');
-        if (!lockScreen || lockScreen._mainLockBound) return;
-        lockScreen._mainLockBound = true;
-
-        let startY = 0;
-        let startX = 0;
-
-        function enterPasscode() {
-            if (!mainLockState.passcode) {
-                showMainLockMode('setup-entry');
-                return;
-            }
-            mainLockState.pendingLaunchTarget = null;
-            showMainLockMode('unlock');
-        }
-
-        lockScreen.addEventListener('touchstart', function(e) {
-            startY = e.touches[0].clientY;
-            startX = e.touches[0].clientX;
-        }, { passive: true });
-
-        lockScreen.addEventListener('touchend', function(e) {
-            if (mainLockState.mode !== 'lockscreen') return;
-            const endY = e.changedTouches[0].clientY;
-            const endX = e.changedTouches[0].clientX;
-            const dy = startY - endY;
-            const dx = Math.abs(startX - endX);
-            if (dy > 40 && dx < dy) enterPasscode();
-        }, { passive: true });
-
-        lockScreen.addEventListener('mousedown', function(e) {
-            startY = e.clientY;
-            startX = e.clientX;
-        });
-
-        lockScreen.addEventListener('mouseup', function(e) {
-            if (mainLockState.mode !== 'lockscreen') return;
-            const dy = startY - e.clientY;
-            const dx = Math.abs(startX - e.clientX);
-            if (dy > 40 && dx < dy) enterPasscode();
-        });
-
-        if (swipeHint) {
-            swipeHint.onclick = function() { enterPasscode(); };
-        }
-    }
-
-    function clearMainLockError() {
-        const errEl = document.getElementById('main-lock-error');
-        if (errEl) {
-            errEl.style.display = 'none';
-            errEl.textContent = '密码错误，请重试';
-        }
-    }
-
-    function updateMainLockDots() {
-        const dots = ensureMainLockDots();
-        dots.forEach(function(dot, index) {
-            dot.className = 'cp-dot' + (index < mainLockState.input.length ? ' filled' : '');
-        });
-    }
-
-    function shakeMainLockDots(message) {
-        const errEl = document.getElementById('main-lock-error');
-        const dotsEl = document.getElementById('main-lock-dots');
-        const dots = ensureMainLockDots();
-        if (errEl) {
-            errEl.textContent = message;
-            errEl.style.display = 'block';
-        }
-        dots.forEach(function(dot) {
-            dot.className = 'cp-dot error';
-        });
-        if (!dotsEl) return;
-        const seq = [8, -8, 6, -6, 4, 0];
-        let idx = 0;
-        const timer = setInterval(function() {
-            dotsEl.style.transform = 'translateX(' + seq[idx] + 'px)';
-            idx++;
-            if (idx >= seq.length) {
-                clearInterval(timer);
-                dotsEl.style.transform = '';
-                setTimeout(function() {
-                    updateMainLockDots();
-                }, 120);
-            }
-        }, 55);
-    }
-
-    function updateMainLockActionState() {
-        const actionsEl = document.getElementById('main-lock-actions');
-        const primaryBtn = document.getElementById('main-lock-primary-btn');
-        if (!actionsEl || !primaryBtn) return;
-        const usesActions = mainLockState.mode === 'setup-entry' || mainLockState.mode === 'setup-confirm';
-        actionsEl.style.display = usesActions ? 'flex' : 'none';
-        const canSubmit = mainLockState.input.length >= 4 && mainLockState.input.length <= 6;
-        primaryBtn.classList.toggle('is-disabled', !canSubmit);
-    }
-
-    function updateMainLockSettingsUI() {
-        const toggle = document.getElementById('theme-lock-toggle');
-        const statusEl = document.getElementById('theme-lock-status-text');
-        const metaEl = document.getElementById('theme-lock-meta');
-        const setBtn = document.getElementById('theme-lock-set-btn');
-        const lockNowBtn = document.getElementById('theme-lock-now-btn');
-        const wallpaperBtn = document.getElementById('theme-lock-wallpaper-btn');
-        const wallpaperResetBtn = document.getElementById('theme-lock-wallpaper-reset-btn');
-        const wallpaperDescEl = document.getElementById('theme-lock-wallpaper-desc');
-        const screen = document.querySelector('.phone-screen');
-        const desktopWallpaperActive = !!(screen && screen.dataset.wallpaperMode === 'custom');
-        const hasPasscode = !!mainLockState.passcode;
-
-        refreshMainLockBackdrop();
-        if (toggle) toggle.classList.toggle('active', mainLockState.enabled);
-        if (setBtn) setBtn.textContent = hasPasscode ? '修改密码' : '设置密码';
-        if (lockNowBtn) {
-            lockNowBtn.classList.toggle('is-disabled', !(mainLockState.enabled && hasPasscode));
-        }
-        if (wallpaperBtn) {
-            wallpaperBtn.textContent = mainLockState.wallpaper ? '修改锁屏壁纸' : '添加锁屏壁纸';
-        }
-        if (wallpaperResetBtn) {
-            wallpaperResetBtn.style.display = mainLockState.wallpaper ? 'block' : 'none';
-        }
-        if (wallpaperDescEl) {
-            if (mainLockState.wallpaper) {
-                wallpaperDescEl.textContent = '已单独设置锁屏壁纸，锁屏页和密码页会共用同一背景。';
-            } else if (desktopWallpaperActive) {
-                wallpaperDescEl.textContent = '未单独设置时，会沿用桌面壁纸的柔化版，不再透出桌面布局。';
-            } else {
-                wallpaperDescEl.textContent = '未单独设置时，会使用柔和的不透明默认背景，避免透出桌面布局。';
-            }
-        }
-
-        if (statusEl) {
-            if (mainLockState.enabled && hasPasscode) {
-                statusEl.textContent = '已开启，进入页面会先看到锁屏，再上滑进入密码页。';
-            } else if (hasPasscode) {
-                statusEl.textContent = '密码已保存，打开开关后才会真正锁定桌面。';
-            } else {
-                statusEl.textContent = '未开启，进入页面时不会锁定桌面。';
-            }
-        }
-        if (metaEl) {
-            if (hasPasscode) {
-                metaEl.textContent = '当前密码长度 ' + mainLockState.passcode.length + ' 位，支持 4-6 位数字密码。';
-            } else {
-                metaEl.textContent = '支持 4-6 位数字密码，密码会保存到轻量持久化。';
-            }
-        }
-    }
-
-    function hideMainLockOverlay() {
-        const overlay = document.getElementById('main-lock-overlay');
-        const lockScreen = document.getElementById('main-lock-screen');
-        const passcodeScreen = document.getElementById('main-passcode-screen');
-        if (overlay) overlay.style.display = 'none';
-        if (lockScreen) lockScreen.style.display = 'none';
-        if (passcodeScreen) passcodeScreen.style.display = 'none';
-        mainLockState.input = '';
-        mainLockState.draftPasscode = '';
-        mainLockState.mode = 'lockscreen';
-        clearMainLockError();
-        updateMainLockDots();
-        updateMainLockActionState();
-    }
-
-    function showMainLockMode(mode, options) {
-        const overlay = document.getElementById('main-lock-overlay');
-        const lockScreen = document.getElementById('main-lock-screen');
-        const passcodeScreen = document.getElementById('main-passcode-screen');
-        const titleEl = document.getElementById('main-lock-title');
-        const hintEl = document.getElementById('main-lock-hint');
-        const noteEl = document.getElementById('main-lock-note');
-        const secondaryBtn = document.getElementById('main-lock-secondary-btn');
-        const primaryBtn = document.getElementById('main-lock-primary-btn');
-        if (!overlay || !lockScreen || !passcodeScreen || !titleEl || !hintEl || !noteEl || !secondaryBtn || !primaryBtn) return;
-
-        mainLockState.mode = mode;
-        if (mode === 'unlock') {
-            mainLockState.pendingLaunchTarget = options && options.launchTarget ? {
-                appId: options.launchTarget.appId,
-                contactId: options.launchTarget.contactId || null
-            } : null;
-        } else if (mode === 'lockscreen') {
-            mainLockState.pendingLaunchTarget = null;
-        }
-        mainLockState.input = options && typeof options.prefill === 'string' ? options.prefill : '';
-        clearMainLockError();
-        updateMainLockDots();
-        refreshMainLockBackdrop();
-        updateMainLockTime();
-        overlay.style.display = 'flex';
-        lockScreen.style.display = mode === 'lockscreen' ? 'flex' : 'none';
-        passcodeScreen.style.display = mode === 'lockscreen' ? 'none' : 'flex';
-
-        if (mode === 'lockscreen') {
-            renderMainLockNotification();
-            updateMainLockActionState();
-            return;
-        }
-
-        if (mode === 'unlock') {
-            titleEl.textContent = '输入锁屏密码';
-            hintEl.textContent = '输入 4-6 位数字密码';
-            noteEl.textContent = '输入正确密码后继续使用桌面。';
-            secondaryBtn.textContent = '返回锁屏';
-            primaryBtn.textContent = '解锁';
-        } else if (mode === 'setup-confirm') {
-            titleEl.textContent = '确认锁屏密码';
-            hintEl.textContent = '请再次输入刚才的密码';
-            noteEl.textContent = '两次输入一致后立即保存。';
-            secondaryBtn.textContent = '上一步';
-            primaryBtn.textContent = '保存';
-        } else {
-            titleEl.textContent = mainLockState.passcode && !mainLockState.pendingEnable ? '修改锁屏密码' : '设置锁屏密码';
-            hintEl.textContent = '请输入 4-6 位数字密码';
-            noteEl.textContent = mainLockState.pendingEnable
-                ? '保存后会自动开启桌面锁屏。'
-                : '密码只用于桌面解锁，可随时回来修改。';
-            secondaryBtn.textContent = '取消';
-            primaryBtn.textContent = '下一步';
-        }
-
-        updateMainLockActionState();
-    }
-
-    async function initMainPhoneSecurity() {
-        const stored = readMainLockConfig();
-        mainLockState.enabled = stored.enabled;
-        mainLockState.passcode = stored.passcode;
-        mainLockState.input = '';
-        mainLockState.draftPasscode = '';
-        mainLockState.pendingEnable = false;
-        await loadMainLockWallpaper();
-        bindMainLockSwipeGesture();
-        bindMainLockNotificationGesture();
-        updateMainLockTime();
-        renderMainLockNotification();
-        updateMainLockSettingsUI();
-        if (mainLockState.enabled && mainLockState.passcode) {
-            showMainLockMode('lockscreen');
-        } else {
-            hideMainLockOverlay();
-        }
-    }
-
-    function completeMainLockSave() {
-        const shouldEnable = mainLockState.pendingEnable ? true : mainLockState.enabled;
-        mainLockState.passcode = mainLockState.input;
-        mainLockState.enabled = !!shouldEnable;
-        mainLockState.pendingEnable = false;
-        persistMainLockConfig();
-        updateMainLockSettingsUI();
-        hideMainLockOverlay();
-    }
-
-    function verifyMainLockUnlock() {
-        if (!mainLockState.passcode) {
-            hideMainLockOverlay();
-            return;
-        }
-        if (mainLockState.input === mainLockState.passcode) {
-            const launchTarget = mainLockState.pendingLaunchTarget
-                ? { appId: mainLockState.pendingLaunchTarget.appId, contactId: mainLockState.pendingLaunchTarget.contactId || null }
-                : null;
-            mainLockState.pendingLaunchTarget = null;
-            hideMainLockOverlay();
-            if (launchTarget) {
-                setTimeout(function() {
-                    openMainLockLaunchTarget(launchTarget);
-                }, 30);
-            }
-            return;
-        }
-        mainLockState.input = '';
-        updateMainLockDots();
-        shakeMainLockDots('密码错误，请重试');
-    }
-
-    function toggleMainScreenLock() {
-        const wantEnable = !mainLockState.enabled;
-        if (!wantEnable) {
-            mainLockState.enabled = false;
-            mainLockState.pendingEnable = false;
-            persistMainLockConfig();
-            updateMainLockSettingsUI();
-            return;
-        }
-        if (!mainLockState.passcode) {
-            mainLockState.pendingEnable = true;
-            showMainLockMode('setup-entry');
-            updateMainLockSettingsUI();
-            return;
-        }
-        mainLockState.enabled = true;
-        mainLockState.pendingEnable = false;
-        persistMainLockConfig();
-        updateMainLockSettingsUI();
-    }
-
-    function openMainLockPasscodeManager() {
-        mainLockState.pendingEnable = false;
-        mainLockState.draftPasscode = '';
-        showMainLockMode('setup-entry');
-    }
-
-    function lockMainPhoneNow() {
-        if (!mainLockState.passcode) {
-            alert('请先设置 4-6 位锁屏密码');
-            return;
-        }
-        if (!mainLockState.enabled) {
-            alert('请先打开桌面锁屏开关');
-            return;
-        }
-        showMainLockMode('lockscreen');
-    }
-
-    async function changeMainLockWallpaper(event) {
-        const file = event.target.files[0];
-        if (!file) {
-            event.target.value = '';
-            return;
-        }
-        const reader = new FileReader();
-        reader.onload = async function(e) {
-            let base64 = e.target.result;
-            if (typeof compressImageBase64 === 'function') {
-                try {
-                    base64 = await compressImageBase64(base64, 1080, 0.82);
-                } catch (err) {}
-            }
-            mainLockState.wallpaper = base64;
-            refreshMainLockBackdrop();
-            updateMainLockSettingsUI();
-            try {
-                await localforage.setItem(MAIN_LOCK_WALLPAPER_KEY, base64);
-            } catch (err) {
-                console.error('锁屏壁纸保存失败', err);
-            }
-        };
-        reader.readAsDataURL(file);
-        event.target.value = '';
-    }
-
-    async function resetMainLockWallpaper() {
-        mainLockState.wallpaper = '';
-        refreshMainLockBackdrop();
-        updateMainLockSettingsUI();
-        try {
-            await localforage.removeItem(MAIN_LOCK_WALLPAPER_KEY);
-        } catch (err) {
-            console.error('锁屏壁纸重置失败', err);
-        }
-    }
-
-    function mainLockNumInput(digit) {
-        const overlay = document.getElementById('main-lock-overlay');
-        if (!overlay || overlay.style.display === 'none' || mainLockState.mode === 'lockscreen') return;
-        if (mainLockState.input.length >= 6) return;
-        mainLockState.input += digit;
-        clearMainLockError();
-        updateMainLockDots();
-        updateMainLockActionState();
-        if (mainLockState.mode === 'unlock' && mainLockState.passcode && mainLockState.input.length === mainLockState.passcode.length) {
-            verifyMainLockUnlock();
-        }
-    }
-
-    function mainLockNumDel() {
-        if (!mainLockState.input || mainLockState.mode === 'lockscreen') return;
-        mainLockState.input = mainLockState.input.slice(0, -1);
-        clearMainLockError();
-        updateMainLockDots();
-        updateMainLockActionState();
-    }
-
-    function mainLockPrimaryAction() {
-        if (mainLockState.mode === 'unlock') {
-            verifyMainLockUnlock();
-            return;
-        }
-        if (mainLockState.mode === 'lockscreen') {
-            showMainLockMode('unlock');
-            return;
-        }
-        if (mainLockState.input.length < 4 || mainLockState.input.length > 6) {
-            shakeMainLockDots('请输入 4-6 位数字密码');
-            return;
-        }
-        if (mainLockState.mode === 'setup-confirm') {
-            if (mainLockState.input !== mainLockState.draftPasscode) {
-                mainLockState.input = '';
-                updateMainLockDots();
-                shakeMainLockDots('两次输入不一致，请重新输入');
-                return;
-            }
-            completeMainLockSave();
-            return;
-        }
-        mainLockState.draftPasscode = mainLockState.input;
-        showMainLockMode('setup-confirm');
-    }
-
-    function mainLockSecondaryAction() {
-        if (mainLockState.mode === 'unlock') {
-            mainLockState.pendingLaunchTarget = null;
-            showMainLockMode('lockscreen');
-            return;
-        }
-        if (mainLockState.mode === 'setup-confirm') {
-            showMainLockMode('setup-entry', { prefill: mainLockState.draftPasscode });
-            return;
-        }
-        if (mainLockState.pendingEnable && !mainLockState.passcode) {
-            mainLockState.pendingEnable = false;
-            mainLockState.enabled = false;
-            updateMainLockSettingsUI();
-        }
-        hideMainLockOverlay();
-    }
-
-    document.addEventListener('keydown', function(e) {
-        const overlay = document.getElementById('main-lock-overlay');
-        if (!overlay || overlay.style.display === 'none') return;
-        if (mainLockState.mode === 'lockscreen') {
-            if (e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                showMainLockMode(mainLockState.passcode ? 'unlock' : 'setup-entry');
-            }
-            return;
-        }
-        if (/^\d$/.test(e.key)) {
-            e.preventDefault();
-            mainLockNumInput(e.key);
-            return;
-        }
-        if (e.key === 'Backspace') {
-            e.preventDefault();
-            mainLockNumDel();
-            return;
-        }
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            mainLockPrimaryAction();
-            return;
-        }
-        if (e.key === 'Escape') {
-            e.preventDefault();
-            mainLockSecondaryAction();
-        }
-    });
     // ====== 全局字体设置逻辑 (持久化: localForage) ======
     const ST_FONT = 'miffy_global_font';
     const ST_FONT_WEIGHT = 'miffy_global_font_weight';
@@ -1443,6 +552,271 @@ window.addEventListener('DOMContentLoaded', async () => {
     const ST_TEMP = 'miffy_api_temp';
     const ST_CTX = 'miffy_api_ctx';
     const ST_PRESETS = 'miffy_api_presets';
+    const ST_MM_REGION = 'miffy_minimax_region';
+    const ST_MM_KEY = 'miffy_minimax_api_key';
+    const ST_MM_GROUP = 'miffy_minimax_group_id';
+    const ST_MM_VOICE = 'miffy_minimax_voice_id';
+    const ST_MM_LANG = 'miffy_minimax_language';
+    const ST_MM_SPEED = 'miffy_minimax_speed';
+    const ST_MM_PRESETS = 'miffy_minimax_voice_presets';
+
+    const MM_LANG_TEST_TEXT = {
+        zh: '乖宝~语音连接成功，mini 已正常接入。',
+        en: 'Hi there, MiniMax voice connection is working.',
+        ja: 'こんにちは、MiniMax 音声接続は正常です。',
+        ko: '안녕하세요, MiniMax 음성 연결이 정상입니다.'
+    };
+
+    let mmCurrentAudio = null;
+    let mmCurrentAudioUrl = '';
+    let mmCurrentVoiceElement = null;
+    let mmVoiceRequestSeq = 0;
+    let presetManagerMode = 'text';
+
+    function normalizeMiniMaxLanguage(lang) {
+        const val = (lang || '').toLowerCase();
+        if (val === 'en' || val === 'ja' || val === 'ko') return val;
+        return 'zh';
+    }
+
+    function normalizeMiniMaxSpeed(raw) {
+        const n = parseFloat(raw);
+        if (isNaN(n)) return 1.0;
+        if (n < 0.5) return 0.5;
+        if (n > 2.0) return 2.0;
+        return Math.round(n * 10) / 10;
+    }
+
+    function normalizeMiniMaxConfig(raw) {
+        const region = raw && raw.region === 'global' ? 'global' : 'cn';
+        return {
+            region: region,
+            apiKey: (raw && raw.apiKey ? String(raw.apiKey) : '').trim(),
+            groupId: (raw && raw.groupId ? String(raw.groupId) : '').trim(),
+            voiceId: (raw && raw.voiceId ? String(raw.voiceId) : '').trim(),
+            language: normalizeMiniMaxLanguage(raw && raw.language ? String(raw.language) : 'zh'),
+            speed: normalizeMiniMaxSpeed(raw && raw.speed !== undefined ? raw.speed : 1.0)
+        };
+    }
+
+    function getMiniMaxInputsConfig() {
+        const regionEl = document.getElementById('mm-region');
+        const keyEl = document.getElementById('mm-api-key');
+        const groupEl = document.getElementById('mm-group-id');
+        const voiceEl = document.getElementById('mm-voice-id');
+        const langEl = document.getElementById('mm-lang');
+        const speedEl = document.getElementById('mm-speed');
+        return normalizeMiniMaxConfig({
+            region: regionEl ? regionEl.value : 'cn',
+            apiKey: keyEl ? keyEl.value : '',
+            groupId: groupEl ? groupEl.value : '',
+            voiceId: voiceEl ? voiceEl.value : '',
+            language: langEl ? langEl.value : 'zh',
+            speed: speedEl ? speedEl.value : 1.0
+        });
+    }
+
+    async function getMiniMaxStoredConfig() {
+        return normalizeMiniMaxConfig({
+            region: await localforage.getItem(ST_MM_REGION) || 'cn',
+            apiKey: await localforage.getItem(ST_MM_KEY) || '',
+            groupId: await localforage.getItem(ST_MM_GROUP) || '',
+            voiceId: await localforage.getItem(ST_MM_VOICE) || '',
+            language: await localforage.getItem(ST_MM_LANG) || 'zh',
+            speed: await localforage.getItem(ST_MM_SPEED) || 1.0
+        });
+    }
+
+    function getMiniMaxEndpoint(region) {
+        return region === 'global'
+            ? 'https://api.minimax.io/v1/t2a_v2'
+            : 'https://api.minimaxi.com/v1/t2a_v2';
+    }
+
+    function getMiniMaxTestTextByLanguage(lang) {
+        const key = normalizeMiniMaxLanguage(lang);
+        return MM_LANG_TEST_TEXT[key] || MM_LANG_TEST_TEXT.zh;
+    }
+
+    function showMiniMaxTestTip(text, isError) {
+        const tip = document.getElementById('mm-test-tip');
+        if (!tip) return;
+        tip.style.display = text ? 'block' : 'none';
+        tip.style.color = isError ? '#d96a6a' : '#8b8b8b';
+        tip.textContent = text || '';
+    }
+
+    function updateMiniMaxSpeedDisplay(speed) {
+        const valEl = document.getElementById('mm-speed-val');
+        if (valEl) valEl.textContent = normalizeMiniMaxSpeed(speed).toFixed(1);
+    }
+
+    async function saveMiniMaxSettings(config) {
+        const mmConfig = normalizeMiniMaxConfig(config || getMiniMaxInputsConfig());
+        await localforage.setItem(ST_MM_REGION, mmConfig.region);
+        await localforage.setItem(ST_MM_KEY, mmConfig.apiKey);
+        await localforage.setItem(ST_MM_GROUP, mmConfig.groupId);
+        await localforage.setItem(ST_MM_VOICE, mmConfig.voiceId);
+        await localforage.setItem(ST_MM_LANG, mmConfig.language);
+        await localforage.setItem(ST_MM_SPEED, mmConfig.speed);
+    }
+
+    async function requestMiniMaxVoiceHex(text, config) {
+        const endpoint = getMiniMaxEndpoint(config.region);
+        const url = config.groupId
+            ? `${endpoint}?GroupId=${encodeURIComponent(config.groupId)}`
+            : endpoint;
+        const payload = {
+            model: 'speech-01-turbo',
+            text: text,
+            stream: false,
+            voice_setting: { voice_id: config.voiceId, speed: config.speed, vol: 1.0, pitch: 0 },
+            audio_setting: { sample_rate: 32000, bitrate: 128000, format: 'mp3', channel: 1 }
+        };
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${config.apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+            const msg = data && data.base_resp && data.base_resp.status_msg
+                ? data.base_resp.status_msg
+                : `HTTP ${response.status}`;
+            throw new Error(msg);
+        }
+        if (data && data.base_resp && data.base_resp.status_code !== 0) {
+            throw new Error(data.base_resp.status_msg || '语音接口调用失败');
+        }
+        const audioHex = data && data.data && typeof data.data.audio === 'string' ? data.data.audio : '';
+        if (!audioHex) throw new Error('返回数据缺少音频内容');
+        return audioHex;
+    }
+
+    async function synthesizeMiniMaxVoice(text, config) {
+        const normalized = normalizeMiniMaxConfig(config || {});
+        const cleanText = (text || '').trim();
+        if (!cleanText) throw new Error('语音内容为空');
+        if (!normalized.apiKey) throw new Error('请先填写 MiniMax API 密钥');
+        if (!normalized.groupId) throw new Error('请先填写 Group ID');
+        if (!normalized.voiceId) throw new Error('请先填写语音 ID');
+        return requestMiniMaxVoiceHex(cleanText, normalized);
+    }
+
+    function hexToUint8Array(hex) {
+        const cleanHex = (hex || '').trim();
+        if (!cleanHex || cleanHex.length % 2 !== 0) throw new Error('音频数据格式不正确');
+        const bytes = new Uint8Array(cleanHex.length / 2);
+        for (let i = 0; i < cleanHex.length; i += 2) {
+            bytes[i / 2] = parseInt(cleanHex.substr(i, 2), 16);
+        }
+        return bytes;
+    }
+
+    function cleanupMiniMaxAudioSession() {
+        if (mmCurrentAudioUrl) {
+            URL.revokeObjectURL(mmCurrentAudioUrl);
+            mmCurrentAudioUrl = '';
+        }
+        mmCurrentAudio = null;
+        mmCurrentVoiceElement = null;
+    }
+
+    function stopMiniMaxAudioPlayback(cancelPending) {
+        if (cancelPending !== false) mmVoiceRequestSeq++;
+        if (mmCurrentAudio) {
+            mmCurrentAudio.pause();
+            mmCurrentAudio.currentTime = 0;
+        }
+        if (mmCurrentVoiceElement) {
+            const waves = mmCurrentVoiceElement.querySelector('.voice-waves');
+            if (waves) waves.classList.add('paused');
+        }
+        cleanupMiniMaxAudioSession();
+    }
+
+    async function playMiniMaxHexAudio(audioHex, voiceElement) {
+        stopMiniMaxAudioPlayback(false);
+        const bytes = hexToUint8Array(audioHex);
+        const blob = new Blob([bytes], { type: 'audio/mpeg' });
+        const audioUrl = URL.createObjectURL(blob);
+        const audio = new Audio(audioUrl);
+        mmCurrentAudio = audio;
+        mmCurrentAudioUrl = audioUrl;
+        mmCurrentVoiceElement = voiceElement || null;
+        if (voiceElement) {
+            const waves = voiceElement.querySelector('.voice-waves');
+            if (waves) waves.classList.remove('paused');
+        }
+        audio.addEventListener('ended', () => {
+            if (mmCurrentVoiceElement) {
+                const waves = mmCurrentVoiceElement.querySelector('.voice-waves');
+                if (waves) waves.classList.add('paused');
+            }
+            cleanupMiniMaxAudioSession();
+        }, { once: true });
+        try {
+            await audio.play();
+        } catch (e) {
+            stopMiniMaxAudioPlayback();
+            throw e;
+        }
+    }
+
+    async function playMiniMaxVoiceFromText(text, voiceElement) {
+        const cleanText = (text || '').trim();
+        if (!cleanText) return;
+        const requestId = ++mmVoiceRequestSeq;
+        const config = await getMiniMaxStoredConfig();
+        if (!config.apiKey || !config.groupId || !config.voiceId) return;
+        try {
+            const audioHex = await synthesizeMiniMaxVoice(cleanText, config);
+            if (requestId !== mmVoiceRequestSeq) return;
+            if (voiceElement && !voiceElement.classList.contains('expanded')) return;
+            await playMiniMaxHexAudio(audioHex, voiceElement || null);
+        } catch (e) {
+            if (voiceElement) {
+                const waves = voiceElement.querySelector('.voice-waves');
+                if (waves) waves.classList.add('paused');
+            }
+            console.error('MiniMax 语音播放失败:', e);
+        }
+    }
+
+    async function testMiniMaxConnection() {
+        const btn = document.getElementById('mm-test-btn');
+        const originalText = btn ? btn.innerText : '测试';
+        if (btn) {
+            btn.innerText = '测试中...';
+            btn.style.pointerEvents = 'none';
+            btn.style.opacity = '0.7';
+        }
+        showMiniMaxTestTip('正在测试语音连接...', false);
+        try {
+            const config = getMiniMaxInputsConfig();
+            const testText = getMiniMaxTestTextByLanguage(config.language);
+            const audioHex = await synthesizeMiniMaxVoice(testText, config);
+            showMiniMaxTestTip(testText, false);
+            await playMiniMaxHexAudio(audioHex, null);
+        } catch (e) {
+            showMiniMaxTestTip('连接失败：' + (e && e.message ? e.message : '未知错误'), true);
+        } finally {
+            if (btn) {
+                btn.innerText = originalText;
+                btn.style.pointerEvents = 'auto';
+                btn.style.opacity = '1';
+            }
+        }
+    }
+
+    window.testMiniMaxConnection = testMiniMaxConnection;
+    window.stopMiniMaxAudioPlayback = stopMiniMaxAudioPlayback;
+    window.playMiniMaxVoiceFromText = playMiniMaxVoiceFromText;
+    window.getMiniMaxStoredConfig = getMiniMaxStoredConfig;
+
     const settingsBtn = document.getElementById('dock-btn-settings');
     const settingsApp = document.getElementById('settings-app');
     if(settingsBtn) {
@@ -1472,6 +846,22 @@ window.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('temp-val').textContent = t;
         const c = await localforage.getItem(ST_CTX) || '10';
         document.getElementById('api-ctx').value = c;
+
+        const mmConfig = await getMiniMaxStoredConfig();
+        const regionEl = document.getElementById('mm-region');
+        const keyEl = document.getElementById('mm-api-key');
+        const groupEl = document.getElementById('mm-group-id');
+        const voiceEl = document.getElementById('mm-voice-id');
+        const langEl = document.getElementById('mm-lang');
+        const speedEl = document.getElementById('mm-speed');
+        if (regionEl) regionEl.value = mmConfig.region || 'cn';
+        if (keyEl) keyEl.value = mmConfig.apiKey || '';
+        if (groupEl) groupEl.value = mmConfig.groupId || '';
+        if (voiceEl) voiceEl.value = mmConfig.voiceId || '';
+        if (langEl) langEl.value = mmConfig.language || 'zh';
+        if (speedEl) speedEl.value = normalizeMiniMaxSpeed(mmConfig.speed).toFixed(1);
+        updateMiniMaxSpeedDisplay(mmConfig.speed);
+        showMiniMaxTestTip('', false);
     }
     async function saveSettings() {
         await localforage.setItem(ST_URL, document.getElementById('api-url').value);
@@ -1479,7 +869,19 @@ window.addEventListener('DOMContentLoaded', async () => {
         await localforage.setItem(ST_MODEL, document.getElementById('api-model').value);
         await localforage.setItem(ST_TEMP, document.getElementById('api-temp').value);
         await localforage.setItem(ST_CTX, document.getElementById('api-ctx').value);
+        await saveMiniMaxSettings(getMiniMaxInputsConfig());
         alert('设置已成功保存');
+    }
+    async function saveVoiceSettings() {
+        await saveMiniMaxSettings(getMiniMaxInputsConfig());
+        alert('语音设置已成功保存');
+    }
+    function getPresetModeLabel() {
+        return presetManagerMode === 'voice' ? '语音预设管理' : '预设管理';
+    }
+    function applyPresetManagerTitle() {
+        const titleEl = document.getElementById('preset-manager-title');
+        if (titleEl) titleEl.textContent = getPresetModeLabel();
     }
     async function fetchModels() {
         const urlInput = document.getElementById('api-url').value.trim();
@@ -1523,7 +925,14 @@ window.addEventListener('DOMContentLoaded', async () => {
     async function savePresets(arr) {
         await localforage.setItem(ST_PRESETS, arr);
     }
+    async function getVoicePresets() {
+        return await localforage.getItem(ST_MM_PRESETS) || [];
+    }
+    async function saveVoicePresets(arr) {
+        await localforage.setItem(ST_MM_PRESETS, arr);
+    }
     async function saveAsPreset() {
+        presetManagerMode = 'text';
         const name = prompt('请输入该预设的名称:');
         if(!name || name.trim() === '') return;
         const presets = await getPresets();
@@ -1539,7 +948,35 @@ window.addEventListener('DOMContentLoaded', async () => {
         await savePresets(presets);
         alert('预设已保存');
     }
+    async function saveAsVoicePreset() {
+        presetManagerMode = 'voice';
+        const name = prompt('请输入该语音预设的名称:');
+        if(!name || name.trim() === '') return;
+        const presets = await getVoicePresets();
+        const mmConfig = getMiniMaxInputsConfig();
+        presets.push({
+            id: Date.now().toString(),
+            name: name.trim(),
+            region: mmConfig.region,
+            apiKey: mmConfig.apiKey,
+            groupId: mmConfig.groupId,
+            voiceId: mmConfig.voiceId,
+            language: mmConfig.language,
+            speed: mmConfig.speed
+        });
+        await saveVoicePresets(presets);
+        alert('语音预设已保存');
+    }
     function openPresetManager() {
+        presetManagerMode = 'text';
+        applyPresetManagerTitle();
+        const pm = document.getElementById('preset-manager');
+        pm.style.display = 'flex';
+        renderPresets();
+    }
+    function openVoicePresetManager() {
+        presetManagerMode = 'voice';
+        applyPresetManagerTitle();
         const pm = document.getElementById('preset-manager');
         pm.style.display = 'flex';
         renderPresets();
@@ -1550,7 +987,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     async function renderPresets() {
         const list = document.getElementById('preset-list');
         list.innerHTML = '';
-        const presets = await getPresets();
+        const presets = presetManagerMode === 'voice'
+            ? await getVoicePresets()
+            : await getPresets();
         if(presets.length === 0) {
             list.innerHTML = '<div style="color:#999;font-size:13px;text-align:center;margin-top:20px;">暂无保存的预设</div>';
             return;
@@ -1558,9 +997,12 @@ window.addEventListener('DOMContentLoaded', async () => {
         presets.forEach(p => {
             const item = document.createElement('div');
             item.style = 'border:1px solid #f0f0f0; border-radius:14px; padding:12px; display:flex; flex-direction:column; gap:6px;';
+            const desc = presetManagerMode === 'voice'
+                ? `语音: ${p.voiceId || '未填写'} · 语言: ${p.language || 'zh'} · 语速: ${normalizeMiniMaxSpeed(p.speed || 1.0).toFixed(1)}`
+                : `模型: ${p.model || '未选择'}`;
             item.innerHTML = `
                 <div style="font-weight:600; font-size:14px; color:#333;">${p.name}</div>
-                <div style="font-size:12px; color:#888; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">模型: ${p.model || '未选择'}</div>
+                <div style="font-size:12px; color:#888; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${desc}</div>
                 <div style="display:flex; gap:8px; margin-top:6px;">
                     <button class="settings-btn" style="padding:6px 14px; font-size:12px; border-radius:10px;" onclick="usePreset('${p.id}')">使用</button>
                     <button class="settings-btn" style="padding:6px 14px; font-size:12px; border-radius:10px;" onclick="renamePreset('${p.id}')">重命名</button>
@@ -1571,45 +1013,78 @@ window.addEventListener('DOMContentLoaded', async () => {
         });
     }
     async function usePreset(id) {
-        const presets = await getPresets();
+        const presets = presetManagerMode === 'voice'
+            ? await getVoicePresets()
+            : await getPresets();
         const p = presets.find(x => x.id === id);
         if(p) {
-            document.getElementById('api-url').value = p.url || '';
-            document.getElementById('api-key').value = p.key || '';
-            const select = document.getElementById('api-model');
-            if(p.model && select.querySelector(`option[value="${p.model}"]`) === null) {
-                const opt = document.createElement('option');
-                opt.value = p.model;
-                opt.text = p.model;
-                select.appendChild(opt);
+            if (presetManagerMode === 'voice') {
+                const regionEl = document.getElementById('mm-region');
+                const keyEl = document.getElementById('mm-api-key');
+                const groupEl = document.getElementById('mm-group-id');
+                const voiceEl = document.getElementById('mm-voice-id');
+                const langEl = document.getElementById('mm-lang');
+                const speedEl = document.getElementById('mm-speed');
+                if (regionEl) regionEl.value = p.region || 'cn';
+                if (keyEl) keyEl.value = p.apiKey || '';
+                if (groupEl) groupEl.value = p.groupId || '';
+                if (voiceEl) voiceEl.value = p.voiceId || '';
+                if (langEl) langEl.value = normalizeMiniMaxLanguage(p.language || 'zh');
+                if (speedEl) speedEl.value = normalizeMiniMaxSpeed(p.speed || 1.0).toFixed(1);
+                updateMiniMaxSpeedDisplay(p.speed || 1.0);
+            } else {
+                document.getElementById('api-url').value = p.url || '';
+                document.getElementById('api-key').value = p.key || '';
+                const select = document.getElementById('api-model');
+                if(p.model && select.querySelector(`option[value="${p.model}"]`) === null) {
+                    const opt = document.createElement('option');
+                    opt.value = p.model;
+                    opt.text = p.model;
+                    select.appendChild(opt);
+                }
+                select.value = p.model || '';
+                document.getElementById('api-temp').value = p.temp || '0.7';
+                document.getElementById('temp-val').textContent = p.temp || '0.7';
+                document.getElementById('api-ctx').value = p.ctx || '10';
             }
-            select.value = p.model || '';
-            document.getElementById('api-temp').value = p.temp || '0.7';
-            document.getElementById('temp-val').textContent = p.temp || '0.7';
-            document.getElementById('api-ctx').value = p.ctx || '10';
             closePresetManager();
-            alert(`已应用预设: ${p.name}`);
+            alert(`已应用${presetManagerMode === 'voice' ? '语音' : ''}预设: ${p.name}`);
         }
     }
     async function renamePreset(id) {
-        const presets = await getPresets();
+        const presets = presetManagerMode === 'voice'
+            ? await getVoicePresets()
+            : await getPresets();
         const p = presets.find(x => x.id === id);
         if(!p) return;
         const newName = prompt('重命名为:', p.name);
         if(newName && newName.trim() !== '') {
             p.name = newName.trim();
-            await savePresets(presets);
+            if (presetManagerMode === 'voice') await saveVoicePresets(presets);
+            else await savePresets(presets);
             renderPresets();
         }
     }
     async function deletePreset(id) {
         if(confirm('确定要删除这个预设吗？')) {
-            let presets = await getPresets();
+            let presets = presetManagerMode === 'voice'
+                ? await getVoicePresets()
+                : await getPresets();
             presets = presets.filter(x => x.id !== id);
-            await savePresets(presets);
+            if (presetManagerMode === 'voice') await saveVoicePresets(presets);
+            else await savePresets(presets);
             renderPresets();
         }
     }
+    document.addEventListener('DOMContentLoaded', function() {
+        const speedEl = document.getElementById('mm-speed');
+        if (speedEl && !speedEl._miniBound) {
+            speedEl._miniBound = true;
+            speedEl.addEventListener('input', function() {
+                updateMiniMaxSpeedDisplay(this.value);
+            });
+        }
+    });
     const db = new Dexie("miniPhoneWorldbookDB_V2");
     db.version(1).stores({ entries: '++id, category, activation, priority' });
     let currentWbCategory = 'global'; 
@@ -1743,10 +1218,9 @@ window.addEventListener('DOMContentLoaded', async () => {
         document.querySelectorAll('.wechat-tab-page').forEach(page => page.classList.remove('active'));
         document.getElementById('wechat-tab-' + tabName).classList.add('active');
         const btns = document.querySelectorAll('.wechat-dock-btn');
-        btns.forEach(btn => {
-            const currentTab = btn.getAttribute('data-tab');
-            btn.classList.toggle('active', currentTab === tabName);
-        });
+        btns.forEach(btn => btn.classList.remove('active'));
+        const indexMap = {'msg': 0, 'contacts': 1, 'moments': 2, 'me': 3};
+        btns[indexMap[tabName]].classList.add('active');
         if (tabName === 'contacts' && typeof renderContacts === 'function') {
             renderContacts();
         }
@@ -1962,7 +1436,6 @@ window.addEventListener('DOMContentLoaded', async () => {
             btn.style.color = '#4caf50';
             setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 1500);
         }
-        applyHomeChromeGuards();
     }
 
     function copyGlobalCssTemplate() {
@@ -2008,17 +1481,20 @@ window.addEventListener('DOMContentLoaded', async () => {
             '',
             '/* --- 导航栏背景 --- */',
             '.app-header {',
-            '    height: 60px;',
-            '    background: rgba(255,255,255,0.85);',
+            '    height: 68px;',
+            '    background: transparent;',
             '}',
             '',
             '/* --- 导航栏返回/操作按钮 --- */',
             '.app-back, .app-header-action {',
-            '    width: 36px;',
-            '    height: 36px;',
+            '    width: 32px;',
+            '    height: 32px;',
             '    border-radius: 50%;',
-            '    background: #fff;',
-            '    box-shadow: 0 4px 12px rgba(0,0,0,0.06);',
+            '    background: transparent;',
+            '    box-shadow: none;',
+            '}',
+            '.app-header-action svg {',
+            '    filter: drop-shadow(0 6px 14px rgba(0,0,0,0.12));',
             '}',
             '',
             '/* --- 聊天气泡字体 --- */',
@@ -2125,23 +1601,6 @@ window.addEventListener('DOMContentLoaded', async () => {
             btn.style.color = '#4caf50';
             setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 1500);
         }
-        applyHomeChromeGuards();
-    }
-
-    function applyDesktopCriticalFixes() {
-        let styleEl = document.getElementById('desktop-critical-fixes-style');
-        if (!styleEl) {
-            styleEl = document.createElement('style');
-            styleEl.id = 'desktop-critical-fixes-style';
-            document.head.appendChild(styleEl);
-        }
-        styleEl.innerHTML = `
-            .dock { overflow: visible !important; }
-            .dock-page-indicator {
-                top: auto !important;
-                pointer-events: auto !important;
-            }
-        `;
     }
 
     // 页面加载时恢复全局自定义CSS
@@ -2158,10 +1617,6 @@ window.addEventListener('DOMContentLoaded', async () => {
             const cssInput = document.getElementById('global-css-input');
             if (cssInput) cssInput.value = savedCss;
         }
-        applyDesktopCriticalFixes();
-        applyHomeChromeGuards();
-        setTimeout(applyHomeChromeGuards, 60);
-        setTimeout(applyHomeChromeGuards, 240);
     });
 
     // UI缩放

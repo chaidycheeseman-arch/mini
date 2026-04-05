@@ -1,4 +1,4 @@
-self.addEventListener('install', function(event) {
+﻿self.addEventListener('install', function() {
     self.skipWaiting();
 });
 
@@ -6,25 +6,43 @@ self.addEventListener('activate', function(event) {
     event.waitUntil(self.clients.claim());
 });
 
+var DEFAULT_ICON = 'icon-192.png';
+var DEFAULT_BADGE = 'icon-192.png';
+
+function buildNotificationOptions(data) {
+    var payload = data || {};
+    return {
+        body: payload.body || '',
+        icon: payload.icon || DEFAULT_ICON,
+        badge: payload.badge || DEFAULT_BADGE,
+        tag: payload.tag || ('mini-msg-' + Date.now()),
+        renotify: !!payload.renotify,
+        requireInteraction: payload.requireInteraction !== false,
+        timestamp: payload.timestamp || Date.now(),
+        data: {
+            contactId: payload.contactId || '',
+            url: payload.url || '',
+            source: payload.source || 'sw'
+        }
+    };
+}
+
 self.addEventListener('message', function(event) {
     var data = event.data || {};
     if (data.type !== 'SHOW_NOTIFICATION') return;
-
     var title = data.title || '新消息';
-    var options = {
-        body: data.body || '',
-        icon: data.icon || 'icon-192.png',
-        tag: data.tag || ('mini-msg-' + Date.now()),
-        renotify: false,
-        data: {
-            contactId: data.contactId || '',
-            url: data.url || ''
-        }
-    };
+    event.waitUntil(self.registration.showNotification(title, buildNotificationOptions(data)));
+});
 
-    event.waitUntil(
-        self.registration.showNotification(title, options)
-    );
+self.addEventListener('push', function(event) {
+    var payload = {};
+    try {
+        payload = event.data ? event.data.json() : {};
+    } catch (e) {
+        payload = { body: event.data ? event.data.text() : '' };
+    }
+    var title = payload.title || '新消息';
+    event.waitUntil(self.registration.showNotification(title, buildNotificationOptions(payload)));
 });
 
 self.addEventListener('notificationclick', function(event) {
