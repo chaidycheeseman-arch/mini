@@ -104,6 +104,21 @@
         const min = String(now.getMinutes()).padStart(2, '0');
         return `mini-${y}-${m}-${d}_${h}-${min}.json`;
     }
+    function shouldExportLocalforageKey(selectedKeys, key) {
+        if (!key) return false;
+        if (selectedKeys.includes('settings') && (key.startsWith('miffy_api_') || key === 'miffy_webpush_enabled')) return true;
+        if (selectedKeys.includes('theme') && (
+            key.startsWith('miffy_text_') ||
+            key.startsWith('miffy_global_') ||
+            key === 'miffy_ui_scale' ||
+            key === 'miffy_theme_mode' ||
+            key === 'miffy_custom_theme' ||
+            key === 'miffy_custom_theme_presets'
+        )) return true;
+        if (selectedKeys.includes('contacts') && (key === 'miffy_contact_groups' || key.startsWith('cd_settings_'))) return true;
+        if (selectedKeys.includes('voice') && key.startsWith('miffy_minimax_')) return true;
+        return false;
+    }
         // 终极极简、绝对兼容的导出逻辑
     async function streamExportData(selectedKeys, btnElement) {
         try {
@@ -128,17 +143,13 @@
                 isFirstDB = false;
             }
             // 1. 导出 localforage
-            if (selectedKeys.includes('settings') || selectedKeys.includes('theme') || selectedKeys.includes('contacts')) {
+            if (selectedKeys.includes('settings') || selectedKeys.includes('theme') || selectedKeys.includes('contacts') || selectedKeys.includes('voice')) {
                 addDBKey('localforage');
                 appendText('{\n');
                 const lfKeys = await localforage.keys();
                 let isFirstLF = true;
                 for (let key of lfKeys) {
-                    let shouldExport = false;
-                    if (selectedKeys.includes('settings') && key.startsWith('miffy_api_')) shouldExport = true;
-                    if (selectedKeys.includes('theme') && (key.startsWith('miffy_text_') || key === 'miffy_global_font')) shouldExport = true;
-                    if (selectedKeys.includes('contacts') && key === 'miffy_contact_groups') shouldExport = true;
-                    if (shouldExport) {
+                    if (shouldExportLocalforageKey(selectedKeys, key)) {
                         if (!isFirstLF) appendText(',\n');
                         const val = await localforage.getItem(key);
                         appendText(`    "${key}": ${JSON.stringify(val)}`);
@@ -205,7 +216,7 @@
         }
         await new Promise(r => setTimeout(r, 50));
         // 全量导出所有的 key
-        const allKeys = ['settings', 'theme', 'contacts', 'worldbook', 'masks', 'emoticons', 'images', 'wallet'];
+        const allKeys = ['settings', 'theme', 'contacts', 'worldbook', 'masks', 'emoticons', 'images', 'wallet', 'voice'];
         await streamExportData(allKeys, targetBtn);
         if (targetBtn) {
             targetBtn.innerText = "导出数据";
@@ -213,7 +224,36 @@
             targetBtn.style.opacity = "1";
         }
     }
+    function _getBatchExportEnabledCheckboxes() {
+        return Array.from(document.querySelectorAll('#export-checkbox-list input[type="checkbox"]:not(:disabled)'));
+    }
+    function updateBatchExportSelectAllButton() {
+        const btn = document.getElementById('batch-export-select-all-btn');
+        if (!btn) return;
+        const checkboxes = _getBatchExportEnabledCheckboxes();
+        const allChecked = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
+        btn.innerText = allChecked ? '取消全选' : '全选';
+    }
+    function toggleBatchExportSelectAll() {
+        const checkboxes = _getBatchExportEnabledCheckboxes();
+        if (checkboxes.length === 0) return;
+        const shouldCheckAll = checkboxes.some(cb => !cb.checked);
+        checkboxes.forEach(cb => { cb.checked = shouldCheckAll; });
+        updateBatchExportSelectAllButton();
+    }
+    function bindBatchExportCheckboxEvents() {
+        const list = document.getElementById('export-checkbox-list');
+        if (!list || list._batchExportBound) return;
+        list._batchExportBound = true;
+        list.addEventListener('change', function(e) {
+            if (e.target && e.target.matches('input[type="checkbox"]:not(:disabled)')) {
+                updateBatchExportSelectAllButton();
+            }
+        });
+    }
     function openBatchExportModal() {
+        bindBatchExportCheckboxEvents();
+        updateBatchExportSelectAllButton();
         document.getElementById('batch-export-modal').style.display = 'flex';
     }
     function closeBatchExportModal() {
@@ -223,7 +263,7 @@
         const checkboxes = document.querySelectorAll('#export-checkbox-list input[type="checkbox"]:checked:not(:disabled)');
         const selected = Array.from(checkboxes).map(cb => cb.value);
         if (selected.length === 0) return alert('请至少选择一项');
-        const confirmBtn = document.querySelector('#batch-export-modal .btn-restore');
+        const confirmBtn = document.querySelector('#batch-export-modal .action-buttons .btn-restore');
         const originalText = confirmBtn ? confirmBtn.innerText : '确认导出';
         if (confirmBtn) {
             confirmBtn.innerText = "正在流式打包，请耐心等待...";
@@ -239,6 +279,7 @@
             confirmBtn.style.opacity = "1";
         }
     }
+    window.toggleBatchExportSelectAll = toggleBatchExportSelectAll;
     function importData(event) {
         const file = event.target.files[0];
         if (!file) return;

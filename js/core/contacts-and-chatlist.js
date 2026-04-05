@@ -14,7 +14,15 @@
         try {
             const contacts = await contactDb.contacts.toArray();
             if (contacts.length === 0) {
-                listContainer.innerHTML = '<div style="color:#bbb; font-size:13px; text-align:center; margin-top:20px;">暂无联系人</div>';
+                listContainer.innerHTML = `
+                    <div style="margin-top: 12px; padding: 24px 20px; width: 100%; background: #fff; border-radius: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.03); text-align: center;">
+                        <div style="font-size: 14px; font-weight: 600; color: #444;">还没有联系人</div>
+                        <div style="margin-top: 8px; font-size: 12px; color: #aaa; line-height: 1.6;">先添加一个角色，WeChat 和信息页才能正常开始聊天。</div>
+                        <div onclick="openContactEditor()" style="margin: 18px auto 0; width: fit-content; min-width: 132px; height: 40px; padding: 0 18px; border-radius: 20px; background: #f5f5f7; color: #555; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                            + 添加联系人
+                        </div>
+                    </div>
+                `;
                 return;
             }
             contacts.forEach(c => {
@@ -149,6 +157,10 @@ document.getElementById('contact-edit-id').value = '';
             }
         } else {
             title.textContent = '添加新朋友';
+            const myNameEl = document.getElementById('text-wechat-me-name');
+            if (myNameEl) {
+                document.getElementById('contact-user-name').value = (myNameEl.textContent || '').trim();
+            }
         }
         renderContactNpcs();
     }
@@ -231,6 +243,8 @@ document.getElementById('contact-edit-id').value = '';
         const id = document.getElementById('contact-edit-id').value;
         const roleName = document.getElementById('contact-role-name').value.trim();
         if (!roleName) return alert('请输入角色姓名');
+        const myNameEl = document.getElementById('text-wechat-me-name');
+        const fallbackUserName = myNameEl ? (myNameEl.textContent || '').trim() : '';
         // 获取选中的世界书
         const wbCheckboxes = document.querySelectorAll('.contact-wb-checkbox:checked');
         const selectedWorldbooks = Array.from(wbCheckboxes).map(cb => parseInt(cb.value));
@@ -242,17 +256,26 @@ document.getElementById('contact-edit-id').value = '';
             roleLanguage: document.getElementById('contact-role-lang').value,
             roleDetail: document.getElementById('contact-role-detail').value.trim(),
             roleAvatar: tempRoleAvatarBase64,
-            userName: document.getElementById('contact-user-name').value.trim(),
+            userName: document.getElementById('contact-user-name').value.trim() || fallbackUserName,
             userGender: document.getElementById('contact-user-gender').value,
             userDetail: document.getElementById('contact-user-detail').value.trim(),
             userAvatar: tempUserAvatarBase64,
             worldbooks: selectedWorldbooks,
-            npcs: tempContactNpcs
+            npcs: JSON.parse(JSON.stringify(tempContactNpcs || []))
         };
         try {
             await contactDb.contacts.put(data);
+            if (typeof activeChatContact !== 'undefined' && activeChatContact && activeChatContact.id === data.id) {
+                Object.assign(activeChatContact, data);
+                if (typeof refreshChatWindow === 'function') {
+                    await refreshChatWindow();
+                }
+            }
             closeContactEditor();
-            renderContacts();
+            await renderContacts();
+            if (typeof renderChatList === 'function') {
+                await renderChatList();
+            }
         } catch (e) {
             alert('保存失败');
             console.error(e);

@@ -3,11 +3,82 @@
             --text-main: #333;
             --text-sub: #999;
             --panel-bg: rgba(255, 255, 255, 0.95);
+            --bg-main: #fff;
+            --bg-sub: #f7f8fa;
+            --accent: #007aff;
+            --border: rgba(0,0,0,0.1);
+            --shadow: rgba(0,0,0,0.04);
+            --surface-1: #ffffff;
+            --surface-2: #f7f8fa;
+            --input-bg: #ffffff;
+            --accent-soft: rgba(0, 122, 255, 0.12);
+            --shadow-strong: rgba(0,0,0,0.12);
+            --line-color: rgba(220,220,220,0.15);
+            --control-bg: #ffffff;
+            --control-border: rgba(0,0,0,0.08);
+            --control-shadow: 0 6px 20px rgba(0,0,0,0.08);
+            --control-text: #333333;
+            --control-radius: 25px;
+        }
+
+        [data-theme="day"] {
+            color-scheme: light;
+        }
+
+        [data-theme="dopamine"] {
+            --bg-main: #fffaf6;
+            --bg-sub: #fff4ee;
+            --panel-bg: rgba(255, 247, 241, 0.94);
+            --widget-bg: rgba(255, 243, 235, 0.82);
+            --surface-1: #fffdfb;
+            --surface-2: #fff0e6;
+            --input-bg: #fffaf7;
+            --text-main: #564a52;
+            --text-sub: #9d8d94;
+            --accent: #ff9c7b;
+            --accent-soft: rgba(255, 156, 123, 0.18);
+            --border: rgba(255, 156, 123, 0.18);
+            --shadow: rgba(244, 157, 129, 0.12);
+            --shadow-strong: rgba(244, 157, 129, 0.18);
+            --line-color: rgba(86, 74, 82, 0.07);
+            color-scheme: light;
+        }
+
+        [data-theme="night"] {
+            --bg-main: #000000;
+            --bg-sub: #060606;
+            --panel-bg: rgba(10, 10, 10, 0.96);
+            --widget-bg: rgba(18, 18, 18, 0.92);
+            --surface-1: #101010;
+            --surface-2: #171717;
+            --input-bg: #121212;
+            --text-main: #f5f5f5;
+            --text-sub: #9b9b9b;
+            --accent: #4da3ff;
+            --accent-soft: rgba(77, 163, 255, 0.2);
+            --border: rgba(255, 255, 255, 0.1);
+            --shadow: rgba(0, 0, 0, 0.3);
+            --shadow-strong: rgba(0, 0, 0, 0.45);
+            --line-color: rgba(255, 255, 255, 0.08);
+            color-scheme: dark;
+        }
+
+        [data-theme="custom"] {
+            color-scheme: light;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; -webkit-tap-highlight-color: transparent; }
         body, html { 
-            width: 100%; height: 100%; overflow: hidden; background-color: #fff;
+            width: 100%; height: 100%; overflow: hidden; background-color: var(--bg-main);
             overscroll-behavior: none;
+        }
+        .phone-screen,
+        .phone-screen * {
+            -webkit-touch-callout: none;
+        }
+        body,
+        body * {
+            -webkit-user-select: none;
+            user-select: none;
         }
 
         /* ====== 电脑端：固定 iPhone 15 尺寸居中展示 ====== */
@@ -69,6 +140,7 @@
             background-size: 25px 25px; position: relative;
             /* 修复：电脑端必须裁剪溢出，防止全屏应用页面在手机壳外显示 */
             overflow: hidden;
+            background-color: var(--bg-main);
         }
         .swiper { width: 100%; height: 100%; z-index: 1; }
         /* 隐藏 Swiper 分页器数字 */
@@ -224,6 +296,15 @@
         .dock-icon img { width: 100%; height: 100%; object-fit: cover; }
         .grid-layout-p1 { display: grid; grid-template-columns: 160px 1fr; gap: 15px; align-items: stretch; }
         .square-widget { width: 160px; height: 160px; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 15px; }
+        .home-pair-widget { width: 160px; height: 160px; padding: 16px 12px 14px; display: flex; align-items: center; justify-content: center; border-radius: 30px; background: rgba(255, 255, 255, 0.95); margin: 0 auto; }
+        .home-pair-track { width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 10px; }
+        .home-pair-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .home-pair-item.is-left { transform: translateY(-6px); }
+        .home-pair-item.is-right { transform: translateY(8px); }
+        .home-pair-bubble { position: relative; min-height: 46px; padding: 10px 10px 12px; border-radius: 18px; background: rgba(255,255,255,0.92); box-shadow: 0 8px 18px rgba(0,0,0,0.06); font-size: 11px; line-height: 1.35; font-weight: 600; color: #474747; text-align: center; display: flex; align-items: center; justify-content: center; }
+        .home-pair-bubble::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 12px; height: 12px; background: rgba(255,255,255,0.92); transform: translateX(-50%) rotate(45deg); border-radius: 3px; }
+        .home-pair-avatar { width: 52px; height: 52px; border-radius: 50%; overflow: hidden; background: #eee; box-shadow: 0 6px 18px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; }
+        .home-pair-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
         /* 拍立得修正版 */
         .polaroid-container { background: white; padding: 10px 10px 30px 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); cursor: pointer; }
         .polaroid-img-box { background: #f0f0f0; width: 100%; aspect-ratio: 1 / 1; overflow: hidden; }
@@ -257,6 +338,8 @@
             display: none; 
             flex-direction: column;
             padding-top: 0;
+            min-height: 0;
+            overflow: hidden;
         }
         .app-back svg { display: none !important; }
         .app-header-action svg {
@@ -362,6 +445,9 @@
         .app-body {
             flex: 1; display: flex; flex-direction: column; align-items: center; padding: 20px 20px 40px 20px;
             overflow-y: auto;
+            min-height: 0;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
         }
         .app-body::-webkit-scrollbar {
             display: none;
@@ -908,29 +994,735 @@
 .theme-section-body { display: none; padding: 20px 15px; flex-direction: column; align-items: center; background: #fff; border-top: 1px solid #fafafa; border-radius: 0 0 22px 22px; overflow: hidden; }
 .theme-accordion-item.active .theme-section-body { display: flex; }
 .theme-accordion-item.active .theme-section-arrow { transform: rotate(90deg); color: #999; }
-.runtime-debug-entry-btn { padding: 18px 22px; }
-.runtime-settings-link-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
-.runtime-settings-link-copy small { font-size: 11px; color: #a8a8a8; line-height: 1.35; padding-left: 12px; }
-.runtime-debug-fab {
+.theme-mode-grid {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+.theme-mode-option {
+    position: relative;
+    border-radius: 22px;
+    padding: 14px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    box-shadow: 0 10px 28px var(--shadow);
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.theme-mode-option:active { transform: scale(0.97); }
+.theme-mode-option.active {
+    border-color: var(--accent);
+    box-shadow: 0 14px 34px var(--shadow-strong);
+}
+.theme-mode-option.active::after {
+    content: "当前使用";
     position: absolute;
-    top: 76px;
-    right: 18px;
-    width: 44px;
-    height: 44px;
-    border: 1px solid rgba(0,0,0,0.06);
+    top: 10px;
+    right: 10px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+.theme-mode-preview {
+    height: 86px;
+    border-radius: 18px;
+    margin-bottom: 12px;
+    border: 1px solid rgba(255,255,255,0.5);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
+}
+.day-preview {
+    background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(242,246,252,0.98) 100%);
+}
+.dopamine-preview {
+    background:
+        radial-gradient(circle at 18% 18%, rgba(255, 214, 221, 0.95), transparent 26%),
+        radial-gradient(circle at 80% 24%, rgba(255, 235, 196, 0.95), transparent 24%),
+        linear-gradient(180deg, #fffaf6 0%, #fff0e6 100%);
+}
+.night-preview {
+    background: linear-gradient(180deg, rgba(17,17,17,0.98) 0%, rgba(0,0,0,0.98) 100%);
+    border-color: rgba(255,255,255,0.08);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+}
+.custom-preview {
+    background: linear-gradient(135deg, #ffffff 0%, #f6f2ff 38%, #eaf6ff 100%);
+}
+.theme-mode-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+    line-height: 1.2;
+}
+.theme-mode-desc {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-sub);
+}
+.custom-theme-panel {
+    width: 100%;
+    border-radius: 24px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    box-shadow: 0 12px 30px var(--shadow);
+    padding: 18px;
+    overflow: hidden;
+}
+.custom-theme-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+.custom-theme-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-main);
+    line-height: 1.2;
+}
+.custom-theme-note {
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-sub);
+}
+.custom-theme-chip {
+    flex-shrink: 0;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+}
+.custom-theme-vars {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+.var-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
     border-radius: 16px;
-    background: rgba(255,255,255,0.94);
-    color: #6e7682;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+}
+.var-row label {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-main);
+}
+.var-row input[type="color"] {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    cursor: pointer;
+}
+.var-row input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.var-row input[type="color"]::-webkit-color-swatch {
+    border: 1px solid rgba(255,255,255,0.6);
+    border-radius: 12px;
+}
+.custom-theme-preset-row {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+.custom-theme-assets {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 12px;
+}
+.custom-wallpaper-panel,
+.custom-control-panel {
+    padding: 16px;
+    border-radius: 18px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+}
+.custom-control-panel {
+    display: grid;
+    gap: 12px;
+}
+.custom-control-field {
+    margin-bottom: 0 !important;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+}
+.custom-control-field label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+.custom-panel-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 10px;
+}
+.custom-wallpaper-preview {
+    position: relative;
+    width: 100%;
+    height: 158px;
+    overflow: hidden;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: linear-gradient(135deg, rgba(255,255,255,0.72), rgba(240,244,250,0.92));
+}
+.custom-wallpaper-preview.is-empty::after {
+    content: "未设置主题专属壁纸";
+    position: absolute;
+    inset: auto 0 14px 0;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-sub);
+    letter-spacing: 0.2px;
+}
+.custom-wallpaper-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.custom-inline-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+}
+.custom-inline-actions .settings-btn,
+.custom-inline-actions .btn-restore {
+    margin-top: 0;
+    width: 100%;
+}
+.custom-inline-actions.compact {
+    margin-top: 0;
+}
+.custom-button-image-list {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+}
+.custom-button-image-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface-1);
+}
+.custom-button-image-row:first-child {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+}
+.custom-button-image-name {
+    font-size: 12px;
+    color: var(--text-main);
+    line-height: 1.4;
+    font-weight: 600;
+}
+.custom-theme-actions {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+.custom-theme-actions .settings-btn,
+.custom-theme-actions .btn-restore {
+    margin-top: 0;
+    width: 100%;
+}
+.custom-theme-actions .settings-btn:first-child {
+    grid-column: 1 / -1;
+}
+.custom-inline-actions.compact .settings-btn,
+.custom-inline-actions.compact .btn-restore {
+    padding: 10px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+.custom-theme-preset-hint {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-sub);
+    line-height: 1.45;
+}
+.custom-theme-preset-empty {
+    color: var(--text-sub);
+}
+.theme-lock-preview-card {
+    width: 100%;
+    border-radius: 24px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    box-shadow: 0 14px 32px var(--shadow);
+    padding: 18px;
+    margin-bottom: 16px;
+}
+.theme-lock-preview-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.theme-lock-preview-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-main);
+    line-height: 1.2;
+}
+.theme-lock-preview-note {
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-sub);
+}
+.theme-lock-preview-chip {
+    flex-shrink: 0;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+.theme-lock-preview-shell {
+    position: relative;
+    width: 100%;
+    min-height: 250px;
+    overflow: hidden;
+    border-radius: 22px;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: linear-gradient(160deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%);
+}
+.theme-lock-preview-wallpaper,
+.theme-lock-preview-blur {
+    position: absolute;
+    inset: 0;
+}
+.theme-lock-preview-wallpaper {
+    background: linear-gradient(160deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%);
+    background-size: cover;
+    background-position: center;
+}
+.theme-lock-preview-blur {
+    background: rgba(0,0,0,0.24);
+}
+.theme-lock-preview-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px 18px 84px;
+}
+.theme-lock-preview-time {
+    font-size: 44px;
+    font-weight: 200;
+    letter-spacing: -1px;
+    line-height: 1;
+    color: #fff;
+    text-shadow: 0 2px 18px rgba(0,0,0,0.3);
+}
+.theme-lock-preview-date {
+    margin-top: 6px;
+    font-size: 14px;
+    color: rgba(255,255,255,0.84);
+}
+.theme-lock-preview-notif {
+    margin-top: 20px;
+    width: 100%;
+    max-width: 260px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.16);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(255,255,255,0.14);
+}
+.theme-lock-preview-notif-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+    background: rgba(91, 141, 239, 0.86);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 10px 26px rgba(0,0,0,0.10);
-    cursor: pointer;
-    z-index: 12;
-    backdrop-filter: blur(10px);
+    flex-shrink: 0;
 }
-.runtime-debug-fab svg { width: 18px; height: 18px; }
-.runtime-debug-fab:active { transform: scale(0.94); }
+.theme-lock-preview-notif-text {
+    font-size: 13px;
+    color: rgba(255,255,255,0.92);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.theme-lock-preview-passcode {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+.theme-lock-preview-dots {
+    display: flex;
+    gap: 12px;
+    min-height: 14px;
+}
+.theme-lock-preview-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.56);
+    background: rgba(255,255,255,0.16);
+}
+.theme-lock-preview-swipe {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 18px;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+.theme-lock-preview-swipe-bar {
+    width: 34px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.52);
+}
+.theme-lock-preview-swipe-text {
+    font-size: 12px;
+    color: rgba(255,255,255,0.68);
+    letter-spacing: 0.4px;
+}
+.theme-lock-preview-actions {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+.theme-lock-preview-actions .settings-btn,
+.theme-lock-preview-actions .btn-restore {
+    margin-top: 0;
+    width: 100%;
+}
+.settings-switch-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+}
+.settings-switch-copy {
+    min-width: 0;
+}
+.settings-switch-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+    line-height: 1.3;
+}
+.settings-switch-desc,
+.settings-inline-tip {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-sub);
+}
+.settings-switch-desc {
+    margin-top: 4px;
+}
+.settings-inline-tip {
+    margin-top: 2px;
+}
+.settings-switch {
+    position: relative;
+    flex-shrink: 0;
+    width: 52px;
+    height: 30px;
+    display: inline-flex;
+}
+.settings-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.settings-switch-slider {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: rgba(143, 150, 163, 0.4);
+    transition: background 0.2s ease;
+    cursor: pointer;
+}
+.settings-switch-slider::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.16);
+    transition: transform 0.2s ease;
+}
+.settings-switch input:checked + .settings-switch-slider {
+    background: var(--accent);
+}
+.settings-switch input:checked + .settings-switch-slider::before {
+    transform: translateX(22px);
+}
+
+html[data-theme]:not([data-theme="day"]),
+html[data-theme]:not([data-theme="day"]) body,
+html[data-theme]:not([data-theme="day"]) .phone-shell,
+html[data-theme]:not([data-theme="day"]) .phone-screen,
+html[data-theme]:not([data-theme="day"]) .full-app-page,
+html[data-theme]:not([data-theme="day"]) .app-body,
+html[data-theme]:not([data-theme="day"]) #wechat-tab-msg .app-body,
+html[data-theme]:not([data-theme="day"]) .runtime-debug-body {
+    background-color: var(--bg-main);
+    color: var(--text-main);
+}
+html[data-theme]:not([data-theme="day"]) .phone-screen {
+    background-image:
+        linear-gradient(90deg, var(--line-color) 1px, transparent 1px),
+        linear-gradient(var(--line-color) 1px, transparent 1px);
+}
+html[data-theme]:not([data-theme="day"]) .widget-common,
+html[data-theme]:not([data-theme="day"]) .theme-accordion-item,
+html[data-theme]:not([data-theme="day"]) .theme-section-body,
+html[data-theme]:not([data-theme="day"]) .theme-icon-item,
+html[data-theme]:not([data-theme="day"]) .theme-tips,
+html[data-theme]:not([data-theme="day"]) .virtual-phone,
+html[data-theme]:not([data-theme="day"]) .virtual-phone-screen,
+html[data-theme]:not([data-theme="day"]) .btn-restore,
+html[data-theme]:not([data-theme="day"]) .settings-btn,
+html[data-theme]:not([data-theme="day"]) .settings-input,
+html[data-theme]:not([data-theme="day"]) .mini-voice-card,
+html[data-theme]:not([data-theme="day"]) .preset-card,
+html[data-theme]:not([data-theme="day"]) .wb-card,
+html[data-theme]:not([data-theme="day"]) .me-menu-item,
+html[data-theme]:not([data-theme="day"]) .wechat-dock,
+html[data-theme]:not([data-theme="day"]) .runtime-debug-card,
+html[data-theme]:not([data-theme="day"]) .runtime-log-item,
+html[data-theme]:not([data-theme="day"]) .runtime-debug-status-item,
+html[data-theme]:not([data-theme="day"]) .chat-swipe-item {
+    background: var(--surface-1) !important;
+    border-color: var(--border) !important;
+    box-shadow: 0 10px 28px var(--shadow) !important;
+}
+html[data-theme]:not([data-theme="day"]) .theme-section-body,
+html[data-theme]:not([data-theme="day"]) .virtual-phone-screen,
+html[data-theme]:not([data-theme="day"]) .mini-voice-card,
+html[data-theme]:not([data-theme="day"]) .runtime-log-item,
+html[data-theme]:not([data-theme="day"]) .runtime-debug-status-item,
+html[data-theme]:not([data-theme="day"]) .wb-tabs {
+    background: var(--surface-2) !important;
+}
+html[data-theme]:not([data-theme="day"]) .full-app-page {
+    background:
+        radial-gradient(circle at top right, var(--accent-soft), transparent 28%),
+        linear-gradient(180deg, var(--bg-sub) 0%, var(--bg-main) 100%);
+}
+html[data-theme]:not([data-theme="day"]) .app-header,
+html[data-theme]:not([data-theme="day"]) .offline-header {
+    color: var(--text-main);
+}
+html[data-theme]:not([data-theme="day"]) .app-back::before {
+    background: var(--text-main);
+}
+html[data-theme]:not([data-theme="day"]) .app-back:active::before {
+    background: var(--accent);
+}
+html[data-theme]:not([data-theme="day"]) .app-title,
+html[data-theme]:not([data-theme="day"]) .theme-section-header span,
+html[data-theme]:not([data-theme="day"]) .theme-section-title,
+html[data-theme]:not([data-theme="day"]) .settings-group label,
+html[data-theme]:not([data-theme="day"]) .wb-card-title,
+html[data-theme]:not([data-theme="day"]) .me-name,
+html[data-theme]:not([data-theme="day"]) .me-menu-item,
+html[data-theme]:not([data-theme="day"]) .runtime-debug-title,
+html[data-theme]:not([data-theme="day"]) .runtime-debug-status-value,
+html[data-theme]:not([data-theme="day"]) .menu-item,
+html[data-theme]:not([data-theme="day"]) .preset-header,
+html[data-theme]:not([data-theme="day"]) .theme-icon-label,
+html[data-theme]:not([data-theme="day"]) .wb-tab.active {
+    color: var(--text-main) !important;
+}
+html[data-theme]:not([data-theme="day"]) .app-title::after,
+html[data-theme]:not([data-theme="day"]) .theme-mode-desc,
+html[data-theme]:not([data-theme="day"]) .theme-tips,
+html[data-theme]:not([data-theme="day"]) .settings-group small,
+html[data-theme]:not([data-theme="day"]) .mini-test-tip,
+html[data-theme]:not([data-theme="day"]) .wb-card-content,
+html[data-theme]:not([data-theme="day"]) .wb-empty,
+html[data-theme]:not([data-theme="day"]) .me-sig,
+html[data-theme]:not([data-theme="day"]) .runtime-log-meta,
+html[data-theme]:not([data-theme="day"]) .runtime-debug-status-label,
+html[data-theme]:not([data-theme="day"]) .theme-section-arrow,
+html[data-theme]:not([data-theme="day"]) .preset-close,
+html[data-theme]:not([data-theme="day"]) .wb-action-icon,
+html[data-theme]:not([data-theme="day"]) .custom-theme-note,
+html[data-theme]:not([data-theme="day"]) .custom-theme-preset-hint,
+html[data-theme]:not([data-theme="day"]) .theme-icon-container span,
+html[data-theme]:not([data-theme="day"]) .wb-tab {
+    color: var(--text-sub) !important;
+}
+html[data-theme]:not([data-theme="day"]) .theme-section-header span::before {
+    background: var(--accent);
+}
+html[data-theme]:not([data-theme="day"]) .settings-input,
+html[data-theme]:not([data-theme="day"]) .custom-theme-preset-row .settings-input,
+html[data-theme]:not([data-theme="day"]) textarea.settings-input,
+html[data-theme]:not([data-theme="day"]) select.settings-input {
+    background: var(--input-bg) !important;
+    color: var(--text-main) !important;
+}
+html[data-theme]:not([data-theme="day"]) .settings-input::placeholder,
+html[data-theme]:not([data-theme="day"]) textarea.settings-input::placeholder {
+    color: var(--text-sub);
+}
+html[data-theme]:not([data-theme="day"]) .settings-input:focus,
+html[data-theme]:not([data-theme="day"]) .settings-btn:focus,
+html[data-theme]:not([data-theme="day"]) .btn-restore:focus {
+    border-color: var(--accent) !important;
+    outline: none;
+}
+html[data-theme]:not([data-theme="day"]) .settings-btn,
+html[data-theme]:not([data-theme="day"]) .btn-restore {
+    color: var(--text-main) !important;
+}
+html[data-theme]:not([data-theme="day"]) .settings-switch-slider {
+    background: rgba(255,255,255,0.18);
+}
+html[data-theme]:not([data-theme="day"]) .settings-switch input:checked + .settings-switch-slider {
+    background: var(--accent);
+}
+html[data-theme]:not([data-theme="day"]) .settings-slider {
+    background: var(--accent-soft) !important;
+}
+html[data-theme]:not([data-theme="day"]) .settings-slider::-webkit-slider-thumb {
+    background: var(--accent) !important;
+    box-shadow: 0 3px 10px var(--shadow-strong) !important;
+}
+html[data-theme]:not([data-theme="day"]) .wb-tabs {
+    border: 1px solid var(--border);
+    box-shadow: inset 0 1px 4px var(--shadow);
+}
+html[data-theme]:not([data-theme="day"]) .wb-tab.active {
+    background: var(--surface-1);
+}
+html[data-theme]:not([data-theme="day"]) .wechat-dock-btn.active,
+html[data-theme]:not([data-theme="day"]) .wb-action-icon:hover,
+html[data-theme]:not([data-theme="day"]) .preset-close:hover,
+html[data-theme]:not([data-theme="day"]) .theme-section-arrow,
+html[data-theme]:not([data-theme="day"]) .app-header-action {
+    color: var(--accent) !important;
+}
+html[data-theme]:not([data-theme="day"]) .app-header-action svg,
+html[data-theme]:not([data-theme="day"]) .wb-action-icon svg,
+html[data-theme]:not([data-theme="day"]) .wechat-dock-btn svg,
+html[data-theme]:not([data-theme="day"]) .preset-close svg {
+    stroke: currentColor !important;
+}
+html[data-theme]:not([data-theme="day"]) .editable,
+html[data-theme]:not([data-theme="day"]) .icon-img,
+html[data-theme]:not([data-theme="day"]) .dock-icon,
+html[data-theme]:not([data-theme="day"]) .editable img,
+html[data-theme]:not([data-theme="day"]) .icon-img img,
+html[data-theme]:not([data-theme="day"]) .dock-icon img {
+    background-color: var(--surface-1) !important;
+}
+html[data-theme]:not([data-theme="day"]) .home-hero-card {
+    background: linear-gradient(160deg, var(--surface-1) 0%, var(--surface-2) 100%);
+    box-shadow: 0 12px 34px var(--shadow-strong);
+}
+html[data-theme]:not([data-theme="day"]) .home-hero-info {
+    background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface-1) 100%);
+}
+[data-theme="night"] body {
+    background: #000000;
+}
+[data-theme="night"] .phone-screen {
+    background-image:
+        linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px),
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+}
+[data-theme="night"] .theme-mode-option,
+[data-theme="night"] .custom-theme-panel,
+[data-theme="night"] .theme-accordion-item,
+[data-theme="night"] .preset-card,
+[data-theme="night"] .wechat-dock,
+[data-theme="night"] .wb-card,
+[data-theme="night"] .widget-common {
+    box-shadow: 0 16px 40px rgba(0,0,0,0.42) !important;
+}
+[data-theme="night"] .theme-mode-option.active::after {
+    background: rgba(77, 163, 255, 0.18);
+    color: #9bcbff;
+}
+[data-theme="night"] .theme-tips,
+[data-theme="night"] .mini-voice-card,
+[data-theme="night"] .theme-section-body,
+[data-theme="night"] .virtual-phone-screen {
+    background: #0f0f0f !important;
+}
+[data-theme="night"] .app-back::before {
+    background: #f5f5f5;
+}
+[data-theme="night"] .app-back:active::before {
+    background: #9bcbff;
+}
+[data-theme="night"] .settings-input::placeholder,
+[data-theme="night"] textarea.settings-input::placeholder {
+    color: #727272;
+}
+@media (max-width: 380px) {
+    .custom-theme-vars,
+    .theme-mode-grid,
+    .custom-theme-preset-row,
+    .custom-theme-assets,
+    .theme-lock-preview-actions {
+        grid-template-columns: 1fr;
+    }
+    .custom-button-image-row {
+        grid-template-columns: 1fr;
+    }
+}
+.runtime-debug-entry-btn { padding: 18px 22px; }
+.runtime-settings-link-copy { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.runtime-debug-nav-delete { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .runtime-debug-body {
     align-items: stretch !important;
     gap: 14px;
@@ -1161,7 +1953,14 @@
 }
 .novel-dock-item.active { color: #333; font-weight: 800; font-size: 15px; }
 /* ====== 聊天窗口 (Chat) 线条主义审美重构 ====== */
-#chat-window { background: #f6f6f6; z-index: 120; display: none; }
+#chat-window { background: #f6f6f6; z-index: 120; display: none; min-height: 0; overflow: hidden; }
+#sms-chat-window { min-height: 0; overflow: hidden; }
+#chat-msg-container,
+#sms-msg-container {
+    min-height: 0;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
 /* 聊天窗口导航栏：纯白背景，强制覆盖毛玻璃 */
 #chat-window > .app-header,
 #chat-window .app-header {
@@ -1180,6 +1979,13 @@
     flex: 1;
     min-width: 0;
     padding-top: 5px;
+    text-align: center;
+}
+.sms-chat-header-spacer {
+    width: 26px;
+    min-width: 26px;
+    height: 26px;
+    margin-top: 10px;
 }
 #sms-app .app-header {
     border-bottom: none !important;
@@ -1193,6 +1999,9 @@
     justify-content: center;
     padding-top: 0;
     font-size: 19px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 #sms-chat-window .app-title::after {
     content: none;
@@ -1221,7 +2030,7 @@
     padding: 0 4px;
 }
 .chat-msg-row.msg-right { flex-direction: row-reverse; }
-.chat-msg-avatar { width: 35px; height: 35px; border-radius: 50%; overflow: hidden; flex-shrink: 0; box-shadow: 0 2px 10px rgba(0,0,0,0.03); border: 1px solid #fff; }
+.chat-msg-avatar { width: 35px; height: 35px; border-radius: 50%; overflow: hidden; flex-shrink: 0; box-shadow: 0 2px 10px rgba(0,0,0,0.03); border: 1px solid #fff; background: #f1f3f5; }
 .chat-msg-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .chat-msg-content { 
     width: fit-content; 
@@ -1244,16 +2053,18 @@
     border-radius: 26px; display: flex; align-items: flex-end; padding: 6px;
     box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1.5px solid rgba(255,255,255,0.7);
     z-index: 130;
+    overflow: hidden;
 }
-.chat-input-container { flex: 1; height: auto; display: flex; align-items: flex-end; padding: 0 12px; }
+.chat-input-container { flex: 1; height: auto; min-height: 36px; display: flex; align-items: flex-end; padding: 0 12px; }
 .chat-input-field { 
     width: 100%; border: none; outline: none; font-size: 14px; 
     background: transparent; color: #333;
     resize: none;
     line-height: 1.45;
+    height: 22px;
     min-height: 20px;
     max-height: 120px;
-    overflow-y: auto;
+    overflow-y: hidden;
     display: block;
 }
 /* 纯线条风按钮 */
@@ -1908,6 +2719,215 @@
     color: #bbb; 
     font-size: 12px; 
     margin-top: 20px; 
+}
+
+html[data-theme] .full-app-page,
+html[data-theme] .app-body,
+html[data-theme] #wechat-tab-msg .app-body,
+html[data-theme] .runtime-debug-body {
+    background: transparent !important;
+    color: var(--text-main) !important;
+}
+
+html[data-theme]:not([data-theme="day"]) .theme-accordion-item,
+html[data-theme]:not([data-theme="day"]) .theme-section-body,
+html[data-theme]:not([data-theme="day"]) .theme-icon-item,
+html[data-theme]:not([data-theme="day"]) .theme-tips,
+html[data-theme]:not([data-theme="day"]) .virtual-phone,
+html[data-theme]:not([data-theme="day"]) .virtual-phone-screen,
+html[data-theme]:not([data-theme="day"]) .btn-restore,
+html[data-theme]:not([data-theme="day"]) .settings-btn,
+html[data-theme]:not([data-theme="day"]) .settings-input,
+html[data-theme]:not([data-theme="day"]) .mini-voice-card,
+html[data-theme]:not([data-theme="day"]) .preset-card,
+html[data-theme]:not([data-theme="day"]) .wb-card,
+html[data-theme]:not([data-theme="day"]) .me-menu-item,
+html[data-theme]:not([data-theme="day"]) .wechat-dock,
+html[data-theme]:not([data-theme="day"]) .runtime-debug-card,
+html[data-theme]:not([data-theme="day"]) .runtime-log-item,
+html[data-theme]:not([data-theme="day"]) .runtime-debug-status-item,
+html[data-theme]:not([data-theme="day"]) .chat-swipe-item,
+html[data-theme]:not([data-theme="day"]) .chat-emoji-item,
+html[data-theme]:not([data-theme="day"]) .custom-wallpaper-panel,
+html[data-theme]:not([data-theme="day"]) .custom-control-panel {
+    background: var(--surface-1) !important;
+    border-color: var(--border) !important;
+}
+
+html[data-theme]:not([data-theme="day"]) .theme-section-body,
+html[data-theme]:not([data-theme="day"]) .virtual-phone-screen,
+html[data-theme]:not([data-theme="day"]) .mini-voice-card,
+html[data-theme]:not([data-theme="day"]) .runtime-log-item,
+html[data-theme]:not([data-theme="day"]) .runtime-debug-status-item,
+html[data-theme]:not([data-theme="day"]) .wb-tabs,
+html[data-theme]:not([data-theme="day"]) .chat-emoji-item span,
+html[data-theme]:not([data-theme="day"]) .custom-wallpaper-panel,
+html[data-theme]:not([data-theme="day"]) .custom-control-panel {
+    background: var(--surface-2) !important;
+}
+
+html[data-theme]:not([data-theme="day"]) .app-title,
+html[data-theme]:not([data-theme="day"]) .theme-section-header span,
+html[data-theme]:not([data-theme="day"]) .settings-group label,
+html[data-theme]:not([data-theme="day"]) .wb-card-title,
+html[data-theme]:not([data-theme="day"]) .me-name,
+html[data-theme]:not([data-theme="day"]) .preset-header,
+html[data-theme]:not([data-theme="day"]) .menu-item,
+html[data-theme]:not([data-theme="day"]) .chat-emoji-item span,
+html[data-theme]:not([data-theme="day"]) .custom-panel-title {
+    color: var(--text-main) !important;
+}
+
+html[data-theme]:not([data-theme="day"]) .theme-mode-desc,
+html[data-theme]:not([data-theme="day"]) .theme-tips,
+html[data-theme]:not([data-theme="day"]) .wb-card-content,
+html[data-theme]:not([data-theme="day"]) .me-sig,
+html[data-theme]:not([data-theme="day"]) .theme-section-arrow,
+html[data-theme]:not([data-theme="day"]) .preset-close,
+html[data-theme]:not([data-theme="day"]) .wb-action-icon,
+html[data-theme]:not([data-theme="day"]) .custom-theme-note,
+html[data-theme]:not([data-theme="day"]) .custom-theme-preset-hint,
+html[data-theme]:not([data-theme="day"]) .wb-tab,
+html[data-theme]:not([data-theme="day"]) .custom-wallpaper-preview.is-empty::after {
+    color: var(--text-sub) !important;
+}
+
+html[data-theme]:not([data-theme="day"]) .settings-input,
+html[data-theme]:not([data-theme="day"]) textarea.settings-input,
+html[data-theme]:not([data-theme="day"]) select.settings-input,
+html[data-theme]:not([data-theme="day"]) .custom-theme-preset-row .settings-input {
+    background: var(--input-bg) !important;
+    color: var(--text-main) !important;
+}
+
+html[data-theme]:not([data-theme="day"]) .app-header,
+html[data-theme]:not([data-theme="day"]) .offline-header,
+html[data-theme]:not([data-theme="day"]) #wechat-app,
+html[data-theme]:not([data-theme="day"]) #wallet-app,
+html[data-theme]:not([data-theme="day"]) #bank-card-app,
+html[data-theme]:not([data-theme="day"]) #stock-app,
+html[data-theme]:not([data-theme="day"]) #role-profile-app,
+html[data-theme]:not([data-theme="day"]) #chat-detail-app,
+html[data-theme]:not([data-theme="day"]) #meetlove-app,
+html[data-theme]:not([data-theme="day"]) #offline-chat-app,
+html[data-theme]:not([data-theme="day"]) #sms-app,
+html[data-theme]:not([data-theme="day"]) #sms-app .app-header,
+html[data-theme]:not([data-theme="day"]) #sms-chat-window .app-header {
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-bottom: none !important;
+}
+
+html[data-theme="custom"] .btn-restore,
+html[data-theme="custom"] .settings-btn,
+html[data-theme="custom"] .wechat-dock {
+    background: var(--control-bg) !important;
+    border: 1px solid var(--control-border) !important;
+    box-shadow: var(--control-shadow) !important;
+    color: var(--control-text) !important;
+    border-radius: var(--control-radius) !important;
+}
+
+html[data-theme="custom"] .btn-restore {
+    background-image: var(--control-image-secondary) !important;
+    background-size: cover !important;
+    background-position: center !important;
+}
+
+html[data-theme="custom"] .settings-btn {
+    background-image: var(--control-image-primary) !important;
+    background-size: cover !important;
+    background-position: center !important;
+}
+
+html[data-theme="custom"] .app-header-action {
+    background: var(--control-bg) !important;
+    border: 1px solid var(--control-border) !important;
+    box-shadow: var(--control-shadow) !important;
+    color: var(--control-text) !important;
+    background-image: var(--control-image-icon) !important;
+    background-size: cover !important;
+    background-position: center !important;
+}
+
+html[data-theme="custom"] .wechat-dock {
+    background-image: var(--control-image-dock) !important;
+    background-size: cover !important;
+    background-position: center !important;
+}
+
+html[data-theme="custom"] .btn-restore svg,
+html[data-theme="custom"] .settings-btn svg,
+html[data-theme="custom"] .app-header-action svg,
+html[data-theme="custom"] .wechat-dock-btn svg {
+    stroke: currentColor !important;
+}
+
+html[data-theme="night"] body {
+    background: #000000 !important;
+}
+
+html[data-theme="night"] .phone-screen,
+html[data-theme="night"] .full-app-page,
+html[data-theme="night"] .app-body,
+html[data-theme="night"] .wechat-tab-page,
+html[data-theme="night"] #wechat-app,
+html[data-theme="night"] #wechat-tab-msg,
+html[data-theme="night"] #wechat-tab-msg .app-body,
+html[data-theme="night"] #chat-list-container,
+html[data-theme="night"] #wechat-tab-contacts,
+html[data-theme="night"] #wechat-tab-me,
+html[data-theme="night"] #wechat-tab-moments,
+html[data-theme="night"] .moments-container,
+html[data-theme="night"] #theme-app,
+html[data-theme="night"] #settings-app,
+html[data-theme="night"] #worldbook-app,
+html[data-theme="night"] #chat-detail-app,
+html[data-theme="night"] #chat-detail-app .app-body {
+    background: linear-gradient(180deg, #111214 0%, #090a0c 52%, #030303 100%) !important;
+}
+
+html[data-theme="night"] .cd-avatar-row,
+html[data-theme="night"] .cd-section,
+html[data-theme="night"] .moments-post-card,
+html[data-theme="night"] .me-menu-item,
+html[data-theme="night"] .chat-swipe-item,
+html[data-theme="night"] .theme-accordion-item,
+html[data-theme="night"] .theme-section-body,
+html[data-theme="night"] .theme-tips,
+html[data-theme="night"] .preset-card,
+html[data-theme="night"] .wb-card {
+    background: #121315 !important;
+    border-color: rgba(255,255,255,0.08) !important;
+    box-shadow: 0 14px 34px rgba(0,0,0,0.32) !important;
+}
+
+html[data-theme="night"] #chat-list-container,
+html[data-theme="night"] .moments-feed,
+html[data-theme="night"] .me-menu-list {
+    background: transparent !important;
+}
+
+html[data-theme="night"] .cd-item-label,
+html[data-theme="night"] .cd-avatar-label,
+html[data-theme="night"] .moments-post-text,
+html[data-theme="night"] .moments-post-name,
+html[data-theme="night"] .me-menu-item,
+html[data-theme="night"] .me-name {
+    color: #f2f2f2 !important;
+}
+
+html[data-theme="night"] .cd-item-desc,
+html[data-theme="night"] .cd-item-value,
+html[data-theme="night"] .moments-post-meta,
+html[data-theme="night"] .moments-post-time,
+html[data-theme="night"] .me-sig {
+    color: #8e949d !important;
+}
+
+html[data-theme="night"] .cd-divider {
+    background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.06) 16%, rgba(255,255,255,0.06) 84%, rgba(255,255,255,0)) !important;
 }
 
 

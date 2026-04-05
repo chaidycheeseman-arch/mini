@@ -19,6 +19,7 @@ window.MINI_PHONE_RUNTIME_SPLIT = Object.freeze([
     'js/home/wechat-chat.js',
     'js/home/wechat-moments.js',
     'js/home/data-tools.js',
+    'js/home/music-app.js',
     'js/wallet/stock-and-assist.js',
     'js/wallet/red-packet.js',
     'js/wallet/transfer.js',

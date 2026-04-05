@@ -72,6 +72,18 @@
         }
     }
 
+    function clearPersistedLogStorage() {
+        try {
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem('localforage/' + STORAGE_KEY);
+            Object.keys(localStorage).forEach(function(key) {
+                if (String(key).indexOf(STORAGE_KEY) !== -1) {
+                    localStorage.removeItem(key);
+                }
+            });
+        } catch (error) {}
+    }
+
     function schedulePersist() {
         if (persistTimer) clearTimeout(persistTimer);
         persistTimer = setTimeout(function() {
@@ -108,14 +120,6 @@
         }
         schedulePersist();
         queueRender();
-    }
-
-    function summarizeLevels() {
-        var counts = { error: 0, warn: 0, info: 0, log: 0 };
-        logs.forEach(function(item) {
-            if (counts[item.level] !== undefined) counts[item.level] += 1;
-        });
-        return '当前共 ' + logs.length + ' 条，错误 ' + counts.error + '，警告 ' + counts.warn + '，普通 ' + (counts.info + counts.log);
     }
 
     function getPlainText() {
@@ -226,14 +230,13 @@
     function renderLogs() {
         var listEl = document.getElementById('runtime-log-list');
         var metaEl = document.getElementById('runtime-log-meta');
-        var summaryText = summarizeLevels();
 
-        if (metaEl) metaEl.textContent = summaryText;
+        if (metaEl) metaEl.textContent = '';
         renderDebugStatus();
         if (!listEl) return;
 
         if (!logs.length) {
-            listEl.innerHTML = '<div class="runtime-log-empty">当前没有记录到运行日志。</div>';
+            listEl.innerHTML = '<div class="runtime-log-empty">当前没有日志</div>';
             return;
         }
 
@@ -321,6 +324,7 @@
             persistTimer = null;
         }
         renderLogs();
+        clearPersistedLogStorage();
         if (window.localforage && typeof localforage.removeItem === 'function') {
             return localforage.removeItem(STORAGE_KEY).catch(function(error) {
                 originalConsole.error('[runtime-log] clear failed', error);
@@ -342,15 +346,15 @@
                     if (!copied) {
                         throw new Error('copy failed');
                     }
-                    addEntry('info', ['已复制运行日志到剪贴板'], 'runtime-log');
+                    addEntry('info', ['已复制后台日志到剪贴板'], 'runtime-log');
                 });
             }
             copied = fallbackCopy(text);
             if (!copied) throw new Error('copy failed');
-            addEntry('info', ['已复制运行日志到剪贴板'], 'runtime-log');
+            addEntry('info', ['已复制后台日志到剪贴板'], 'runtime-log');
         }).catch(function(error) {
             originalConsole.error('[runtime-log] copy failed', error);
-            addEntry('warn', ['复制日志失败，请手动选中日志内容'], 'runtime-log');
+            addEntry('warn', ['复制日志失败，请稍后重试'], 'runtime-log');
         });
     };
 

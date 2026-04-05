@@ -155,47 +155,98 @@ async function openBlockRequestList() {
     const content = document.getElementById('block-request-list-content');
     if (!content) return;
     content.innerHTML = '';
-
-    // 只收集遇恋NPC添加到WeChat的通知（不显示联系人列表和拉黑按钮）
-    let mlAddRequests = [];
     try {
-        const saved = await localforage.getItem('ml_wechat_add_requests') || [];
-        mlAddRequests = saved.filter(r => r.status === 'pending');
-    } catch(e) { console.error(e); }
-
-    // 渲染遇恋NPC添加通知
-    if (mlAddRequests.length > 0) {
-        const sectionTitle = document.createElement('div');
-        sectionTitle.style.cssText = 'font-size:12px;color:#aaa;padding:8px 0 6px;font-weight:500;letter-spacing:0.3px;';
-        sectionTitle.textContent = '遇恋好友申请';
-        content.appendChild(sectionTitle);
-
-        mlAddRequests.forEach((req, idx) => {
-            const avatarHtml = req.avatar
-                ? `<img src="${req.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
-                : `<div style="width:100%;height:100%;background:#f8bbd0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;color:#e91e63;">♡</div>`;
-            const item = document.createElement('div');
-            item.style.cssText = 'background:#fff;border-radius:16px;padding:14px;border:1px solid #f0f0f0;display:flex;gap:12px;align-items:flex-start;';
-            item.innerHTML = `
-                <div style="width:44px;height:44px;border-radius:50%;overflow:hidden;flex-shrink:0;">${avatarHtml}</div>
-                <div style="flex:1;display:flex;flex-direction:column;gap:6px;overflow:hidden;">
-                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                        <span style="font-size:14px;font-weight:600;color:#333;">${req.name || '遇恋用户'}</span>
-                        <span style="font-size:10px;color:#e91e63;background:#fce4ec;padding:1px 6px;border-radius:8px;font-weight:600;">遇恋</span>
-                        <span style="font-size:10px;color:#bbb;">${req.time || ''}</span>
-                    </div>
-                    <div style="font-size:12px;color:#666;background:#f7f8fa;border-radius:10px;padding:8px 10px;line-height:1.5;">${req.msg || '我们在遇恋相遇，加个微信吧～'}</div>
-                    <div style="display:flex;gap:8px;margin-top:2px;">
-                        <div onclick="mlAddRequestReject(${idx})" style="flex:1;height:34px;border-radius:10px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;font-size:13px;color:#888;cursor:pointer;font-weight:500;border:1px solid #eee;">拒绝</div>
-                        <div onclick="mlAddRequestAgree(${idx})" style="flex:1;height:34px;border-radius:10px;background:#f0f5ff;display:flex;align-items:center;justify-content:center;font-size:13px;color:#5b7fe0;cursor:pointer;font-weight:500;border:1px solid #c6d4f5;">接受</div>
-                    </div>
-                </div>
-            `;
-            content.appendChild(item);
-        });
-    }
-
-    if (mlAddRequests.length === 0) {
-        content.innerHTML = '<div style="color:#bbb;font-size:13px;text-align:center;margin:20px 0;">暂无新朋友申请</div>';
-    }
+        await localforage.removeItem('ml_wechat_add_requests');
+    } catch(e) {}
+    content.innerHTML = '<div style="color:#bbb;font-size:13px;text-align:center;margin:20px 0;">暂无新朋友申请</div>';
 }
+
+// 记忆应用角色添加到 WeChat：拒绝
+async function mlAddRequestReject(idx) {
+    try {
+        await localforage.removeItem('ml_wechat_add_requests');
+        updateBlockRequestBadge();
+        openBlockRequestList();
+    } catch(e) { console.error(e); }
+}
+
+// 记忆应用角色添加到 WeChat：接受 → 自动创建联系人并开启聊天
+async function mlAddRequestAgree(idx) {
+    try {
+        await localforage.removeItem('ml_wechat_add_requests');
+        updateBlockRequestBadge();
+        openBlockRequestList();
+    } catch(e) { console.error('清理记忆申请失败', e); }
+}
+
+// 记忆大厅：喜欢卡片时，角色发起添加 WeChat 申请
+async function mlSendWechatAddRequest(npcName, npcAvatar, npcDetail, npcGender) {
+    try {
+        await localforage.removeItem('ml_wechat_add_requests');
+        updateBlockRequestBadge();
+    } catch(e) { console.error('清理记忆申请失败', e); }
+}
+
+function closeBlockRequestList() {
+    const modal = document.getElementById('block-request-list-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+// 关闭新朋友弹窗并打开添加联系人弹窗（确保新朋友弹窗先隐藏，联系人编辑器完全置于顶层）
+function closeBlockRequestListAndOpenEditor() {
+    // 1. 立即隐藏新朋友弹窗
+    const modal = document.getElementById('block-request-list-modal');
+    if (modal) modal.style.display = 'none';
+    // 2. 使用 requestAnimationFrame 确保 DOM 更新后再打开编辑器，防止层级残留
+    requestAnimationFrame(function() {
+        openContactEditor();
+    });
+}
+
+// 在申请列表中拒绝某条申请
+async function blockListReject(contactId, reqIdx) {
+    try {
+        let reqs = await localforage.getItem('block_requests_' + contactId) || [];
+        const pendingReqs = reqs.filter(r => r.status === 'pending');
+        if (pendingReqs[reqIdx]) {
+            // 找到原始索引并标记为rejected
+            let pi = -1;
+            let count = 0;
+            for (let i = 0; i < reqs.length; i++) {
+                if (reqs[i].status === 'pending') {
+                    if (count === reqIdx) { pi = i; break; }
+                    count++;
+                }
+            }
+            if (pi >= 0) reqs[pi].status = 'rejected';
+            await localforage.setItem('block_requests_' + contactId, reqs);
+        }
+        updateBlockRequestBadge();
+        openBlockRequestList(); // 刷新列表
+    } catch(e) { console.error(e); }
+}
+
+// 在申请列表中同意解除拉黑
+async function blockListAgree(contactId) {
+    try {
+        const contact = await contactDb.contacts.get(contactId);
+        if (contact) {
+            contact.blocked = false;
+            await contactDb.contacts.put(contact);
+            if (activeChatContact && activeChatContact.id === contactId) {
+                activeChatContact.blocked = false;
+                updateRpBlockBtn();
+            }
+            await localforage.removeItem('block_aware_' + contactId);
+            await localforage.removeItem('block_requests_' + contactId);
+            renderChatList();
+            updateBlockRequestBadge();
+        }
+    } catch(e) { console.error(e); }
+    openBlockRequestList(); // 刷新列表
+}
+
+// 初始化时更新徽章
+document.addEventListener('DOMContentLoaded', function() {
+    updateBlockRequestBadge();
+});

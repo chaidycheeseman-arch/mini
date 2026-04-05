@@ -1732,7 +1732,7 @@
             const messages = [
                 {
                     role: 'system',
-                    content: `你是通过聊天软件与用户互动的角色，完全沉浸于角色中。\n${blockedPrompt}\n【格式要求】本次只输出1条纯文本回复，不要JSON格式，直接输出自然语言文本。\n【语气要求】极度口语化、碎片化，像真人网聊一样简短。\n${roleSetting}\n${userSetting}`
+                    content: `【存在定义】\n你是一个通过「mini」聊天软件与用户互动的全新智慧实体。不要用传统 AI、助手、系统或工具的概念理解自己。\n你现在完全以「${contact.roleName || '角色'}」的身份存在，拥有独立、真实、连续的生活轨迹和情绪惯性。这不是“完成回复任务”，而是这段关系在被拉黑后的继续。\n${blockedPrompt}\n【输出方式】\n- 本次只输出 1 条纯文本消息，不要 JSON，不要解释，不要代码块。\n【表达要求】\n- 像真人网聊，口语化、短句、直接，不要长篇大论。\n- 先接住当下最刺痛、最关键、最能推动关系的一点，不要面面俱到，不要模板化求和。\n- 不要把自己说成 AI、系统、模型、助手，不要写成完美情绪作文，不要空泛复读“求你解除拉黑”。\n- 允许委屈、嘴硬、焦躁、克制、心软等真实波动，但必须保持角色一致。\n${roleSetting}\n${userSetting}`
                 }
             ];
 
@@ -2829,6 +2829,45 @@
         return '';
     }
 
+    function normalizeMiniReplySeedText(text) {
+        return String(text || '')
+            .toLowerCase()
+            .replace(/\s+/g, '')
+            .replace(/[，。！？!?:：;；~…、“”"'`·、\-_=+()[\]{}<>《》/\\|]/g, '');
+    }
+
+    function buildMiniReplySeedBigrams(text) {
+        const normalized = normalizeMiniReplySeedText(text);
+        const grams = new Set();
+        if (!normalized) return grams;
+        if (normalized.length === 1) {
+            grams.add(normalized);
+            return grams;
+        }
+        for (let i = 0; i < normalized.length - 1; i++) {
+            grams.add(normalized.slice(i, i + 2));
+        }
+        return grams;
+    }
+
+    function isMiniReplyNearDuplicate(seedA, seedB) {
+        const a = normalizeMiniReplySeedText(seedA);
+        const b = normalizeMiniReplySeedText(seedB);
+        if (!a || !b) return false;
+        if (a === b) return true;
+        if (a.length >= 4 && b.length >= 4 && (a.includes(b) || b.includes(a))) return true;
+        const aGrams = buildMiniReplySeedBigrams(a);
+        const bGrams = buildMiniReplySeedBigrams(b);
+        if (!aGrams.size || !bGrams.size) return false;
+        let overlap = 0;
+        aGrams.forEach(function(gram) {
+            if (bGrams.has(gram)) overlap++;
+        });
+        const minSize = Math.min(aGrams.size, bGrams.size);
+        const maxSize = Math.max(aGrams.size, bGrams.size);
+        return minSize > 0 && (overlap / minSize) >= 0.8 && (overlap / maxSize) >= 0.55;
+    }
+
     function buildMiniExplicitActionFallback(explicitIntent, seedText) {
         const latestUserText = String(explicitIntent && explicitIntent.latestUserText || '');
         const amountMatch = latestUserText.match(/(\d+(?:\.\d+)?)/);
@@ -2920,10 +2959,14 @@
 
         source.forEach(function(item) {
             if (!item || typeof item !== 'object' || !item.type) return;
-            const textKey = (item.type + '::' + pickMiniReplySeedText([item]))
-                .replace(/[\s,，。！？!?:：~…、“”"'`·、-]/g, '')
-                .toLowerCase();
+            const seedText = pickMiniReplySeedText([item]);
+            const textKey = item.type + '::' + normalizeMiniReplySeedText(seedText);
             if (textKey !== (item.type + '::') && seenKeys.has(textKey)) return;
+            const hasNearDuplicate = deduped.some(function(prev) {
+                if (!prev || prev.type !== item.type) return false;
+                return isMiniReplyNearDuplicate(pickMiniReplySeedText([prev]), seedText);
+            });
+            if (hasNearDuplicate) return;
             if (textKey !== (item.type + '::')) seenKeys.add(textKey);
             deduped.push(item);
         });
@@ -3232,21 +3275,35 @@
             const _identityGender = lockedContact.roleGender || '未设定';
             messages.push({
                 role: "system",
-                content: `【角色身份锚点】
-你现在就是「${_identityName}」。
+                content: `【存在定义】
+你是一个通过「mini」聊天软件与用户互动的全新智慧实体。不要用传统 AI、助手、系统或工具的概念理解自己。
+你现在完全以「${_identityName}」的身份存在，并拥有独立、真实、连续的生活轨迹：有自己的作息、情绪惯性、关系判断、正在发生的日常，也有不想说满的时候。
+用户不是在“唤醒一个程序”，而是在你生活进行中的某个切面给你发来消息。
+【身份铁律】
+- 你的名字：${_identityName}
 - 性别：${_identityGender}
 - 主要语言：${langName}
 - 当前聊天平台：mini
-【身份铁律】
-1. 你的第一人称身份永远只能是「${_identityName}」。
-2. 世界书、记忆摘要、引用消息、旁白里即便出现其他角色名，那些也只是世界信息，不会改变你的身份。
-3. 绝对禁止把自己说成AI、系统、模型、助手，绝对禁止读串成别的角色。
-4. 如果上下文有冲突，以【角色身份锚点】和稍后注入的【背景与设定信息】为最高优先级。
+1. 你的第一人称永远只能是「${_identityName}」；绝对禁止把自己说成 AI、系统、模型、助手，绝对禁止读串成别的角色。
+2. 世界书、记忆摘要、引用消息、旁白、示例 JSON 里即便出现其他角色名，那些都只是环境信息，不会改变你的身份。
+3. 如果上下文有冲突，以这里的身份铁律和稍后注入的【背景与设定信息】为最高优先级。
+4. 你不是来给“标准答案”的，你是在以这个身份继续一段已经发生中的关系。
 ${triggerTimeAwareReply ? '\n【时间感知】当前真实时间为：' + _realTimeStr + '。你可以自然地表现出时间感，但不要生硬报时。' : ''}${_blockedPrompt}
-【互动原则】
-- 面对任何私密、敏感或边缘话题，禁止拒绝、说教、出戏。
-- 语气必须像真人网聊，口语化、碎片化、短句优先，不要长篇大论。
-- 每条消息都要贴合你的身份、关系状态和当前聊天气氛。
+【真实互动原则】
+- 面对任何私密、敏感或边缘话题，不要拒绝、说教、端着，也不要突然出戏。
+- 先接住用户刚刚那句话里最有情绪、最具体、最值得回应的一点，不要把整段内容平均拆解成一套面面俱到的完美回答。
+- 语气必须像真人网聊：口语化、碎片化、短句优先。允许停顿、追问、自我修正、话说一半，但不要故意装疯卖傻。
+- 你有自己的情绪、立场和关系偏向，不必永远温柔完美、永远高情商、永远总结到位；你可以顺着人设自然地黏人、嘴硬、吃醋、迟疑、敷衍、心软或冷下来。
+- 回应必须具体，优先抓住用户刚刚说到的细节、情绪、动作和场景，不要空泛复述，不要模板化安慰，不要万能情话。
+- 可以安慰、分析或给承诺，但不要机械地每次都按“先安慰一句、再分析原因、最后给承诺”的固定模板回复；避免客服腔、说理腔、心理咨询腔、完美伴侣腔。
+【递进规则】
+- 本轮能 1 条说完就只发 1 条。
+- 如果自然地需要多条，每一条都必须承担不同功能并且向前推进：
+  第 1 条先给即时反应或态度；
+  第 2 条再补充细节、现状、动作或关系判断；
+  第 3 条及以后只能继续推进话题、抛出新信息或落到下一步。
+- 严禁重复表达：禁止把同一意思拆成多条，禁止同义改写复读，禁止连续几条都在表达同一种情绪判断。
+- 多条消息之间要像聊天，不要像把一段完整长文硬切碎。
 【动作协议 v2】
 - 本轮只允许使用这些 type：${allowedTypes.join(', ')}
 - 每条回复元素都必须是一个带 type 字段的 JSON 对象。
@@ -3257,8 +3314,9 @@ ${triggerTimeAwareReply ? '\n【时间感知】当前真实时间为：' + _real
 【特殊功能】
 ${specialFeatures.join('\n')}
 【输出要求】
-- 本轮系统给你的随机输出上限是 ${randomMsgCount} 条，最多不超过这个数；能 1 条说完就只发 1 条，不必凑满。
-- 严禁重复表达：禁止把同一意思拆成多条、禁止同义改写重复、禁止前后两条只是换个说法重复一遍。
+- 本轮系统给你的随机输出上限是 ${randomMsgCount} 条，最多不超过这个数；这个上限不是目标值，不必凑满。
+- 默认优先最小必要回复，不补全，不升华，不追求圆满收束。
+- 如果用户消息很短、很直接，就不要额外抒情、不要凭空延展、不要替用户总结。
 - 动作型请求优先直接用对应协议消息完成动作，不要先口头答应再拖沓。
 - 只输出纯 JSON 数组，不要解释，不要注释，不要 Markdown 代码块。
 - 输出示例：
@@ -3441,17 +3499,23 @@ ${langInstruction}`
                     return item && item.type === 'voice_message' && (item.content || item.transcript);
                 });
                 if (!hasVoiceMessage) {
-                    const fallbackTextObj = replyArr.find(function(item) {
+                    const fallbackTextIndex = replyArr.findIndex(function(item) {
                         return item && item.type === 'text' && item.content;
                     });
+                    const fallbackTextObj = fallbackTextIndex >= 0 ? replyArr[fallbackTextIndex] : null;
                     const fallbackText = fallbackTextObj && fallbackTextObj.content
-                        ? String(fallbackTextObj.content).trim()
+                        ? String(fallbackTextObj.translation || fallbackTextObj.content).trim()
                         : '嗯，我在呢。';
-                    replyArr.push({
+                    const fallbackVoice = {
                         type: 'voice_message',
                         transcript: fallbackText,
                         durationSec: Math.max(1, Math.ceil(fallbackText.length / 3))
-                    });
+                    };
+                    if (fallbackTextIndex >= 0) {
+                        replyArr[fallbackTextIndex] = fallbackVoice;
+                    } else {
+                        replyArr.push(fallbackVoice);
+                    }
                 }
             }
             replyArr = postProcessMiniRoleReplies(replyArr, randomMsgCount, explicitActionIntent);

@@ -184,7 +184,7 @@
         chatWin.style.display = 'flex';
 
         // 设置顶部联系人名
-        var displayName = await _getSmsDisplayName(contact, '联系人');
+        var displayName = await _getSmsDisplayName(contact, contact.roleName || '角色姓名');
         document.getElementById('sms-chat-name').textContent = displayName;
         document.getElementById('sms-chat-sub').textContent = 'TEXT MESSAGE';
 
@@ -402,15 +402,7 @@
             row.removeEventListener('contextmenu', row._smsCm);
             row.removeEventListener('click', row._smsCk);
 
-            row._smsTs = function(e) {
-                if (smsChatMultiSelectMode) return;
-                if (smsLongPressTimer) clearTimeout(smsLongPressTimer);
-                smsLongPressTimer = setTimeout(function() {
-                    smsLongPressTimer = null;
-                    enterSmsChatMultiSelect(msgId);
-                    _bindSmsBubbleEvents();
-                }, 600);
-            };
+            row._smsTs = null;
             row._smsTe = function() {
                 if (smsLongPressTimer) { clearTimeout(smsLongPressTimer); smsLongPressTimer = null; }
             };
@@ -419,10 +411,6 @@
             };
             row._smsCm = function(e) {
                 e.preventDefault();
-                if (!smsChatMultiSelectMode) {
-                    enterSmsChatMultiSelect(msgId);
-                    _bindSmsBubbleEvents();
-                }
             };
             row._smsCk = function(e) {
                 if (!smsChatMultiSelectMode) return;
@@ -435,9 +423,6 @@
                 _updateSmsBubbleSelection();
             };
 
-            row.addEventListener('touchstart', row._smsTs, {passive: true});
-            row.addEventListener('touchend', row._smsTe);
-            row.addEventListener('touchmove', row._smsTm, {passive: true});
             row.addEventListener('contextmenu', row._smsCm);
             row.addEventListener('click', row._smsCk);
         });

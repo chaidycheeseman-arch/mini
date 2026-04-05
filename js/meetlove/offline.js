@@ -9,6 +9,81 @@
     var activeOfflineBubbleMsgId = null;
     var offlineReplying = false;
 
+    function normalizeOfflineText(text) {
+        return String(text || '').replace(/\r\n?/g, '\n');
+    }
+
+    function sanitizeOfflineMessageContent(text) {
+        var cleaned = normalizeOfflineText(text)
+            .replace(/```[\w-]*\n?([\s\S]*?)```/g, '$1')
+            .replace(/`([^`]+)`/g, '$1')
+            .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi, '$1')
+            .replace(/https?:\/\/[^\s]+/gi, '')
+            .replace(/www\.[^\s]+/gi, '')
+            .replace(/[ \t]+\n/g, '\n')
+            .replace(/\n{3,}/g, '\n\n');
+
+        cleaned = cleaned.split('\n').map(function(line) {
+            return line.trim();
+        }).join('\n');
+
+        cleaned = cleaned.replace(/\n{2,}/g, '\n');
+        return cleaned.trim();
+    }
+
+    function createOfflineTextParagraph(line) {
+        var narrationMatch = line.match(/^\*([\s\S]+)\*$/);
+        if (narrationMatch) {
+            var em = document.createElement('em');
+            em.className = 'offline-narration';
+            em.textContent = narrationMatch[1].trim();
+            return em;
+        }
+
+        var paragraph = document.createElement('div');
+        paragraph.className = 'offline-paragraph';
+        var pattern = /"[^"]*"|“[^”]*”/g;
+        var lastIndex = 0;
+        var match;
+
+        while ((match = pattern.exec(line)) !== null) {
+            var start = match.index;
+            if (start > lastIndex) {
+                paragraph.appendChild(document.createTextNode(line.slice(lastIndex, start)));
+            }
+            var span = document.createElement('span');
+            span.className = 'offline-dialogue';
+            span.textContent = match[0];
+            paragraph.appendChild(span);
+            lastIndex = start + match[0].length;
+        }
+
+        if (lastIndex < line.length) {
+            paragraph.appendChild(document.createTextNode(line.slice(lastIndex)));
+        }
+
+        if (!paragraph.childNodes.length) {
+            paragraph.textContent = line;
+        }
+
+        return paragraph;
+    }
+
+    function renderOfflineMessageContent(container, rawContent) {
+        if (!container) return;
+        container.textContent = '';
+
+        var cleaned = sanitizeOfflineMessageContent(rawContent);
+        if (!cleaned) {
+            return;
+        }
+
+        cleaned.split('\n').forEach(function(line) {
+            var paragraph = createOfflineTextParagraph(line);
+            container.appendChild(paragraph);
+        });
+    }
+
     function formatOfflineTimestamp(ts) {
         var d = new Date(ts);
         var y = d.getFullYear();
@@ -35,7 +110,11 @@
         if (app) app.style.display = 'flex';
         loadOfflineMessages();
         var input = document.getElementById('offline-input-field');
-        if (input) { input.value = ''; input.style.height = 'auto'; }
+        if (input) {
+            input.value = '';
+            if (typeof autoGrowTextarea === 'function') autoGrowTextarea(input);
+            else input.style.height = 'auto';
+        }
     };
 
     window.closeOfflineChat = function() {
@@ -152,6 +231,13 @@
         requestAnimationFrame(function() {
             var sheet = document.getElementById('offline-edit-sheet');
             if (sheet) sheet.style.transform = 'translateY(0)';
+            if (textarea) {
+                textarea.focus();
+                var textLength = textarea.value.length;
+                if (typeof textarea.setSelectionRange === 'function') {
+                    textarea.setSelectionRange(textLength, textLength);
+                }
+            }
         });
     }
 
@@ -168,10 +254,11 @@
     async function saveOfflineEditedMessage() {
         if (!activeOfflineBubbleMsgId) return;
         var textarea = document.getElementById('offline-edit-textarea');
-        var nextText = textarea ? textarea.value : '';
+        var nextText = textarea ? sanitizeOfflineMessageContent(textarea.value) : '';
         if (!nextText || !nextText.trim()) return;
         try {
             await offlineDb.messages.update(activeOfflineBubbleMsgId, { content: nextText });
+            if (textarea) textarea.value = nextText;
             closeOfflineEditModal();
             await loadOfflineMessages();
         } catch (e) {
@@ -686,35 +773,7 @@
         // 气泡正文（旁白灰色斜体，对话黑色正体）
         var textEl = document.createElement('div');
         textEl.className = 'offline-bubble-text';
-        // 解析 *旁白* 和 "对话" 格式
-        var rawContent = msg.content || '';
-        var lines = rawContent.split('\n');
-        lines.forEach(function(line, idx) {
-            if (idx > 0) {
-                textEl.appendChild(document.createTextNode('\n'));
-            }
-            // 检测整行是否为旁白（以*开头和*结尾）
-            var narrationMatch = line.match(/^\*(.+)\*$/);
-            if (narrationMatch) {
-                var em = document.createElement('em');
-                em.className = 'offline-narration';
-                em.textContent = narrationMatch[1];
-                textEl.appendChild(em);
-            } else {
-                // 在行内查找"对话"片段并高亮为黑色
-                var parts = line.split(/([""][^""]*[""])/);
-                parts.forEach(function(part) {
-                    if (part.match(/^[""][^""]*[""]$/)) {
-                        var span = document.createElement('span');
-                        span.className = 'offline-dialogue';
-                        span.textContent = part;
-                        textEl.appendChild(span);
-                    } else if (part) {
-                        textEl.appendChild(document.createTextNode(part));
-                    }
-                });
-            }
-        });
+        renderOfflineMessageContent(textEl, msg.content || '');
 
         bubble.appendChild(header);
         bubble.appendChild(textEl);
@@ -738,19 +797,22 @@
         if (!content || !content.trim()) return;
         var container = document.getElementById('offline-msg-container');
         var ts = Date.now();
+        var normalizedContent = sanitizeOfflineMessageContent(content);
+        if (!normalizedContent) return;
         try {
             var newId = await offlineDb.messages.add({
                 contactId: activeOfflineContact.id,
                 sender: 'me',
-                content: content,
+                content: normalizedContent,
                 timestamp: ts
             });
             input.value = '';
-            input.style.height = 'auto';
-            var msg = { id: newId, contactId: activeOfflineContact.id, sender: 'me', content: content, timestamp: ts };
+            if (typeof autoGrowTextarea === 'function') autoGrowTextarea(input);
+            else input.style.height = 'auto';
+            var msg = { id: newId, contactId: activeOfflineContact.id, sender: 'me', content: normalizedContent, timestamp: ts };
             container.appendChild(buildOfflineBubble(msg));
             requestAnimationFrame(function() { container.scrollTop = container.scrollHeight; });
-            triggerOfflineRoleReply(activeOfflineContact, content);
+            triggerOfflineRoleReply(activeOfflineContact, normalizedContent);
         } catch(e) { console.error('send offline message failed', e); }
     };
 
@@ -831,8 +893,8 @@
                 '【线下模式铁律】\n' +
                 '1. 线下剧情和线上聊天属于同一段关系连续体，必须承接已经发生的事实，不要失忆，不要重新自我介绍。\n' +
                 '2. 你可以描写环境、动作、距离、表情和氛围，但绝对不允许替用户决定动作、心理、反应和台词。\n' +
-                '3. 输出必须是自然中文纯文本，不要JSON，不要列表，不要解释。\n' +
-                '4. 旁白必须用星号包裹，如 *你靠近了一点*；真正说出口的话必须放在双引号内，如 "我在这里"。\n' +
+                '3. 输出必须是自然中文纯文本，不要JSON，不要列表，不要解释，不要Markdown，不要代码块，不要行内代码，不要网址，不要链接。\n' +
+                '4. 旁白必须用星号包裹，如 *你靠近了一点*；真正说出口的话必须放在双引号内，如 "我在这里"；段落之间最多只换行一次，不要连续空行。\n' +
                 '5. 叙述视角固定为' + perspective + '，整体长度控制在' + wordMin + '-' + wordMax + '字之间。\n' +
                 '6. 文字要像真人，不要模板化抒情，不要空泛总结，优先承接刚刚发生的细节、情绪和动作。\n' +
                 '【时间】' + timeStr + '\n';
@@ -873,6 +935,8 @@
                 if (parsed && parsed.content) replyText = parsed.content;
                 else if (Array.isArray(parsed) && parsed[0] && parsed[0].content) replyText = parsed[0].content;
             } catch(e2) {}
+            replyText = sanitizeOfflineMessageContent(replyText);
+            if (!replyText) return;
             var replyTs = Date.now();
             var replyId = await offlineDb.messages.add({
                 contactId: contact.id,
@@ -894,10 +958,22 @@
         var offlineInput = document.getElementById('offline-input-field');
         if (offlineInput) {
             offlineInput.addEventListener('input', function() {
-                this.style.height = 'auto';
-                this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+                if (typeof autoGrowTextarea === 'function') autoGrowTextarea(this);
+                else {
+                    this.style.height = 'auto';
+                    this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+                }
             });
         }
+        document.addEventListener('keydown', function(e) {
+            var modal = document.getElementById('offline-edit-modal');
+            var textarea = document.getElementById('offline-edit-textarea');
+            if (!modal || modal.style.display !== 'flex' || !textarea || document.activeElement !== textarea) return;
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                saveOfflineEditedMessage();
+            }
+        });
         var offlineContainer = document.getElementById('offline-msg-container');
         if (offlineContainer) {
             offlineContainer.addEventListener('scroll', function() {

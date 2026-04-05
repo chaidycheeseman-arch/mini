@@ -204,6 +204,255 @@
     border-radius: 2px;
 }
 
+.device-lock-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 260;
+    overflow: hidden;
+}
+.device-lock-screen,
+.device-passcode-screen {
+    position: absolute;
+    inset: 0;
+}
+.device-lock-wallpaper,
+.device-lock-blur-overlay,
+.device-passcode-wallpaper,
+.device-passcode-blur {
+    position: absolute;
+    inset: 0;
+}
+.device-lock-wallpaper,
+.device-passcode-wallpaper {
+    background: linear-gradient(160deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%);
+    background-size: cover;
+    background-position: center;
+}
+.device-lock-blur-overlay {
+    background: rgba(0,0,0,0.26);
+}
+.device-passcode-blur {
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+}
+.device-lock-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    padding-top: 118px;
+}
+.device-lock-time {
+    font-size: 72px;
+    font-weight: 200;
+    line-height: 1;
+    letter-spacing: -2px;
+    color: #fff;
+    text-shadow: 0 2px 20px rgba(0,0,0,0.3);
+    font-family: -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif;
+}
+.device-lock-date {
+    margin-top: 8px;
+    font-size: 16px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.84);
+}
+.device-lock-notif {
+    margin-top: 28px;
+    width: calc(100% - 34px);
+    max-width: 320px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.16);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.14);
+}
+.device-lock-notif-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: rgba(91, 141, 239, 0.92);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.device-lock-notif-text {
+    font-size: 13px;
+    color: rgba(255,255,255,0.9);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.device-lock-swipe-hint {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 28px;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+.device-lock-swipe-bar {
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.52);
+    animation: cpSwipeAnim 2s infinite ease-in-out;
+}
+.device-lock-swipe-text {
+    font-size: 12px;
+    color: rgba(255,255,255,0.66);
+    letter-spacing: 0.5px;
+}
+.device-passcode-content {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    padding: 94px 20px 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    overflow-y: auto;
+}
+.device-passcode-content::-webkit-scrollbar {
+    display: none;
+}
+.device-passcode-avatar {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.device-passcode-avatar-core {
+    font-size: 24px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.92);
+    letter-spacing: 0.4px;
+}
+.device-passcode-name {
+    font-size: 16px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.9);
+}
+.device-passcode-hint {
+    font-size: 13px;
+    color: rgba(255,255,255,0.62);
+    margin-bottom: 4px;
+}
+.device-passcode-dots {
+    display: flex;
+    gap: 14px;
+    min-height: 16px;
+    margin: 4px 0;
+}
+.device-passcode-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.6);
+    background: transparent;
+    transition: background 0.15s, border-color 0.15s;
+}
+.device-passcode-dot.filled {
+    background: rgba(255,255,255,0.92);
+    border-color: rgba(255,255,255,0.92);
+}
+.device-passcode-dot.error {
+    background: #ff5a5a;
+    border-color: #ff5a5a;
+}
+.device-passcode-error {
+    font-size: 12px;
+    color: #ff7c7c;
+    background: rgba(255,100,100,0.14);
+    padding: 4px 12px;
+    border-radius: 10px;
+}
+.device-passcode-numpad {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 4px;
+}
+.device-passcode-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    justify-items: center;
+}
+.device-passcode-key {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    user-select: none;
+}
+.device-passcode-key:active {
+    background: rgba(255,255,255,0.34);
+    transform: scale(0.92);
+}
+.device-passcode-key-empty {
+    background: transparent !important;
+    border-color: transparent !important;
+    pointer-events: none;
+}
+.device-passcode-key-del {
+    background: rgba(255,255,255,0.08) !important;
+}
+.device-passcode-key-main {
+    font-size: 24px;
+    font-weight: 300;
+    line-height: 1;
+    color: rgba(255,255,255,0.92);
+    font-family: -apple-system, "Helvetica Neue", sans-serif;
+}
+.device-passcode-key-sub {
+    margin-top: 2px;
+    font-size: 9px;
+    color: rgba(255,255,255,0.45);
+    letter-spacing: 1px;
+    font-family: -apple-system, "Helvetica Neue", sans-serif;
+}
+.device-passcode-cancel {
+    margin-top: 6px;
+    padding: 6px 20px;
+    font-size: 14px;
+    color: rgba(255,255,255,0.72);
+    cursor: pointer;
+}
+.device-passcode-cancel:active {
+    opacity: 0.6;
+}
+
 /* 锁屏层 */
 .cp-lock-screen {
     position: absolute;

@@ -99,6 +99,13 @@
     const ST_MM_LANG = 'miffy_minimax_language';
     const ST_MM_SPEED = 'miffy_minimax_speed';
     const ST_MM_PRESETS = 'miffy_minimax_voice_presets';
+    const ST_DEVICE_LOCK_ENABLED = 'miffy_device_lock_enabled';
+    const ST_DEVICE_LOCK_CODE = 'miffy_device_lock_code';
+    const ST_DEVICE_LOCK_WALLPAPER = 'miffy_device_lock_wallpaper';
+    const LITE_DEVICE_LOCK_ENABLED = 'miffy_lite_device_lock_enabled';
+    const LITE_DEVICE_LOCK_CODE = 'miffy_lite_device_lock_code';
+    const LITE_DEVICE_LOCK_WALLPAPER = 'miffy_lite_device_lock_wallpaper';
+    const DEFAULT_DEVICE_LOCK_CODE = '2066';
 
     const MM_LANG_TEST_TEXT = {
         zh: '乖宝~语音连接成功，mini 已正常接入。',
@@ -112,6 +119,454 @@
     let mmCurrentVoiceElement = null;
     let mmVoiceRequestSeq = 0;
     let presetManagerMode = 'text';
+    let deviceLockEnabled = true;
+    let deviceLockCode = DEFAULT_DEVICE_LOCK_CODE;
+    let deviceLockInput = '';
+    let deviceLockClockTimer = null;
+
+    function readLiteStorage(key) {
+        try {
+            return localStorage.getItem(key);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function writeLiteStorage(key, value) {
+        try {
+            localStorage.setItem(key, String(value));
+        } catch (e) {}
+    }
+
+    function removeLiteStorage(key) {
+        try {
+            localStorage.removeItem(key);
+        } catch (e) {}
+    }
+
+    function readLiteBoolean(key) {
+        const raw = readLiteStorage(key);
+        if (raw === null || raw === undefined || raw === '') return null;
+        return raw === '1' || raw === 'true';
+    }
+
+    function normalizeDeviceLockCode(raw) {
+        const digits = String(raw || '').replace(/\D/g, '');
+        if (digits.length >= 4 && digits.length <= 8) return digits;
+        return DEFAULT_DEVICE_LOCK_CODE;
+    }
+
+    function getDeviceLockElement(id) {
+        return document.getElementById(id);
+    }
+
+    function getDeviceLockBackgroundValue(src) {
+        return src
+            ? `url(${src}) center/cover no-repeat`
+            : 'linear-gradient(160deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%)';
+    }
+
+    async function getFallbackDeviceLockWallpaper() {
+        try {
+            const themeMode = await localforage.getItem('miffy_theme_mode');
+            const customTheme = await localforage.getItem('miffy_custom_theme');
+            if (themeMode === 'custom' && customTheme && customTheme.wallpaper) {
+                return customTheme.wallpaper;
+            }
+        } catch (e) {}
+        try {
+            if (typeof imgDb !== 'undefined') {
+                const record = await imgDb.images.get('wallpaper-preview');
+                if (record && record.src && !String(record.src).includes('via.placeholder.com')) {
+                    return record.src;
+                }
+            }
+        } catch (e) {}
+        return '';
+    }
+
+    async function getDeviceLockWallpaperSource() {
+        const saved = await localforage.getItem(ST_DEVICE_LOCK_WALLPAPER);
+        if (saved) return saved;
+        const liteSaved = readLiteStorage(LITE_DEVICE_LOCK_WALLPAPER);
+        if (liteSaved) return liteSaved;
+        return getFallbackDeviceLockWallpaper();
+    }
+
+    function applyDeviceLockWallpaperToUI(src) {
+        const backgroundValue = getDeviceLockBackgroundValue(src);
+        ['device-lock-wallpaper', 'device-passcode-wallpaper', 'theme-lock-preview-wallpaper'].forEach(function(id) {
+            const el = getDeviceLockElement(id);
+            if (el) el.style.background = backgroundValue;
+        });
+    }
+
+    async function refreshDeviceLockWallpaperPreview() {
+        const src = await getDeviceLockWallpaperSource();
+        applyDeviceLockWallpaperToUI(src);
+    }
+
+    async function persistDeviceLockWallpaper(src) {
+        if (src) {
+            await localforage.setItem(ST_DEVICE_LOCK_WALLPAPER, src);
+            writeLiteStorage(LITE_DEVICE_LOCK_WALLPAPER, src);
+        } else {
+            await localforage.removeItem(ST_DEVICE_LOCK_WALLPAPER);
+            removeLiteStorage(LITE_DEVICE_LOCK_WALLPAPER);
+        }
+        await refreshDeviceLockWallpaperPreview();
+    }
+
+    async function readDeviceLockImage(file) {
+        return new Promise(function(resolve, reject) {
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                let result = e && e.target ? e.target.result : '';
+                if (typeof compressImageBase64 === 'function' && result) {
+                    try {
+                        result = await compressImageBase64(result, 1440, 0.82);
+                    } catch (err) {
+                        console.error('锁屏壁纸压缩失败', err);
+                    }
+                }
+                resolve(result);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    async function handleDeviceLockWallpaperFile(event) {
+        const file = event && event.target && event.target.files ? event.target.files[0] : null;
+        if (!file) return;
+        const result = await readDeviceLockImage(file);
+        await persistDeviceLockWallpaper(result);
+        event.target.value = '';
+    }
+
+    async function clearDeviceLockWallpaper() {
+        await persistDeviceLockWallpaper('');
+    }
+
+    function updateDeviceLockClock() {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const dateText = `${now.getMonth() + 1}月${now.getDate()}日 ${['星期日','星期一','星期二','星期三','星期四','星期五','星期六'][now.getDay()]}`;
+        const timeText = `${hh}:${mm}`;
+        ['device-lock-time', 'theme-lock-preview-time'].forEach(function(id) {
+            const el = getDeviceLockElement(id);
+            if (el) el.textContent = timeText;
+        });
+        ['device-lock-date', 'theme-lock-preview-date'].forEach(function(id) {
+            const el = getDeviceLockElement(id);
+            if (el) el.textContent = dateText;
+        });
+    }
+
+    function buildDotsInto(containerId, dotClassName, dotIdPrefix) {
+        const dotsWrap = getDeviceLockElement(containerId);
+        if (!dotsWrap) return;
+        dotsWrap.innerHTML = '';
+        for (let i = 0; i < deviceLockCode.length; i++) {
+            const dot = document.createElement('div');
+            dot.className = dotClassName;
+            if (dotIdPrefix) dot.id = dotIdPrefix + i;
+            dotsWrap.appendChild(dot);
+        }
+    }
+
+    function buildDeviceLockDots() {
+        buildDotsInto('device-passcode-dots', 'device-passcode-dot', 'device-passcode-dot-');
+        buildDotsInto('theme-lock-preview-dots', 'theme-lock-preview-dot', '');
+    }
+
+    function updateDeviceLockDots(state) {
+        const mode = state || '';
+        for (let i = 0; i < deviceLockCode.length; i++) {
+            const dot = getDeviceLockElement('device-passcode-dot-' + i);
+            if (!dot) continue;
+            if (mode === 'error') dot.className = 'device-passcode-dot error';
+            else dot.className = 'device-passcode-dot' + (i < deviceLockInput.length ? ' filled' : '');
+        }
+    }
+
+    function hideDevicePasscodeError() {
+        const errEl = getDeviceLockElement('device-passcode-error');
+        const hintEl = getDeviceLockElement('device-passcode-hint');
+        if (errEl) errEl.style.display = 'none';
+        if (hintEl) hintEl.textContent = '输入锁屏密码';
+    }
+
+    function showDevicePasscodeError() {
+        const errEl = getDeviceLockElement('device-passcode-error');
+        const hintEl = getDeviceLockElement('device-passcode-hint');
+        const dotsWrap = getDeviceLockElement('device-passcode-dots');
+        if (errEl) errEl.style.display = 'block';
+        if (hintEl) hintEl.textContent = '密码错误，请重试';
+        updateDeviceLockDots('error');
+        if (dotsWrap) {
+            const seq = [8, -8, 6, -6, 4, 0];
+            let idx = 0;
+            const timer = setInterval(function() {
+                dotsWrap.style.transform = 'translateX(' + seq[idx] + 'px)';
+                idx += 1;
+                if (idx >= seq.length) {
+                    clearInterval(timer);
+                    dotsWrap.style.transform = '';
+                }
+            }, 60);
+        }
+    }
+
+    function showDeviceLockScreen() {
+        const lockScreen = getDeviceLockElement('device-lock-screen');
+        const passcodeScreen = getDeviceLockElement('device-passcode-screen');
+        deviceLockInput = '';
+        if (lockScreen) lockScreen.style.display = 'block';
+        if (passcodeScreen) passcodeScreen.style.display = 'none';
+        hideDevicePasscodeError();
+        buildDeviceLockDots();
+        updateDeviceLockDots();
+    }
+
+    function showDevicePasscodeScreen() {
+        const lockScreen = getDeviceLockElement('device-lock-screen');
+        const passcodeScreen = getDeviceLockElement('device-passcode-screen');
+        deviceLockInput = '';
+        if (lockScreen) lockScreen.style.display = 'none';
+        if (passcodeScreen) passcodeScreen.style.display = 'block';
+        hideDevicePasscodeError();
+        buildDeviceLockDots();
+        updateDeviceLockDots();
+    }
+
+    function hideDeviceLockOverlay() {
+        const overlay = getDeviceLockElement('device-lock-overlay');
+        if (overlay) overlay.style.display = 'none';
+        showDeviceLockScreen();
+    }
+
+    function lockDevice() {
+        if (!deviceLockEnabled) {
+            hideDeviceLockOverlay();
+            return;
+        }
+        const overlay = getDeviceLockElement('device-lock-overlay');
+        if (overlay) overlay.style.display = 'block';
+        showDeviceLockScreen();
+    }
+
+    function unlockDevice() {
+        hideDeviceLockOverlay();
+    }
+
+    async function verifyDeviceLockInput() {
+        if (deviceLockInput === deviceLockCode) {
+            unlockDevice();
+            return;
+        }
+        deviceLockInput = '';
+        showDevicePasscodeError();
+        setTimeout(function() {
+            hideDevicePasscodeError();
+            updateDeviceLockDots();
+        }, 520);
+    }
+
+    function deviceLockInputDigit(digit) {
+        if (!deviceLockEnabled || deviceLockInput.length >= deviceLockCode.length) return;
+        deviceLockInput += String(digit || '');
+        updateDeviceLockDots();
+        if (deviceLockInput.length === deviceLockCode.length) {
+            verifyDeviceLockInput();
+        }
+    }
+
+    function deviceLockDeleteDigit() {
+        if (!deviceLockInput) return;
+        deviceLockInput = deviceLockInput.slice(0, -1);
+        updateDeviceLockDots();
+    }
+
+    function deviceLockCancelPasscode() {
+        showDeviceLockScreen();
+    }
+
+    function bindDeviceLockGesture() {
+        const lockScreen = getDeviceLockElement('device-lock-screen');
+        const swipeHint = getDeviceLockElement('device-lock-swipe-hint');
+        if (!lockScreen || lockScreen._deviceLockBound) return;
+        lockScreen._deviceLockBound = true;
+
+        let startY = 0;
+        let startX = 0;
+
+        lockScreen.addEventListener('touchstart', function(e) {
+            startY = e.touches[0].clientY;
+            startX = e.touches[0].clientX;
+        }, { passive: true });
+
+        lockScreen.addEventListener('touchend', function(e) {
+            const dy = startY - e.changedTouches[0].clientY;
+            const dx = Math.abs(startX - e.changedTouches[0].clientX);
+            if (dy > 40 && dx < dy) showDevicePasscodeScreen();
+        }, { passive: true });
+
+        lockScreen.addEventListener('mousedown', function(e) {
+            startY = e.clientY;
+        });
+
+        lockScreen.addEventListener('mouseup', function(e) {
+            if (startY - e.clientY > 40) showDevicePasscodeScreen();
+        });
+
+        if (swipeHint) swipeHint.onclick = showDevicePasscodeScreen;
+    }
+
+    function updateDeviceLockStatusTip() {
+        const tip = getDeviceLockElement('device-lock-status-tip');
+        if (!tip) return;
+        tip.textContent = deviceLockEnabled
+            ? `已开启锁屏密码，当前为 ${deviceLockCode.length} 位数字。默认初始密码是 ${DEFAULT_DEVICE_LOCK_CODE}。`
+            : '已关闭锁屏密码，进入桌面时不会再要求输入密码。';
+    }
+
+    function ensureSettingsSecurityFirst() {
+        const settingsBody = document.querySelector('#settings-app .app-body');
+        const securitySection = getDeviceLockElement('accordion-security');
+        if (!settingsBody || !securitySection) return;
+        const firstAccordion = settingsBody.querySelector('.theme-accordion-item');
+        if (firstAccordion && firstAccordion !== securitySection) {
+            settingsBody.insertBefore(securitySection, firstAccordion);
+        }
+        if (!settingsBody.querySelector('.theme-accordion-item.active')) {
+            securitySection.classList.add('active');
+        }
+    }
+
+    async function ensureDeviceLockDefaults() {
+        const savedEnabled = await localforage.getItem(ST_DEVICE_LOCK_ENABLED);
+        const savedCode = await localforage.getItem(ST_DEVICE_LOCK_CODE);
+        const liteEnabled = readLiteBoolean(LITE_DEVICE_LOCK_ENABLED);
+        const liteCodeRaw = readLiteStorage(LITE_DEVICE_LOCK_CODE);
+        const liteCode = liteCodeRaw ? normalizeDeviceLockCode(liteCodeRaw) : '';
+        const normalizedEnabled = savedEnabled === null || savedEnabled === undefined
+            ? (liteEnabled === null ? true : liteEnabled)
+            : savedEnabled !== false;
+        const normalizedCode = normalizeDeviceLockCode(savedCode || liteCode || DEFAULT_DEVICE_LOCK_CODE);
+
+        if (savedEnabled === null || savedEnabled === undefined) {
+            await localforage.setItem(ST_DEVICE_LOCK_ENABLED, normalizedEnabled);
+        }
+        if (!savedCode) {
+            await localforage.setItem(ST_DEVICE_LOCK_CODE, normalizedCode);
+        }
+
+        writeLiteStorage(LITE_DEVICE_LOCK_ENABLED, normalizedEnabled ? '1' : '0');
+        writeLiteStorage(LITE_DEVICE_LOCK_CODE, normalizedCode);
+
+        const savedWallpaper = await localforage.getItem(ST_DEVICE_LOCK_WALLPAPER);
+        const liteWallpaper = readLiteStorage(LITE_DEVICE_LOCK_WALLPAPER);
+        if (!savedWallpaper && liteWallpaper) {
+            await localforage.setItem(ST_DEVICE_LOCK_WALLPAPER, liteWallpaper);
+        } else if (savedWallpaper) {
+            writeLiteStorage(LITE_DEVICE_LOCK_WALLPAPER, savedWallpaper);
+        }
+    }
+
+    async function syncDeviceLockConfig() {
+        await ensureDeviceLockDefaults();
+        const savedEnabled = await localforage.getItem(ST_DEVICE_LOCK_ENABLED);
+        const savedCode = await localforage.getItem(ST_DEVICE_LOCK_CODE);
+        const liteEnabled = readLiteBoolean(LITE_DEVICE_LOCK_ENABLED);
+        const liteCode = readLiteStorage(LITE_DEVICE_LOCK_CODE);
+        deviceLockEnabled = savedEnabled === null || savedEnabled === undefined
+            ? liteEnabled !== false
+            : savedEnabled !== false;
+        deviceLockCode = normalizeDeviceLockCode(savedCode || liteCode || DEFAULT_DEVICE_LOCK_CODE);
+        writeLiteStorage(LITE_DEVICE_LOCK_ENABLED, deviceLockEnabled ? '1' : '0');
+        writeLiteStorage(LITE_DEVICE_LOCK_CODE, deviceLockCode);
+        buildDeviceLockDots();
+        updateDeviceLockDots();
+        updateDeviceLockStatusTip();
+        await refreshDeviceLockWallpaperPreview();
+    }
+
+    async function loadDeviceSecuritySettingsUI() {
+        ensureSettingsSecurityFirst();
+        await syncDeviceLockConfig();
+        const enabledInput = getDeviceLockElement('device-lock-enabled');
+        const pwdInput = getDeviceLockElement('device-lock-password');
+        const confirmInput = getDeviceLockElement('device-lock-password-confirm');
+        if (enabledInput) enabledInput.checked = !!deviceLockEnabled;
+        if (pwdInput) pwdInput.value = '';
+        if (confirmInput) confirmInput.value = '';
+    }
+
+    async function saveSecuritySettings() {
+        const enabledInput = getDeviceLockElement('device-lock-enabled');
+        const pwdInput = getDeviceLockElement('device-lock-password');
+        const confirmInput = getDeviceLockElement('device-lock-password-confirm');
+        const previousEnabled = deviceLockEnabled;
+        const nextEnabled = enabledInput ? !!enabledInput.checked : true;
+        const nextPwd = pwdInput ? String(pwdInput.value || '').replace(/\D/g, '') : '';
+        const confirmPwd = confirmInput ? String(confirmInput.value || '').replace(/\D/g, '') : '';
+        let finalCode = deviceLockCode;
+
+        if (nextPwd || confirmPwd) {
+            if (nextPwd.length < 4 || nextPwd.length > 8) {
+                alert('锁屏密码需为 4 到 8 位数字');
+                return;
+            }
+            if (nextPwd !== confirmPwd) {
+                alert('两次输入的锁屏密码不一致');
+                return;
+            }
+            finalCode = nextPwd;
+        }
+
+        deviceLockEnabled = nextEnabled;
+        deviceLockCode = normalizeDeviceLockCode(finalCode);
+        await localforage.setItem(ST_DEVICE_LOCK_ENABLED, deviceLockEnabled);
+        await localforage.setItem(ST_DEVICE_LOCK_CODE, deviceLockCode);
+        writeLiteStorage(LITE_DEVICE_LOCK_ENABLED, deviceLockEnabled ? '1' : '0');
+        writeLiteStorage(LITE_DEVICE_LOCK_CODE, deviceLockCode);
+
+        if (pwdInput) pwdInput.value = '';
+        if (confirmInput) confirmInput.value = '';
+
+        buildDeviceLockDots();
+        updateDeviceLockDots();
+        updateDeviceLockStatusTip();
+
+        if (!deviceLockEnabled) {
+            hideDeviceLockOverlay();
+        } else if (!previousEnabled) {
+            lockDevice();
+        }
+
+        alert('安全设置已成功保存');
+    }
+
+    async function initDeviceLock() {
+        ensureSettingsSecurityFirst();
+        await syncDeviceLockConfig();
+        bindDeviceLockGesture();
+        updateDeviceLockClock();
+        if (deviceLockClockTimer) clearInterval(deviceLockClockTimer);
+        deviceLockClockTimer = setInterval(updateDeviceLockClock, 1000);
+        if (deviceLockEnabled) lockDevice();
+        else hideDeviceLockOverlay();
+    }
+
+    window.refreshDeviceLockWallpaperPreview = refreshDeviceLockWallpaperPreview;
+    window.handleDeviceLockWallpaperFile = handleDeviceLockWallpaperFile;
+    window.clearDeviceLockWallpaper = clearDeviceLockWallpaper;
+    window.saveSecuritySettings = saveSecuritySettings;
+    window.deviceLockInputDigit = deviceLockInputDigit;
+    window.deviceLockDeleteDigit = deviceLockDeleteDigit;
+    window.deviceLockCancelPasscode = deviceLockCancelPasscode;
 
     function normalizeMiniMaxLanguage(lang) {
         const val = (lang || '').toLowerCase();
@@ -402,6 +857,7 @@
         if (speedEl) speedEl.value = normalizeMiniMaxSpeed(mmConfig.speed).toFixed(1);
         updateMiniMaxSpeedDisplay(mmConfig.speed);
         showMiniMaxTestTip('', false);
+        await loadDeviceSecuritySettingsUI();
         if (window.miniRuntimeLog && typeof window.miniRuntimeLog.render === 'function') {
             await window.miniRuntimeLog.render();
         }
@@ -627,6 +1083,9 @@
                 updateMiniMaxSpeedDisplay(this.value);
             });
         }
+        initDeviceLock().catch(function(err) {
+            console.error('初始化设备锁屏失败', err);
+        });
     });
     const db = new Dexie("miniPhoneWorldbookDB_V2");
     db.version(1).stores({ entries: '++id, category, activation, priority' });

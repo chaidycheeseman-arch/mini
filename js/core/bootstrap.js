@@ -81,7 +81,7 @@ function _buildBankCardElement(cardData) {
     tempDiv.innerHTML = html;
     return tempDiv.firstChild;
 }
-const appIconNames = ["小说", "日记", "购物", "论坛", "WeChat", "纪念日", "遇恋", "世界书", "占位1", "闲鱼", "查手机", "情侣空间", "信息", "占位3", "占位4", "占位5", "主题", "设置"];
+const appIconNames = ["小说", "日记", "购物", "论坛", "WeChat", "纪念日", "遇恋", "世界书", "占位1", "闲鱼", "查手机", "情侣空间", "音乐", "信息", "占位4", "占位5", "主题", "设置"];
 const themeIconGrid = document.getElementById('icon-theme-grid');
 const mainIcons = document.querySelectorAll('.icon-img img, .dock-icon img');
 const headerSubtitleMap = {

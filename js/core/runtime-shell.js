@@ -83,7 +83,7 @@ function _buildBankCardElement(cardData) {
     tempDiv.innerHTML = html;
     return tempDiv.firstChild;
 }
-const appIconNames = ["小说", "日记", "购物", "论坛", "WeChat", "纪念日", "遇恋", "世界书", "占位1", "闲鱼", "查手机", "情侣空间", "信息", "占位3", "占位4", "占位5", "主题", "设置"];
+const appIconNames = ["小说", "日记", "购物", "论坛", "WeChat", "纪念日", "记忆", "世界书", "游戏", "闲鱼", "查手机", "情侣空间", "音乐", "信息", "梦境", "21st Closet", "主题", "设置"];
 const themeIconGrid = document.getElementById('icon-theme-grid');
 const mainIcons = document.querySelectorAll('.icon-img img, .dock-icon img');
 const headerSubtitleMap = {
@@ -102,7 +102,10 @@ const headerSubtitleMap = {
     '聊天详情': 'CHAT DETAIL',
     '发朋友圈': 'MOMENTS',
     '理财': 'FINANCE',
-    '遇恋': 'MEETLOVE',
+    '记忆': 'MEMORY',
+    '游戏': 'GAME',
+    '梦境': 'DREAM',
+    '21stCloset': '21ST CLOSET',
     '匹配': 'MATCH',
     '线下': 'OFFLINE',
     '大厅设置': 'HALL SETTINGS',
@@ -215,8 +218,37 @@ if(rw) rw.textContent = week;
         el.addEventListener('click', (e) => {
             e.stopPropagation();
             openImageMenuAtEvent(e, el.id);
-        });
     });
+});
+
+function getEventElementTarget(target) {
+    if (!target) return null;
+    if (target.nodeType === 1) return target;
+    return target.parentElement || null;
+}
+
+function safeClosestFromEventTarget(target, selector) {
+    const elementTarget = getEventElementTarget(target);
+    if (!elementTarget || typeof elementTarget.closest !== 'function') return null;
+    return elementTarget.closest(selector);
+}
+
+window.safeClosestTarget = safeClosestFromEventTarget;
+
+document.addEventListener('contextmenu', function(e) {
+    if (!safeClosestFromEventTarget(e.target, '.phone-screen')) return;
+    e.preventDefault();
+});
+
+document.addEventListener('selectstart', function(e) {
+    if (!safeClosestFromEventTarget(e.target, '.phone-screen')) return;
+    e.preventDefault();
+});
+
+document.addEventListener('dragstart', function(e) {
+    if (!safeClosestFromEventTarget(e.target, '.phone-screen')) return;
+    e.preventDefault();
+});
     function getEditableTextStorageKey(el, fallbackIndex) {
         if (!el) return null;
         if (el.id) return 'miffy_text_' + el.id;
@@ -240,7 +272,7 @@ if(rw) rw.textContent = week;
     });
     document.addEventListener('click', (e) => {
         // 只有点击非 editable 元素时才关闭菜单（防止点击 editable 后菜单立即被关闭）
-        if (!e.target.closest('.editable') && !e.target.closest('#menu-panel')) {
+        if (!safeClosestFromEventTarget(e.target, '.editable') && !safeClosestFromEventTarget(e.target, '#menu-panel')) {
             menu.style.display = 'none';
         }
     });
@@ -414,18 +446,54 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
     function setWallpaper(src) {
         const screen = document.querySelector('.phone-screen');
-        if (src && !src.includes('via.placeholder.com')) {
+        if (!screen) return;
+        const themeMode = document.documentElement.getAttribute('data-theme') || 'day';
+        const hasImage = !!(src && !src.includes('via.placeholder.com'));
+        const syncDeviceLockWallpaper = function() {
+            if (typeof window.refreshDeviceLockWallpaperPreview === 'function') {
+                window.refreshDeviceLockWallpaperPreview().catch(function(err) {
+                    console.error('刷新锁屏壁纸预览失败', err);
+                });
+            }
+        };
+        screen.style.backgroundBlendMode = '';
+
+        if (themeMode === 'night') {
+            if (hasImage) {
+                screen.style.background = `radial-gradient(circle at top, rgba(76,82,92,0.16), transparent 34%), linear-gradient(180deg, rgba(10,11,14,0.14) 0%, rgba(3,3,4,0.32) 100%), url(${src}) center/cover no-repeat`;
+                screen.style.backgroundBlendMode = 'screen, multiply, normal';
+            } else {
+                screen.style.background = 'radial-gradient(circle at top, rgba(88,94,106,0.22), transparent 34%), linear-gradient(180deg, #1a1c21 0%, #0d0e12 58%, #000000 100%)';
+            }
+            syncDeviceLockWallpaper();
+            return;
+        }
+
+        if (themeMode === 'dopamine' && hasImage) {
+            screen.style.background = `linear-gradient(180deg, rgba(255,244,238,0.16) 0%, rgba(255,240,230,0.26) 100%), url(${src}) center/cover no-repeat`;
+            screen.style.backgroundBlendMode = 'normal, normal';
+            syncDeviceLockWallpaper();
+            return;
+        }
+
+        if (hasImage) {
             screen.style.background = `url(${src}) center/cover no-repeat`;
         } else {
             screen.style.background = '';
         }
+        syncDeviceLockWallpaper();
+    }
+    function shouldDeferToCustomThemeWallpaper() {
+        return document.documentElement.getAttribute('data-theme') === 'custom';
     }
     const previewImg = document.querySelector('#wallpaper-preview img');
     if (previewImg) {
         new MutationObserver(async (mutations) => {
             for (let mutation of mutations) {
                 if (mutation.type === 'attributes' && mutation.attributeName === 'src') {
-                    setWallpaper(previewImg.src);
+                    if (!shouldDeferToCustomThemeWallpaper()) {
+                        setWallpaper(previewImg.src);
+                    }
                     // 修复：不保存占位图URL（via.placeholder.com）到IndexedDB
                     // 否则 restoreDefaultWallpaper() 重置时会把占位图URL写入数据库，
                     // 下次加载时会尝试将占位图设为壁纸，导致壁纸显示异常
@@ -456,7 +524,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     setTimeout(async () => {
         const record = await imgDb.images.get('wallpaper-preview');
-        if (record && record.src) {
+        if (record && record.src && !shouldDeferToCustomThemeWallpaper()) {
             setWallpaper(record.src);
             if (previewImg && previewImg.src !== record.src) {
                 previewImg.src = record.src;

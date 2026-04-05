@@ -153,16 +153,25 @@
         if (!activeChatContact) return;
         var app = document.getElementById('chat-detail-app');
         if (!app) return;
+        var appBody = app.querySelector('.app-body');
 
         // 填充角色头像
         var roleImg = document.getElementById('cd-role-avatar-img');
         if (roleImg) {
-            roleImg.src = activeChatContact.roleAvatar || whitePixel;
+            if (typeof window.applySafeImageSource === 'function') {
+                window.applySafeImageSource(roleImg, activeChatContact.roleAvatar || '');
+            } else {
+                roleImg.src = activeChatContact.roleAvatar || (window.defaultAvatarDataUri || whitePixel);
+            }
         }
         // 填充我方头像
         var userImg = document.getElementById('cd-user-avatar-img');
         if (userImg) {
-            userImg.src = activeChatContact.userAvatar || whitePixel;
+            if (typeof window.applySafeImageSource === 'function') {
+                window.applySafeImageSource(userImg, activeChatContact.userAvatar || '');
+            } else {
+                userImg.src = activeChatContact.userAvatar || (window.defaultAvatarDataUri || whitePixel);
+            }
         }
 
         // 填充角色名称标签：优先备注，否则用 roleName
@@ -315,12 +324,21 @@
         // 同步角色拉黑用户按钮状态
         updateRoleBlockUserBtn();
 
-        app.style.display = 'flex';
+        if (appBody) appBody.scrollTop = 0;
+        if (typeof window.syncWechatOverlayStack === 'function') {
+            window.syncWechatOverlayStack(['wechat-app', 'chat-detail-app']);
+        } else {
+            app.style.display = 'flex';
+        }
     };
 
     // 关闭聊天详情页
     window.closeChatDetail = function() {
         var app = document.getElementById('chat-detail-app');
+        if (typeof window.syncWechatOverlayStack === 'function') {
+            window.syncWechatOverlayStack(['wechat-app', 'role-profile-app']);
+            return;
+        }
         if (app) app.style.display = 'none';
     };
 

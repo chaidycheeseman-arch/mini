@@ -939,6 +939,81 @@ var HV_HISTORY_KEY = 'hv_history_';
     var activeOfflineBubbleMsgId = null;
     var offlineReplying = false;
 
+    function normalizeOfflineText(text) {
+        return String(text || '').replace(/\r\n?/g, '\n');
+    }
+
+    function sanitizeOfflineMessageContent(text) {
+        var cleaned = normalizeOfflineText(text)
+            .replace(/```[\w-]*\n?([\s\S]*?)```/g, '$1')
+            .replace(/`([^`]+)`/g, '$1')
+            .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi, '$1')
+            .replace(/https?:\/\/[^\s]+/gi, '')
+            .replace(/www\.[^\s]+/gi, '')
+            .replace(/[ \t]+\n/g, '\n')
+            .replace(/\n{3,}/g, '\n\n');
+
+        cleaned = cleaned.split('\n').map(function(line) {
+            return line.trim();
+        }).join('\n');
+
+        cleaned = cleaned.replace(/\n{2,}/g, '\n');
+        return cleaned.trim();
+    }
+
+    function createOfflineTextParagraph(line) {
+        var narrationMatch = line.match(/^\*([\s\S]+)\*$/);
+        if (narrationMatch) {
+            var em = document.createElement('em');
+            em.className = 'offline-narration';
+            em.textContent = narrationMatch[1].trim();
+            return em;
+        }
+
+        var paragraph = document.createElement('div');
+        paragraph.className = 'offline-paragraph';
+        var pattern = /"[^"]*"|“[^”]*”/g;
+        var lastIndex = 0;
+        var match;
+
+        while ((match = pattern.exec(line)) !== null) {
+            var start = match.index;
+            if (start > lastIndex) {
+                paragraph.appendChild(document.createTextNode(line.slice(lastIndex, start)));
+            }
+            var span = document.createElement('span');
+            span.className = 'offline-dialogue';
+            span.textContent = match[0];
+            paragraph.appendChild(span);
+            lastIndex = start + match[0].length;
+        }
+
+        if (lastIndex < line.length) {
+            paragraph.appendChild(document.createTextNode(line.slice(lastIndex)));
+        }
+
+        if (!paragraph.childNodes.length) {
+            paragraph.textContent = line;
+        }
+
+        return paragraph;
+    }
+
+    function renderOfflineMessageContent(container, rawContent) {
+        if (!container) return;
+        container.textContent = '';
+
+        var cleaned = sanitizeOfflineMessageContent(rawContent);
+        if (!cleaned) {
+            return;
+        }
+
+        cleaned.split('\n').forEach(function(line) {
+            var paragraph = createOfflineTextParagraph(line);
+            container.appendChild(paragraph);
+        });
+    }
+
     function formatOfflineTimestamp(ts) {
         var d = new Date(ts);
         var y = d.getFullYear();
@@ -1082,6 +1157,13 @@ var HV_HISTORY_KEY = 'hv_history_';
         requestAnimationFrame(function() {
             var sheet = document.getElementById('offline-edit-sheet');
             if (sheet) sheet.style.transform = 'translateY(0)';
+            if (textarea) {
+                textarea.focus();
+                var textLength = textarea.value.length;
+                if (typeof textarea.setSelectionRange === 'function') {
+                    textarea.setSelectionRange(textLength, textLength);
+                }
+            }
         });
     }
 
@@ -1098,10 +1180,11 @@ var HV_HISTORY_KEY = 'hv_history_';
     async function saveOfflineEditedMessage() {
         if (!activeOfflineBubbleMsgId) return;
         var textarea = document.getElementById('offline-edit-textarea');
-        var nextText = textarea ? textarea.value : '';
+        var nextText = textarea ? sanitizeOfflineMessageContent(textarea.value) : '';
         if (!nextText || !nextText.trim()) return;
         try {
             await offlineDb.messages.update(activeOfflineBubbleMsgId, { content: nextText });
+            if (textarea) textarea.value = nextText;
             closeOfflineEditModal();
             await loadOfflineMessages();
         } catch (e) {
@@ -1616,35 +1699,7 @@ var HV_HISTORY_KEY = 'hv_history_';
         // 气泡正文（旁白灰色斜体，对话黑色正体）
         var textEl = document.createElement('div');
         textEl.className = 'offline-bubble-text';
-        // 解析 *旁白* 和 "对话" 格式
-        var rawContent = msg.content || '';
-        var lines = rawContent.split('\n');
-        lines.forEach(function(line, idx) {
-            if (idx > 0) {
-                textEl.appendChild(document.createTextNode('\n'));
-            }
-            // 检测整行是否为旁白（以*开头和*结尾）
-            var narrationMatch = line.match(/^\*(.+)\*$/);
-            if (narrationMatch) {
-                var em = document.createElement('em');
-                em.className = 'offline-narration';
-                em.textContent = narrationMatch[1];
-                textEl.appendChild(em);
-            } else {
-                // 在行内查找"对话"片段并高亮为黑色
-                var parts = line.split(/([""][^""]*[""])/);
-                parts.forEach(function(part) {
-                    if (part.match(/^[""][^""]*[""]$/)) {
-                        var span = document.createElement('span');
-                        span.className = 'offline-dialogue';
-                        span.textContent = part;
-                        textEl.appendChild(span);
-                    } else if (part) {
-                        textEl.appendChild(document.createTextNode(part));
-                    }
-                });
-            }
-        });
+        renderOfflineMessageContent(textEl, msg.content || '');
 
         bubble.appendChild(header);
         bubble.appendChild(textEl);
@@ -1668,19 +1723,21 @@ var HV_HISTORY_KEY = 'hv_history_';
         if (!content || !content.trim()) return;
         var container = document.getElementById('offline-msg-container');
         var ts = Date.now();
+        var normalizedContent = sanitizeOfflineMessageContent(content);
+        if (!normalizedContent) return;
         try {
             var newId = await offlineDb.messages.add({
                 contactId: activeOfflineContact.id,
                 sender: 'me',
-                content: content,
+                content: normalizedContent,
                 timestamp: ts
             });
             input.value = '';
             input.style.height = 'auto';
-            var msg = { id: newId, contactId: activeOfflineContact.id, sender: 'me', content: content, timestamp: ts };
+            var msg = { id: newId, contactId: activeOfflineContact.id, sender: 'me', content: normalizedContent, timestamp: ts };
             container.appendChild(buildOfflineBubble(msg));
             requestAnimationFrame(function() { container.scrollTop = container.scrollHeight; });
-            triggerOfflineRoleReply(activeOfflineContact, content);
+            triggerOfflineRoleReply(activeOfflineContact, normalizedContent);
         } catch(e) { console.error('send offline message failed', e); }
     };
 
@@ -1713,7 +1770,7 @@ var HV_HISTORY_KEY = 'hv_history_';
                 String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
             var sysPrompt = '你与用户开启了可感知、真实、沉浸式的线下见面。\n' +
                 '全程以陪伴呈现，只输出细腻、有画面感、贴近现实的情景描写与剧情推进，注重沉浸感。不允许替用户做出回复。\n' +
-                '【格式要求】旁白使用灰色斜体（用星号包裹：*旁白内容*），对话内容放在双引号内（如："你好"），每次只输出1段连贯的叙述，不要输出JSON格式，直接输出纯文本。\n' +
+                '【格式要求】旁白使用灰色斜体（用星号包裹：*旁白内容*），对话内容放在双引号内（如："你好"），每次只输出1段连贯的叙述，不要输出JSON，不要Markdown，不要代码块，不要行内代码，不要网址，不要链接，只输出纯文本，段落之间最多只换行一次。\n' +
                 '【时间】' + timeStr + '\n';
             if (contact.roleDetail) sysPrompt += '角色设定：' + contact.roleDetail + '\n';
             if (contact.userDetail) sysPrompt += '用户设定：' + contact.userDetail + '\n';
@@ -1750,6 +1807,8 @@ var HV_HISTORY_KEY = 'hv_history_';
                 if (parsed && parsed.content) replyText = parsed.content;
                 else if (Array.isArray(parsed) && parsed[0] && parsed[0].content) replyText = parsed[0].content;
             } catch(e2) {}
+            replyText = sanitizeOfflineMessageContent(replyText);
+            if (!replyText) return;
             var replyTs = Date.now();
             var replyId = await offlineDb.messages.add({
                 contactId: contact.id,
@@ -1775,6 +1834,15 @@ var HV_HISTORY_KEY = 'hv_history_';
                 this.style.height = Math.min(this.scrollHeight, 100) + 'px';
             });
         }
+        document.addEventListener('keydown', function(e) {
+            var modal = document.getElementById('offline-edit-modal');
+            var textarea = document.getElementById('offline-edit-textarea');
+            if (!modal || modal.style.display !== 'flex' || !textarea || document.activeElement !== textarea) return;
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                saveOfflineEditedMessage();
+            }
+        });
         var offlineContainer = document.getElementById('offline-msg-container');
         if (offlineContainer) {
             offlineContainer.addEventListener('scroll', function() {

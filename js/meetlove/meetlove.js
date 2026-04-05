@@ -211,31 +211,17 @@ function _mlAnimateCard(tx, ty, rot, cb) {
 
 window.mlLikeCard = function() {
     var npcId = _mlMatchIdx % _mlNpcs.length;
-    var npc = _mlNpcs[npcId];
     _mlAnimateCard('150%', '0', 20);
     if (_mlUserLiked.indexOf(npcId) === -1) {
         _mlUserLiked.push(npcId); _mlSave(); _mlNpcMaybeReact(npcId, 'like'); _mlUpdateStats();
-        // 30%概率NPC主动发起WeChat添加申请
-        if (Math.random() < 0.30 && npc) {
-            setTimeout(function() {
-                mlSendWechatAddRequest(npc.name, '', npc.tags ? npc.tags.join('、') + '爱好者' : '', '女');
-            }, 800 + Math.random() * 2000);
-        }
     }
 };
 
 window.mlSuperLike = function() {
     var npcId = _mlMatchIdx % _mlNpcs.length;
-    var npc = _mlNpcs[npcId];
     _mlAnimateCard('0', '-150%', 0);
     if (_mlUserStarred.indexOf(npcId) === -1) {
         _mlUserStarred.push(npcId); _mlSave(); _mlNpcMaybeReact(npcId, 'star'); _mlUpdateStats();
-        // 超级喜欢：60%概率NPC主动发起WeChat添加申请
-        if (Math.random() < 0.60 && npc) {
-            setTimeout(function() {
-                mlSendWechatAddRequest(npc.name, '', npc.tags ? npc.tags.join('、') + '爱好者' : '', '女');
-            }, 500 + Math.random() * 1500);
-        }
     }
 };
 

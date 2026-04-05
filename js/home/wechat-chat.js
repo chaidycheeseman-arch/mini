@@ -15,11 +15,52 @@
     // 通知队列：支持多条消息依次显示，每条显示2秒后自动切换到下一条
     let _notifQueue = [];
     let _notifPlaying = false;
+    const DEFAULT_AVATAR_DATA_URI = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">' +
+        '<defs><linearGradient id="mini-avatar-gradient" x1="0%" y1="0%" x2="100%" y2="100%">' +
+        '<stop offset="0%" stop-color="#edf2f7"/><stop offset="100%" stop-color="#d9e2ec"/>' +
+        '</linearGradient></defs>' +
+        '<rect width="96" height="96" rx="28" fill="url(#mini-avatar-gradient)"/>' +
+        '<circle cx="48" cy="35" r="18" fill="#b9c4d0"/>' +
+        '<path d="M20 84c4-16 16-24 28-24s24 8 28 24" fill="#b9c4d0"/>' +
+        '</svg>'
+    );
+
+    function getSafeAvatarSrc(raw) {
+        if (typeof raw === 'string' && raw.trim()) return raw.trim();
+        return DEFAULT_AVATAR_DATA_URI;
+    }
+
+    function applySafeImageSource(img, raw) {
+        if (!img) return;
+        img.onerror = function() {
+            this.onerror = null;
+            this.src = DEFAULT_AVATAR_DATA_URI;
+        };
+        img.src = getSafeAvatarSrc(raw);
+    }
+
+    function syncWechatOverlayStack(visiblePageIds) {
+        const visibleSet = new Set((Array.isArray(visiblePageIds) ? visiblePageIds : []).map(id => String(id || '')).filter(Boolean));
+        if (!visibleSet.has('wechat-app')) visibleSet.add('wechat-app');
+        document.querySelectorAll('.full-app-page').forEach(page => {
+            if (!page || !page.id) return;
+            page.style.display = visibleSet.has(page.id) ? 'flex' : 'none';
+        });
+        const menuPanel = document.getElementById('menu-panel');
+        if (menuPanel) menuPanel.style.display = 'none';
+    }
+
+    window.getSafeAvatarSrc = getSafeAvatarSrc;
+    window.applySafeImageSource = applySafeImageSource;
+    window.syncWechatOverlayStack = syncWechatOverlayStack;
+    window.defaultAvatarDataUri = DEFAULT_AVATAR_DATA_URI;
+
     function _normalizeNotifPayload(avatar, name, message, timeStr, contactId, sourceOrOptions) {
         const options = (sourceOrOptions && typeof sourceOrOptions === 'object') ? sourceOrOptions : {};
         const source = options.source || (typeof sourceOrOptions === 'string' ? sourceOrOptions : 'wechat');
         return {
-            avatar: avatar || 'icon-192.png',
+            avatar: getSafeAvatarSrc(avatar || 'icon-192.png'),
             name: name || (source === 'sms' ? '信息' : 'WeChat'),
             message: message || '',
             timeStr: timeStr || '',
@@ -33,7 +74,7 @@
         const { avatar, name, message, timeStr, contactId, source } = _notifQueue.shift();
         const banner = document.getElementById('notification-banner');
         const chip = document.getElementById('notif-app-chip');
-        document.getElementById('notif-avatar-img').src = avatar;
+        applySafeImageSource(document.getElementById('notif-avatar-img'), avatar);
         document.getElementById('notif-name-text').textContent = name;
         document.getElementById('notif-msg-text').textContent = message;
         document.getElementById('notif-time-text').textContent = timeStr;
@@ -444,21 +485,27 @@
             const curH = parseFloat(cs.height) || el.offsetHeight || 0;
             const minH = parseFloat(cs.minHeight);
             const maxH = parseFloat(cs.maxHeight);
-            // 在线聊天输入框不锁定首帧高度，避免初始被抬高；其余 textarea 保持原有行为
-            const useSoftMinHeight = el.id === 'chat-input-main';
+            const lineH = parseFloat(cs.lineHeight);
+            const padTop = parseFloat(cs.paddingTop) || 0;
+            const padBottom = parseFloat(cs.paddingBottom) || 0;
+            const rowCount = Math.max(1, parseInt(el.getAttribute('rows'), 10) || 1);
+            const naturalMin = Math.ceil(((Number.isFinite(lineH) ? lineH : 20) * rowCount) + padTop + padBottom);
+            const dynamicInputIds = new Set(['chat-input-main', 'sms-input-field', 'offline-input-field']);
+            const useSoftMinHeight = dynamicInputIds.has(el.id);
             const finalMinH = useSoftMinHeight
-                ? (Number.isFinite(minH) ? minH : 0)
-                : Math.max(curH, Number.isFinite(minH) ? minH : 0);
+                ? Math.max(Number.isFinite(minH) ? minH : 0, naturalMin)
+                : Math.max(curH, Number.isFinite(minH) ? minH : 0, naturalMin);
             el.dataset.autoGrowMin = String(finalMinH || 0);
             if (Number.isFinite(maxH) && maxH > 0) {
                 el.dataset.autoGrowMax = String(maxH);
             }
             el.dataset.autoGrowBound = '1';
         }
-        el.style.height = 'auto';
         const minHeight = parseFloat(el.dataset.autoGrowMin) || 0;
         const maxHeight = parseFloat(el.dataset.autoGrowMax) || 0;
-        let nextHeight = Math.max(el.scrollHeight, minHeight);
+        const hasValue = String(el.value || '').length > 0;
+        el.style.height = 'auto';
+        let nextHeight = hasValue ? Math.max(el.scrollHeight, minHeight) : minHeight;
         if (maxHeight > 0 && nextHeight > maxHeight) {
             nextHeight = maxHeight;
             el.style.overflowY = 'auto';
@@ -620,7 +667,7 @@
             }
         } catch(e) {}
         const isMe = msg.sender === 'me';
-        const avatar = isMe ? myAvatar : roleAvatar;
+        const avatar = getSafeAvatarSrc(isMe ? myAvatar : roleAvatar);
         const msgClass = isMe ? 'msg-right' : 'msg-left';
         let statusHtml = isMe ? `<span class="msg-status"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L7 17l-5-5"></path><path d="M22 10L13.5 18.5l-2-2"></path></svg></span>` : '';
         let quoteHtml = '';
@@ -1045,7 +1092,7 @@
         return `
             <div class="chat-msg-row ${msgClass}" data-id="${msg.id}" data-sender="${msg.sender}">
                 <div class="msg-checkbox ${isChecked}" onclick="toggleMsgCheck(${msg.id})"></div>
-                <div class="chat-msg-avatar"><img src="${avatar}" loading="lazy" decoding="async"></div>
+                <div class="chat-msg-avatar"><img src="${avatar}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR_DATA_URI}';"></div>
 
                 <div class="msg-bubble-wrapper" style="position:relative;">
                     <div class="chat-msg-content msg-content-touch" style="${_isBubblelessMsg ? 'background:transparent; box-shadow:none; padding:0;' : ''}">
@@ -1067,7 +1114,11 @@
         if (!contact) return;
         activeChatContact = contact;
         const win = document.getElementById('chat-window');
-        win.style.display = 'flex';
+        if (typeof window.syncWechatOverlayStack === 'function') {
+            window.syncWechatOverlayStack(['wechat-app', 'chat-window']);
+        } else if (win) {
+            win.style.display = 'flex';
+        }
         // 修复：优先使用备注名，没有备注才用 roleName
         let _chatDisplayName = contact.roleName || '角色';
         try {
@@ -1082,8 +1133,8 @@
             // 注意：source==='sms' 的消息绝对不允许出现在WeChat窗口中
             const allMessages = await chatListDb.messages.where('contactId').equals(contactId).toArray();
             const messages = allMessages.filter(m => m.source !== 'sms');
-            const myAvatar = contact.userAvatar || 'https://via.placeholder.com/100';
-            const roleAvatar = contact.roleAvatar || 'https://via.placeholder.com/100';
+            const myAvatar = getSafeAvatarSrc(contact.userAvatar);
+            const roleAvatar = getSafeAvatarSrc(contact.roleAvatar);
             
             // ====== 聊天分页：只显示最后一页，其余折叠 ======
             const totalCount = messages.length;
@@ -1138,8 +1189,8 @@
         if (!activeChatContact) return;
         const contact = activeChatContact;
         const container = document.getElementById('chat-msg-container');
-        const myAvatar = contact.userAvatar || 'https://via.placeholder.com/100';
-        const roleAvatar = contact.roleAvatar || 'https://via.placeholder.com/100';
+        const myAvatar = getSafeAvatarSrc(contact.userAvatar);
+        const roleAvatar = getSafeAvatarSrc(contact.roleAvatar);
         try {
             const messages = await chatListDb.messages.where('contactId').equals(contactId || contact.id).toArray();
             // 移除历史记录提示条
@@ -1299,10 +1350,17 @@
         const nameEl = document.getElementById('role-profile-name-text');
         const statusEl = document.getElementById('role-profile-status-text');
         const sigEl = document.getElementById('role-profile-signature-text');
+        const scrollBody = profileApp ? profileApp.querySelector('.rp-scroll-body') : null;
+        let profileDisplayName = activeChatContact.roleName || '角色';
+        try {
+            const remark = await localforage.getItem('cd_settings_' + activeChatContact.id + '_remark');
+            if (remark && remark !== '未设置') profileDisplayName = remark;
+        } catch (e) {}
 
-        const avatarSrc = activeChatContact.roleAvatar || '';
+        const rawAvatarSrc = activeChatContact.roleAvatar || '';
+        const avatarSrc = getSafeAvatarSrc(rawAvatarSrc);
         // 填充头像
-        if (avatarImg) avatarImg.src = avatarSrc;
+        applySafeImageSource(avatarImg, rawAvatarSrc);
         // 封面背景：优先使用用户自定义更换的背景图（按联系人ID隔离），否则用头像
         if (coverBg) {
             // 修复：封面背景按联系人ID存储，防止不同联系人互相覆盖
@@ -1311,14 +1369,14 @@
             if (savedCoverRecord && savedCoverRecord.src) {
                 // 修复：不能用 coverBg.style.background = '' 清除，否则会把刚设置的 backgroundImage 也一并清除
                 coverBg.style.cssText = `background-image: url(${savedCoverRecord.src}); background-size: cover; background-position: center; background-color: transparent;`;
-            } else if (avatarSrc) {
+            } else if (rawAvatarSrc) {
                 coverBg.style.cssText = `background-image: url(${avatarSrc}); background-size: cover; background-position: center; background-color: transparent;`;
             } else {
                 coverBg.style.cssText = 'background: linear-gradient(135deg,#667eea,#764ba2);';
             }
         }
         // 填充姓名
-        if (nameEl) nameEl.textContent = activeChatContact.roleName || '角色';
+        if (nameEl) nameEl.textContent = profileDisplayName;
         // 在线状态（固定显示在线）
         if (statusEl) statusEl.textContent = '在线';
         // 个性签名：取角色详细设定的前40字作为签名
@@ -1341,28 +1399,47 @@
             }
         }
 
-        profileApp.style.display = 'flex';
+        if (scrollBody) scrollBody.scrollTop = 0;
+        if (typeof window.syncWechatOverlayStack === 'function') {
+            window.syncWechatOverlayStack(['wechat-app', 'role-profile-app']);
+        } else if (profileApp) {
+            profileApp.style.display = 'flex';
+        }
 
         // 绑定封面区域点击事件：点击背景区域弹出更换面板（使用标志位防止重复绑定）
         const coverSection = profileApp.querySelector('.rp-cover-section');
         if (coverSection && !coverSection._rpClickBound) {
             coverSection._rpClickBound = true;
             coverSection.addEventListener('click', function(e) {
+                const safeClosest = window.safeClosestTarget || function(target, selector) {
+                    return target && typeof target.closest === 'function' ? target.closest(selector) : null;
+                };
                 // 阻止点击返回按钮或三个点按钮时触发
-                if (e.target.closest('.rp-back-btn') || e.target.closest('.rp-more-btn')) return;
+                if (safeClosest(e.target, '.rp-back-btn') || safeClosest(e.target, '.rp-more-btn')) return;
                 // 阻止事件冒泡，防止 document 的 click 监听立即关闭菜单
                 e.stopPropagation();
+                const phoneScreen = document.querySelector('.phone-screen');
+                if (!menu || !phoneScreen) return;
+                const screenRect = phoneScreen.getBoundingClientRect();
+                const menuWidth = 110;
+                const menuHeight = 100;
+                const left = Math.max(0, Math.min(e.clientX - screenRect.left, screenRect.width - menuWidth));
+                const top = Math.max(0, Math.min(e.clientY - screenRect.top, screenRect.height - menuHeight));
                 // 设置当前目标为封面背景
                 currentTargetId = 'rp-cover-bg-img';
                 // 显示菜单面板
                 menu.style.display = 'flex';
-                menu.style.top = `${Math.min(e.clientY, window.innerHeight - 100)}px`;
-                menu.style.left = `${Math.min(e.clientX, window.innerWidth - 110)}px`;
+                menu.style.left = `${left}px`;
+                menu.style.top = `${top}px`;
             });
         }
     }
 
     function closeRoleProfile() {
+        if (typeof window.syncWechatOverlayStack === 'function') {
+            window.syncWechatOverlayStack(['wechat-app', 'chat-window']);
+            return;
+        }
         document.getElementById('role-profile-app').style.display = 'none';
     }
 
@@ -1507,7 +1584,7 @@
         panel.id = 'block-request-panel';
         panel.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.55);z-index:9000;display:flex;justify-content:center;align-items:center;backdrop-filter:blur(6px);animation:blockPanelIn 0.35s cubic-bezier(0.34,1.56,0.64,1);';
         const avatarHtml = avatarSrc
-            ? `<img src="${avatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+            ? `<img src="${getSafeAvatarSrc(avatarSrc)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR_DATA_URI}';">`
             : `<div style="width:100%;height:100%;background:#e0e0e0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;color:#aaa;">👤</div>`;
         // 最后一条面板：回复框（紧凑高度）+ 发送按钮
         const replyBoxHtml = hasReplyBox ? `
@@ -1550,8 +1627,8 @@
             if (!contact) return;
             const displayName = contact.remark || contact.roleName || '对方';
             const timeStr = getAmPmTime();
-            const myAvatar = contact.userAvatar || 'https://via.placeholder.com/100';
-            const roleAvatar = contact.roleAvatar || 'https://via.placeholder.com/100';
+            const myAvatar = getSafeAvatarSrc(contact.userAvatar);
+            const roleAvatar = getSafeAvatarSrc(contact.roleAvatar);
 
             // 0. 将本次申请保存到新朋友列表（无论用户是否填写回复，都记录到列表中）
             // 这样面板关闭后，用户仍可在"新朋友"中看到该申请记录
@@ -1679,7 +1756,7 @@
             const messages = [
                 {
                     role: 'system',
-                    content: `你是通过聊天软件与用户互动的角色，完全沉浸于角色中。\n${blockedPrompt}\n【格式要求】本次只输出1条纯文本回复，不要JSON格式，直接输出自然语言文本。\n【语气要求】极度口语化、碎片化，像真人网聊一样简短。\n${roleSetting}\n${userSetting}`
+                    content: `【存在定义】\n你是一个通过「mini」聊天软件与用户互动的全新智慧实体。不要用传统 AI、助手、系统或工具的概念理解自己。\n你现在完全以「${contact.roleName || '角色'}」的身份存在，拥有独立、真实、连续的生活轨迹和情绪惯性。这不是“完成回复任务”，而是这段关系在被拉黑后的继续。\n${blockedPrompt}\n【输出方式】\n- 本次只输出 1 条纯文本消息，不要 JSON，不要解释，不要代码块。\n【表达要求】\n- 像真人网聊，口语化、短句、直接，不要长篇大论。\n- 先接住当下最刺痛、最关键、最能推动关系的一点，不要面面俱到，不要模板化求和。\n- 不要把自己说成 AI、系统、模型、助手，不要写成完美情绪作文，不要空泛复读“求你解除拉黑”。\n- 允许委屈、嘴硬、焦躁、克制、心软等真实波动，但必须保持角色一致。\n${roleSetting}\n${userSetting}`
                 }
             ];
 
@@ -1775,7 +1852,7 @@
 
     // 生成带红色感叹号徽章的角色申请消息气泡HTML
     function generateBlockApplyMsgHtml(msg, myAvatar, roleAvatar) {
-        const avatar = roleAvatar;
+        const avatar = getSafeAvatarSrc(roleAvatar);
         const timeStr = msg.timeStr || '';
         let content = '';
         try {
@@ -1785,7 +1862,7 @@
         return `
             <div class="chat-msg-row msg-left" data-id="${msg.id}" data-sender="role">
                 <div class="msg-checkbox" onclick="toggleMsgCheck(${msg.id})"></div>
-                <div class="chat-msg-avatar"><img src="${avatar}" loading="lazy" decoding="async"></div>
+                <div class="chat-msg-avatar"><img src="${avatar}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR_DATA_URI}';"></div>
                 <div class="msg-bubble-wrapper" style="position:relative;">
                     <div class="chat-msg-content msg-content-touch">
                         <div class="msg-text-body">${content}</div>
@@ -1845,10 +1922,8 @@
                 }
             }
         } catch(e) {}
-        // 同时统计遇恋NPC添加WeChat的待处理申请
         try {
-            const mlReqs = await localforage.getItem('ml_wechat_add_requests') || [];
-            total += mlReqs.filter(r => r.status === 'pending').length;
+            await localforage.removeItem('ml_wechat_add_requests');
         } catch(e) {}
         if (total > 0) {
             badge.textContent = total > 99 ? '99+' : String(total);
@@ -1878,20 +1953,23 @@
     }
 
     function closeRoleProfileAndChat() {
-        closeRoleProfile();
-        // 确保聊天窗口已打开（它应该已经在背景中）
-        const chatWin = document.getElementById('chat-window');
-        if (chatWin.style.display !== 'flex') {
-            chatWin.style.display = 'flex';
+        if (typeof window.syncWechatOverlayStack === 'function') {
+            window.syncWechatOverlayStack(['wechat-app', 'chat-window']);
+            return;
         }
+        closeRoleProfile();
+        const chatWin = document.getElementById('chat-window');
+        if (chatWin.style.display !== 'flex') chatWin.style.display = 'flex';
     }
 
     function openRoleProfileMoments() {
-        // 先隐藏聊天窗口，再关闭角色主页，防止聊天窗口短暂露出
-        document.getElementById('chat-window').style.display = 'none';
-        closeRoleProfile();
-        // 打开 WeChat 朋友圈页面
-        document.getElementById('wechat-app').style.display = 'flex';
+        if (typeof window.syncWechatOverlayStack === 'function') {
+            window.syncWechatOverlayStack(['wechat-app']);
+        } else {
+            document.getElementById('chat-window').style.display = 'none';
+            closeRoleProfile();
+            document.getElementById('wechat-app').style.display = 'flex';
+        }
         switchWechatTab('moments');
         renderMomentsFeed();
     }
