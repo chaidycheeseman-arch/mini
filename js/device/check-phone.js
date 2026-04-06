@@ -347,9 +347,9 @@
                     profileSigEl.textContent = '暂无个性签名';
                 });
                 // 绑定点击可编辑
-                profileSigEl.onclick = function() {
+                profileSigEl.onclick = async function() {
                     var current = profileSigEl.textContent;
-                    var newSig = prompt('输入个性签名：', current === '暂无个性签名' ? '' : current);
+                    var newSig = await window.showMiniPrompt('输入个性签名：', current === '暂无个性签名' ? '' : current);
                     if (newSig !== null) {
                         var text = newSig.trim() || '暂无个性签名';
                         profileSigEl.textContent = text;

@@ -911,7 +911,7 @@
             renameBtn.className = 'voice-storage-item-btn';
             renameBtn.textContent = '重命名';
             renameBtn.addEventListener('click', async function() {
-                const nextName = prompt('请输入新的语音名称：', item.name || buildMiniMaxVoiceDefaultName(item.text));
+                const nextName = await window.showMiniPrompt('请输入新的语音名称：', item.name || buildMiniMaxVoiceDefaultName(item.text));
                 if (!nextName || !nextName.trim()) return;
                 const libraryList = await getMiniMaxVoiceLibrary();
                 const target = libraryList.find(function(entry) {
@@ -929,7 +929,7 @@
             deleteBtn.className = 'voice-storage-item-btn danger';
             deleteBtn.textContent = '删除';
             deleteBtn.addEventListener('click', async function() {
-                if (!confirm('确定删除这条已保存的语音吗？')) return;
+                if (!await window.showMiniConfirm('确定删除这条已保存的语音吗？')) return;
                 const libraryList = await getMiniMaxVoiceLibrary();
                 await saveMiniMaxVoiceLibrary(libraryList.filter(function(entry) {
                     return entry.id !== item.id;
@@ -1255,7 +1255,7 @@
     }
     async function saveAsPreset() {
         presetManagerMode = 'text';
-        const name = prompt('请输入该预设的名称:');
+        const name = await window.showMiniPrompt('请输入该预设的名称：', '');
         if(!name || name.trim() === '') return;
         const presets = await getPresets();
         presets.push({
@@ -1272,7 +1272,7 @@
     }
     async function saveAsVoicePreset() {
         presetManagerMode = 'voice';
-        const name = prompt('请输入该语音预设的名称:');
+        const name = await window.showMiniPrompt('请输入该语音预设的名称：', '');
         if(!name || name.trim() === '') return;
         const presets = await getVoicePresets();
         const mmConfig = getMiniMaxInputsConfig();
@@ -1379,7 +1379,7 @@
             : await getPresets();
         const p = presets.find(x => x.id === id);
         if(!p) return;
-        const newName = prompt('重命名为:', p.name);
+        const newName = await window.showMiniPrompt('重命名为：', p.name);
         if(newName && newName.trim() !== '') {
             p.name = newName.trim();
             if (presetManagerMode === 'voice') await saveVoicePresets(presets);
@@ -1388,7 +1388,7 @@
         }
     }
     async function deletePreset(id) {
-        if(confirm('确定要删除这个预设吗？')) {
+        if(await window.showMiniConfirm('确定要删除这个预设吗？')) {
             let presets = presetManagerMode === 'voice'
                 ? await getVoicePresets()
                 : await getPresets();

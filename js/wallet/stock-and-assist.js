@@ -326,6 +326,9 @@ function _appendWalletStatusPanel(actionsEl, heading, value, detail, toneClass) 
 function openRpClaimModal(cardEl, amount, desc, status, senderRole, roleName, msgId) {
     _rpClaimCardEl = cardEl;
     _rpClaimMsgId = msgId || null;
+    var row = cardEl ? cardEl.closest('.chat-msg-row') : null;
+    var rowSender = row ? row.getAttribute('data-sender') : '';
+    var resolvedSenderRole = rowSender === 'me' ? 'me' : (rowSender === 'role' ? 'role' : senderRole);
     var targetRoleName = roleName || '对方';
     document.getElementById('rp-claim-amount').textContent = '¥ ' + amount;
     document.getElementById('rp-claim-desc').textContent = desc;
@@ -335,18 +338,18 @@ function openRpClaimModal(cardEl, amount, desc, status, senderRole, roleName, ms
         _appendWalletStatusPanel(
             actionsEl,
             '红包状态',
-            senderRole === 'me' ? '已被领取' : '已领取',
-            senderRole === 'me' ? (targetRoleName + ' 已领取这个红包') : '这个红包已被你领取',
+            resolvedSenderRole === 'me' ? '已被领取' : '已领取',
+            resolvedSenderRole === 'me' ? (targetRoleName + ' 已领取这个红包') : '这个红包已被你领取',
             'is-success'
         );
     } else {
-        if (senderRole === 'me') {
+        if (resolvedSenderRole === 'me') {
             _appendWalletStatusPanel(actionsEl, '红包状态', '待领取', '等待 ' + targetRoleName + ' 领取', 'is-pending');
         } else {
             var btn = document.createElement('div');
             btn.className = 'rp-modal-btn rp-modal-btn-claim';
             btn.textContent = '领取红包';
-            btn.onclick = function() { _doClaimRp(senderRole, targetRoleName, parseFloat(amount)); };
+            btn.onclick = function() { _doClaimRp(resolvedSenderRole, targetRoleName, parseFloat(amount)); };
             actionsEl.appendChild(btn);
         }
     }
@@ -441,6 +444,8 @@ function openTfActionModal(cardEl, amount, desc, status, senderRole, roleName) {
     var targetRoleName = roleName || '对方';
     // 从卡片所在行获取 msg.id（通过向上查找 .chat-msg-row 的 data-id）
     var row = cardEl.closest('.chat-msg-row');
+    var rowSender = row ? row.getAttribute('data-sender') : '';
+    var resolvedSenderRole = rowSender === 'me' ? 'me' : (rowSender === 'role' ? 'role' : senderRole);
     _tfActionMsgId = row ? parseInt(row.getAttribute('data-id')) || null : null;
     document.getElementById('tf-action-amount').textContent = '¥ ' + amount;
     document.getElementById('tf-action-desc').textContent = desc;
@@ -451,25 +456,25 @@ function openTfActionModal(cardEl, amount, desc, status, senderRole, roleName) {
             actionsEl,
             '转账状态',
             status === 'received' ? '已收款' : '已退回',
-            senderRole === 'me'
+            resolvedSenderRole === 'me'
                 ? (status === 'received' ? (targetRoleName + ' 已接收这笔转账') : (targetRoleName + ' 已退回这笔转账'))
                 : (status === 'received' ? '这笔转账已存入你的余额' : '这笔转账已退回'),
             status === 'received' ? 'is-success' : 'is-muted'
         );
     } else {
-        if (senderRole === 'me') {
+        if (resolvedSenderRole === 'me') {
             _appendWalletStatusPanel(actionsEl, '转账状态', '待处理', '等待 ' + targetRoleName + ' 处理', 'is-pending');
         } else {
             var receiveBtn = document.createElement('div');
             receiveBtn.className = 'tf-modal-btn tf-modal-btn-receive';
             receiveBtn.textContent = '接收转账';
-            receiveBtn.onclick = function() { _doTfAction('received', senderRole, targetRoleName); };
+            receiveBtn.onclick = function() { _doTfAction('received', resolvedSenderRole, targetRoleName); };
             var sepEl = document.createElement('div');
             sepEl.className = 'tf-modal-btn-sep';
             var refundBtn = document.createElement('div');
             refundBtn.className = 'tf-modal-btn tf-modal-btn-refund';
             refundBtn.textContent = '退回转账';
-            refundBtn.onclick = function() { _doTfAction('refunded', senderRole, targetRoleName); };
+            refundBtn.onclick = function() { _doTfAction('refunded', resolvedSenderRole, targetRoleName); };
             actionsEl.appendChild(receiveBtn);
             actionsEl.appendChild(sepEl);
             actionsEl.appendChild(refundBtn);

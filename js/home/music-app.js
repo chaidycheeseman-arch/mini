@@ -365,8 +365,8 @@
         renderAll();
     };
 
-    window.musicAddSong = function() {
-        var raw = prompt('输入歌曲，格式：歌名 - 歌手', '晴天 - 周杰伦');
+    window.musicAddSong = async function() {
+        var raw = await window.showMiniPrompt('输入歌曲，格式：歌名 - 歌手', '晴天 - 周杰伦');
         if (raw === null) return;
         raw = String(raw || '').trim();
         if (!raw) return;
@@ -378,7 +378,7 @@
             alert('歌曲名称不能为空');
             return;
         }
-        var duration = prompt('输入时长', '03:45');
+        var duration = await window.showMiniPrompt('输入时长', '03:45');
         if (duration === null) return;
 
         var song = normalizeSong({
@@ -405,9 +405,9 @@
         syncHomeMusicTitle();
     };
 
-    window.musicEditProfileField = function(field, label) {
+    window.musicEditProfileField = async function(field, label) {
         var current = state.profile[field] || '';
-        var next = prompt(label, current);
+        var next = await window.showMiniPrompt(label, current);
         if (next === null) return;
         next = String(next || '').trim();
         if (!next) return;
@@ -416,8 +416,8 @@
         renderAll();
     };
 
-    window.musicEditStat = function(field, label) {
-        var next = prompt('修改' + label, state.profile[field] || '');
+    window.musicEditStat = async function(field, label) {
+        var next = await window.showMiniPrompt('修改' + label, state.profile[field] || '');
         if (next === null) return;
         next = String(next || '').trim();
         if (!next) return;
@@ -426,14 +426,14 @@
         renderProfile();
     };
 
-    window.musicAddPlaylist = function() {
-        var name = prompt('输入歌单名称', '新建歌单');
+    window.musicAddPlaylist = async function() {
+        var name = await window.showMiniPrompt('输入歌单名称', '新建歌单');
         if (name === null) return;
         name = String(name || '').trim();
         if (!name) return;
-        var count = prompt('输入歌曲数量', '12');
+        var count = await window.showMiniPrompt('输入歌曲数量', '12');
         if (count === null) return;
-        var desc = prompt('输入一句简介', '刚刚收藏进来的私人歌单。');
+        var desc = await window.showMiniPrompt('输入一句简介', '刚刚收藏进来的私人歌单。');
         if (desc === null) return;
 
         var playlist = normalizePlaylist({
@@ -449,17 +449,17 @@
         renderProfile();
     };
 
-    window.musicEditPlaylist = function(playlistId) {
+    window.musicEditPlaylist = async function(playlistId) {
         var playlist = state.playlists.find(function(item) { return item.id === playlistId; });
         if (!playlist) return;
 
-        var name = prompt('修改歌单名称', playlist.name);
+        var name = await window.showMiniPrompt('修改歌单名称', playlist.name);
         if (name === null) return;
         name = String(name || '').trim();
         if (!name) return;
-        var count = prompt('修改歌曲数量', playlist.count);
+        var count = await window.showMiniPrompt('修改歌曲数量', playlist.count);
         if (count === null) return;
-        var desc = prompt('修改歌单简介', playlist.desc);
+        var desc = await window.showMiniPrompt('修改歌单简介', playlist.desc);
         if (desc === null) return;
 
         playlist.name = name;
@@ -469,8 +469,8 @@
         renderProfile();
     };
 
-    window.musicConfigurePlaylists = function() {
-        var next = prompt('修改歌单副标题', state.profile.playlistSubtitle);
+    window.musicConfigurePlaylists = async function() {
+        var next = await window.showMiniPrompt('修改歌单副标题', state.profile.playlistSubtitle);
         if (next === null) return;
         state.profile.playlistSubtitle = String(next || '').trim() || '收藏每一段认真听过的心情。';
         persistState();

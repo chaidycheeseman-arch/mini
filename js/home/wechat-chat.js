@@ -51,6 +51,18 @@
         if (menuPanel) menuPanel.style.display = 'none';
     }
 
+    function orderMiniChatMessages(messages) {
+        return (Array.isArray(messages) ? messages : []).slice().sort(function(a, b) {
+            var aId = parseInt(a && a.id, 10);
+            var bId = parseInt(b && b.id, 10);
+            if (isFinite(aId) && isFinite(bId) && aId !== bId) return aId - bId;
+            var aTs = Number(a && a.timestamp) || 0;
+            var bTs = Number(b && b.timestamp) || 0;
+            if (aTs !== bTs) return aTs - bTs;
+            return 0;
+        });
+    }
+
     window.getSafeAvatarSrc = getSafeAvatarSrc;
     window.applySafeImageSource = applySafeImageSource;
     window.syncWechatOverlayStack = syncWechatOverlayStack;
@@ -1141,7 +1153,7 @@
         try {
             // 【聊天隔离】WeChat聊天窗口只显示 source==='wechat' 或无source（旧数据兼容）的消息
             // 注意：source==='sms' 的消息绝对不允许出现在WeChat窗口中
-            const allMessages = await chatListDb.messages.where('contactId').equals(contactId).toArray();
+            const allMessages = orderMiniChatMessages(await chatListDb.messages.where('contactId').equals(contactId).toArray());
             const messages = allMessages.filter(m => m.source !== 'sms');
             const myAvatar = getSafeAvatarSrc(contact.userAvatar);
             const roleAvatar = getSafeAvatarSrc(contact.roleAvatar);
@@ -1202,7 +1214,9 @@
         const myAvatar = getSafeAvatarSrc(contact.userAvatar);
         const roleAvatar = getSafeAvatarSrc(contact.roleAvatar);
         try {
-            const messages = await chatListDb.messages.where('contactId').equals(contactId || contact.id).toArray();
+            const messages = orderMiniChatMessages(await chatListDb.messages.where('contactId').equals(contactId || contact.id).toArray()).filter(function(msg) {
+                return msg && msg.source !== 'sms';
+            });
             // 移除历史记录提示条
             const banner = document.getElementById('chat-history-banner');
             if (banner) banner.remove();
@@ -1470,7 +1484,7 @@
         const dropdown = document.getElementById('rp-more-dropdown');
         if (dropdown) dropdown.style.display = 'none';
         if (!activeChatContact) return;
-        if (!confirm(`确定要清空与「${activeChatContact.roleName || '该角色'}」的所有聊天记录吗？\n角色记忆也将同步清除，此操作不可恢复！`)) return;
+        if (!await window.showMiniConfirm(`确定要清空与「${activeChatContact.roleName || '该角色'}」的所有聊天记录吗？\n角色记忆也将同步清除，此操作不可恢复！`)) return;
         try {
             const contactId = activeChatContact.id;
             const memoryKey = 'cd_settings_' + contactId + '_summary_history';
@@ -1506,7 +1520,7 @@
         const isBlocked = !!activeChatContact.blocked;
         if (isBlocked) {
             // 解除拉黑
-            if (!confirm(`确定要解除对「${activeChatContact.roleName || '该角色'}」的拉黑吗？`)) return;
+            if (!await window.showMiniConfirm(`确定要解除对「${activeChatContact.roleName || '该角色'}」的拉黑吗？`)) return;
             try {
                 activeChatContact.blocked = false;
                 await contactDb.contacts.put(activeChatContact);
@@ -1520,7 +1534,7 @@
             }
         } else {
             // 拉黑
-            if (!confirm(`确定要拉黑「${activeChatContact.roleName || '该角色'}」吗？\n联系人不会被删除，消息页将显示[已拉黑]标记，仍可发消息。`)) return;
+            if (!await window.showMiniConfirm(`确定要拉黑「${activeChatContact.roleName || '该角色'}」吗？\n联系人不会被删除，消息页将显示[已拉黑]标记，仍可发消息。`)) return;
             try {
                 activeChatContact.blocked = true;
                 await contactDb.contacts.put(activeChatContact);

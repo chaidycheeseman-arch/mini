@@ -114,7 +114,7 @@
     }
     async function editWorldbook(id) { await openWorldbookEditor(id); }
     async function deleteWorldbook(id) {
-        if (confirm('确定要永久删除这条世界书设定吗？')) {
+        if (await window.showMiniConfirm('确定要永久删除这条世界书设定吗？')) {
             try { await db.entries.delete(id); renderWorldbooks(); } catch (error) { alert('删除失败'); }
         }
     }

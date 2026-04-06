@@ -244,6 +244,217 @@ function safeClosestFromEventTarget(target, selector) {
 
 window.safeClosestTarget = safeClosestFromEventTarget;
 
+const miniSystemUiState = {
+    active: null,
+    queue: [],
+    refs: null,
+    toastTimer: null
+};
+
+function getMiniSystemHost() {
+    return document.querySelector('.phone-screen') || document.body;
+}
+
+function ensureMiniSystemUi() {
+    const host = getMiniSystemHost();
+    if (!host) return null;
+
+    let root = document.getElementById('mini-system-ui');
+    if (!root) {
+        root = document.createElement('div');
+        root.id = 'mini-system-ui';
+        root.innerHTML =
+            '<div id="mini-system-toast" class="mini-system-toast"></div>' +
+            '<div id="mini-system-dialog-mask">' +
+                '<div class="mini-system-dialog-card" role="dialog" aria-modal="true" aria-labelledby="mini-system-dialog-title">' +
+                    '<div id="mini-system-dialog-title" class="mini-system-dialog-title">提示</div>' +
+                    '<div id="mini-system-dialog-message" class="mini-system-dialog-message"></div>' +
+                    '<textarea id="mini-system-dialog-input" class="mini-system-dialog-input" rows="1"></textarea>' +
+                    '<div class="mini-system-dialog-actions">' +
+                        '<button id="mini-system-dialog-cancel" type="button" class="mini-system-dialog-btn is-secondary">取消</button>' +
+                        '<button id="mini-system-dialog-ok" type="button" class="mini-system-dialog-btn is-primary">确定</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+    }
+
+    if (root.parentNode !== host) host.appendChild(root);
+
+    if (!miniSystemUiState.refs) {
+        const toast = document.getElementById('mini-system-toast');
+        const mask = document.getElementById('mini-system-dialog-mask');
+        const title = document.getElementById('mini-system-dialog-title');
+        const message = document.getElementById('mini-system-dialog-message');
+        const input = document.getElementById('mini-system-dialog-input');
+        const cancelBtn = document.getElementById('mini-system-dialog-cancel');
+        const okBtn = document.getElementById('mini-system-dialog-ok');
+
+        if (!toast || !mask || !title || !message || !input || !cancelBtn || !okBtn) return null;
+
+        function finishMiniSystemDialog(result) {
+            const active = miniSystemUiState.active;
+            if (!active) return;
+            miniSystemUiState.active = null;
+            mask.classList.remove('is-show');
+            input.blur();
+            const resolve = active.resolve;
+            if (typeof resolve === 'function') resolve(result);
+            if (miniSystemUiState.queue.length > 0) {
+                setTimeout(openNextMiniSystemDialog, 0);
+            }
+        }
+
+        function autoSizeMiniPromptInput() {
+            input.style.height = 'auto';
+            const multiline = input.dataset.multiline === '1';
+            const minHeight = multiline ? 108 : 46;
+            input.style.height = Math.min(Math.max(input.scrollHeight, minHeight), 168) + 'px';
+        }
+
+        function openNextMiniSystemDialog() {
+            if (miniSystemUiState.active || miniSystemUiState.queue.length === 0) return;
+            const config = miniSystemUiState.queue.shift();
+            miniSystemUiState.active = config;
+
+            title.textContent = config.title || (config.mode === 'prompt' ? '请输入' : '请确认');
+            message.textContent = config.message || '';
+            message.style.display = config.message ? 'block' : 'none';
+            input.value = config.defaultValue || '';
+            input.placeholder = config.placeholder || '';
+            input.style.display = config.mode === 'prompt' ? 'block' : 'none';
+            input.dataset.multiline = config.multiline ? '1' : '0';
+            input.rows = config.multiline ? 5 : 1;
+            cancelBtn.style.display = config.mode === 'prompt' || config.mode === 'confirm' ? 'inline-flex' : 'none';
+            cancelBtn.textContent = config.cancelText || '取消';
+            okBtn.textContent = config.okText || '确定';
+            mask.classList.add('is-show');
+
+            if (config.mode === 'prompt') {
+                autoSizeMiniPromptInput();
+                setTimeout(function() {
+                    input.focus();
+                    if (typeof input.setSelectionRange === 'function') {
+                        const len = input.value.length;
+                        input.setSelectionRange(len, len);
+                    }
+                }, 20);
+            } else {
+                setTimeout(function() {
+                    okBtn.focus();
+                }, 20);
+            }
+        }
+
+        mask.addEventListener('click', function(e) {
+            if (e.target !== mask) return;
+            if (!miniSystemUiState.active) return;
+            finishMiniSystemDialog(miniSystemUiState.active.mode === 'confirm' ? false : null);
+        });
+        cancelBtn.addEventListener('click', function() {
+            if (!miniSystemUiState.active) return;
+            finishMiniSystemDialog(miniSystemUiState.active.mode === 'confirm' ? false : null);
+        });
+        okBtn.addEventListener('click', function() {
+            if (!miniSystemUiState.active) return;
+            if (miniSystemUiState.active.mode === 'prompt') {
+                finishMiniSystemDialog(input.value);
+                return;
+            }
+            finishMiniSystemDialog(true);
+        });
+        input.addEventListener('input', autoSizeMiniPromptInput);
+        input.addEventListener('keydown', function(e) {
+            if (!miniSystemUiState.active || miniSystemUiState.active.mode !== 'prompt') return;
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                finishMiniSystemDialog(null);
+                return;
+            }
+            if (e.key === 'Enter' && !e.shiftKey && input.dataset.multiline !== '1') {
+                e.preventDefault();
+                finishMiniSystemDialog(input.value);
+            }
+        });
+        document.addEventListener('keydown', function(e) {
+            if (!miniSystemUiState.active || e.key !== 'Escape') return;
+            if (miniSystemUiState.active.mode === 'confirm') finishMiniSystemDialog(false);
+            else if (miniSystemUiState.active.mode === 'prompt') finishMiniSystemDialog(null);
+        });
+
+        miniSystemUiState.refs = {
+            root: root,
+            toast: toast,
+            mask: mask,
+            input: input,
+            openNext: openNextMiniSystemDialog
+        };
+    }
+
+    return miniSystemUiState.refs;
+}
+
+function enqueueMiniSystemDialog(config) {
+    ensureMiniSystemUi();
+    return new Promise(function(resolve) {
+        miniSystemUiState.queue.push(Object.assign({}, config, { resolve: resolve }));
+        if (miniSystemUiState.refs && typeof miniSystemUiState.refs.openNext === 'function') {
+            miniSystemUiState.refs.openNext();
+        }
+    });
+}
+
+function inferMiniPromptMultiline(message, defaultValue, options) {
+    if (options && typeof options.multiline === 'boolean') return options.multiline;
+    const msg = String(message || '');
+    const value = String(defaultValue || '');
+    return value.indexOf('\n') !== -1 || value.length > 48 || /内容|简介|描述|备注|签名|CSS|文本/.test(msg);
+}
+
+window.showMiniToast = function(message, options) {
+    const refs = ensureMiniSystemUi();
+    if (!refs || message === undefined || message === null || message === '') return;
+    const toast = refs.toast;
+    const opts = options || {};
+    const bottom = typeof opts.bottom === 'number' ? opts.bottom : 92;
+    toast.textContent = String(message);
+    toast.style.setProperty('--mini-system-toast-bottom', bottom + 'px');
+    toast.classList.add('is-show');
+    if (miniSystemUiState.toastTimer) clearTimeout(miniSystemUiState.toastTimer);
+    miniSystemUiState.toastTimer = setTimeout(function() {
+        toast.classList.remove('is-show');
+    }, typeof opts.duration === 'number' ? opts.duration : 1800);
+};
+
+window.showMiniConfirm = function(message, options) {
+    const opts = options || {};
+    return enqueueMiniSystemDialog({
+        mode: 'confirm',
+        title: opts.title || '请确认',
+        message: String(message || ''),
+        okText: opts.okText || '确定',
+        cancelText: opts.cancelText || '取消'
+    });
+};
+
+window.showMiniPrompt = function(message, defaultValue, options) {
+    const opts = options || {};
+    return enqueueMiniSystemDialog({
+        mode: 'prompt',
+        title: opts.title || '请输入',
+        message: String(message || ''),
+        defaultValue: defaultValue === undefined || defaultValue === null ? '' : String(defaultValue),
+        placeholder: opts.placeholder || '',
+        okText: opts.okText || '确定',
+        cancelText: opts.cancelText || '取消',
+        multiline: inferMiniPromptMultiline(message, defaultValue, opts)
+    });
+};
+
+window.alert = function(message) {
+    window.showMiniToast(message);
+};
+window.showToast = window.showMiniToast;
+
 document.addEventListener('contextmenu', function(e) {
     if (!safeClosestFromEventTarget(e.target, '.phone-screen')) return;
     e.preventDefault();
@@ -271,7 +482,7 @@ document.addEventListener('dragstart', function(e) {
     document.querySelectorAll('.editable-text').forEach((el, idx) => {
         el.addEventListener('click', async (e) => {
             e.stopPropagation();
-            const newText = prompt('请输入新内容:', el.textContent);
+            const newText = await window.showMiniPrompt('请输入新内容：', el.textContent);
             if(newText !== null && newText.trim() !== "") {
                 el.textContent = newText;
                 const textKey = getEditableTextStorageKey(el, idx);
@@ -285,9 +496,9 @@ document.addEventListener('dragstart', function(e) {
             menu.style.display = 'none';
         }
     });
-    function changeImage(type) {
+    async function changeImage(type) {
         if(type === 'url') {
-            const url = prompt('请输入图片链接:');
+            const url = await window.showMiniPrompt('请输入图片链接：', '');
             if(url) applyImage(currentTargetId, url);
         } else if(type === 'file') {
             const fileInput = document.getElementById('file-input');

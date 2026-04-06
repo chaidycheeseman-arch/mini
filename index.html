@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
     <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dexie@3/dist/dexie.min.js"></script>
-    <link rel="stylesheet" href="css/core/base-and-chat.css">
+    <link rel="stylesheet" href="css/core/base-and-chat.css?v=20260406-timeline3">
     <link rel="stylesheet" href="css/wallet/wallet-and-payment.css">
     <link rel="stylesheet" href="css/chat/profile-and-chat-detail.css">
     <link rel="stylesheet" href="css/device/sms-and-check-phone.css">
@@ -2438,8 +2438,8 @@
                 <span>聊天时间轴</span>
                 <div class="settings-btn chat-timeline-close" onclick="closeChatTimelineModal()">关闭</div>
             </div>
-            <div class="chat-timeline-tip">按时间顺序查看当前聊天中的线上消息节点。</div>
-            <div id="chat-timeline-list" class="chat-timeline-list"></div>
+            <div class="chat-timeline-tip">可将当前聊天锚点拨回过去或推进到未来，并输入情景过渡。下方提供 3 个时间轴存档位。</div>
+            <div id="chat-timeline-travel-panel" class="chat-timeline-travel-panel"></div>
         </div>
     </div>
     <div id="chat-rollback-modal" onclick="if(event.target === this) closeChatRollbackModal()" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.46);z-index:345;backdrop-filter:blur(8px);justify-content:center;align-items:center;">
@@ -2448,7 +2448,7 @@
                 <span>聊天回溯</span>
                 <div class="settings-btn chat-rollback-close" onclick="closeChatRollbackModal()">关闭</div>
             </div>
-            <div class="chat-rollback-tip">选择要回到的角色回复轮次，之后会删除该轮及其后的线上对话并重新生成。</div>
+            <div class="chat-rollback-tip">选择要保留的角色回复轮次，回溯后只会删除这一轮之后的线上对话，不会动前面的内容。</div>
             <div id="chat-rollback-list" class="chat-rollback-list"></div>
         </div>
     </div>
@@ -3166,19 +3166,19 @@
                 </div>
                 <div style="padding:0 16px 16px;">
                     <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px 10px;">
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">相片</span><input id="cd-prob-camera" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="20" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">定位</span><input id="cd-prob-location" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="20" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">外卖</span><input id="cd-prob-takeaway" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="20" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">礼物</span><input id="cd-prob-gift" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="20" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">电话</span><input id="cd-prob-call" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="20" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">视频</span><input id="cd-prob-video-call" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="20" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">红包</span><input id="cd-prob-red-packet" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="20" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">转账</span><input id="cd-prob-transfer" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="20" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">语音</span><input id="cd-prob-voice-message" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="18" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">表情包</span><input id="cd-prob-emoticon" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="18" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">引用</span><input id="cd-prob-reply" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="18" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">撤回</span><input id="cd-prob-recall" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="6" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">时间感知</span><input id="cd-prob-time-aware" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="25" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">相片</span><input id="cd-prob-camera" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="3.5" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">定位</span><input id="cd-prob-location" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="2.8" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">外卖</span><input id="cd-prob-takeaway" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.8" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">礼物</span><input id="cd-prob-gift" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.8" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">电话</span><input id="cd-prob-call" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="1.2" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">视频</span><input id="cd-prob-video-call" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.6" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">红包</span><input id="cd-prob-red-packet" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.5" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">转账</span><input id="cd-prob-transfer" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.3" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">语音</span><input id="cd-prob-voice-message" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="10" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">表情包</span><input id="cd-prob-emoticon" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="12" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">引用</span><input id="cd-prob-reply" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="16" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">撤回</span><input id="cd-prob-recall" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="4" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">时间感知</span><input id="cd-prob-time-aware" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="18" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
                     </div>
                 </div>
             </div>
@@ -3798,7 +3798,7 @@
 <script src="js/core/contacts-and-chatlist.js"></script>
 <script src="js/home/novel-entry.js"></script>
 <script src="js/home/wechat-chat.js"></script>
-<script src="js/home/wechat-moments.js"></script>
+    <script src="js/home/wechat-moments.js?v=20260406-timeline2"></script>
 <script src="js/home/data-tools.js"></script>
 <script src="js/home/music-app.js"></script>
 <script src="js/wallet/stock-and-assist.js"></script>
@@ -3813,7 +3813,7 @@
 <script src="js/device/check-phone.js"></script>
 <script src="js/meetlove/meetlove.js"></script>
 <script src="js/meetlove/heart-voice.js"></script>
-<script src="js/meetlove/offline.js"></script>
+<script src="js/meetlove/offline.js?v=20260406-fix2"></script>
 
 <!-- 注册 Service Worker，满足 PWA 安装与后台通知条件 -->
 <script>

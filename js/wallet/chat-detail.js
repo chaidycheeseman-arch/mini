@@ -4,7 +4,7 @@
 (function() {
     // 当前联系人的详情设置存储键前缀
     var CD_KEY_PREFIX = 'cd_settings_';
-    var SPECIAL_MESSAGE_PROBABILITY_VERSION = 5;
+    var SPECIAL_MESSAGE_PROBABILITY_VERSION = 6;
     const LEGACY_SPECIAL_MESSAGE_PROBABILITIES = Object.freeze({
         camera: 0.1,
         location: 0.1,
@@ -35,7 +35,7 @@
         recall: 4,
         time_aware: 18
     });
-    const DEFAULT_SPECIAL_MESSAGE_PROBABILITIES = Object.freeze({
+    const HIGH_DEFAULT_SPECIAL_MESSAGE_PROBABILITIES = Object.freeze({
         camera: 20,
         location: 20,
         takeaway: 20,
@@ -49,6 +49,21 @@
         reply: 18,
         recall: 6,
         time_aware: 25
+    });
+    const DEFAULT_SPECIAL_MESSAGE_PROBABILITIES = Object.freeze({
+        camera: 3.5,
+        location: 2.8,
+        takeaway: 0.8,
+        gift: 0.8,
+        call: 1.2,
+        video_call: 0.6,
+        red_packet: 0.5,
+        transfer: 0.3,
+        voice_message: 10,
+        emoticon: 12,
+        reply: 16,
+        recall: 4,
+        time_aware: 18
     });
     const ACTION_SPECIAL_MESSAGE_KEYS = ['camera', 'location', 'takeaway', 'gift', 'call', 'video_call', 'red_packet', 'transfer'];
     const ACTION_SPECIAL_MESSAGE_LABELS = Object.freeze({
@@ -239,7 +254,8 @@
                 savedVersion < SPECIAL_MESSAGE_PROBABILITY_VERSION &&
                 (
                     _isSameProbabilityConfig(normalized, LEGACY_SPECIAL_MESSAGE_PROBABILITIES) ||
-                    _isSameProbabilityConfig(normalized, LOW_DEFAULT_SPECIAL_MESSAGE_PROBABILITIES)
+                    _isSameProbabilityConfig(normalized, LOW_DEFAULT_SPECIAL_MESSAGE_PROBABILITIES) ||
+                    _isSameProbabilityConfig(normalized, HIGH_DEFAULT_SPECIAL_MESSAGE_PROBABILITIES)
                 )
             ) {
                 var defaults = _getDefaultSpecialMessageProbabilities();
@@ -308,7 +324,7 @@
         var config = _getCurrentSpecialProbabilityInputConfig();
         var total = _getActionSpecialProbabilityTotal(config);
         var breakdown = _getActionSelectionProbabilityBreakdown(config);
-        totalEl.textContent = '动作型参考权重 ' + _formatProbabilityValue(total) + '% · 实际触发率 ' + _formatProbabilityValue(breakdown.anyProbability) + '%';
+        totalEl.textContent = '动作型配置总和 ' + _formatProbabilityValue(total) + '% · 单轮实际触发率 ' + _formatProbabilityValue(breakdown.anyProbability) + '%';
         totalEl.style.color = '#999';
         var detailEl = _ensureSpecialProbabilityDetailEl();
         if (!detailEl) return;
@@ -780,7 +796,7 @@
         if (historyPre.length > 0) {
             var lastSummary = historyPre[0];
             var previewText = '上次总结（' + lastSummary.time + '，共' + lastSummary.msgCount + '条消息）：\n\n' + lastSummary.content.substring(0, 300) + (lastSummary.content.length > 300 ? '...' : '');
-            var doIt = confirm(previewText + '\n\n当前共 ' + totalMsgCount + ' 条消息（含线下记录），确定要重新总结吗？');
+            var doIt = await window.showMiniConfirm(previewText + '\n\n当前共 ' + totalMsgCount + ' 条消息（含线下记录），确定要重新总结吗？');
             if (!doIt) return;
         }
         // 构造消息列表
@@ -914,7 +930,7 @@
         var historyKey = CD_KEY_PREFIX + activeChatContact.id + '_summary_history';
         var history = (await localforage.getItem(historyKey)) || [];
         if (idx < 0 || idx >= history.length) return;
-        var newContent = prompt('编辑总结内容：', history[idx].content);
+        var newContent = await window.showMiniPrompt('编辑总结内容：', history[idx].content, { multiline: true });
         if (newContent === null) return;
         history[idx].content = newContent.trim() || history[idx].content;
         await localforage.setItem(historyKey, history);
@@ -924,7 +940,7 @@
     // 删除某条总结
     async function _cdDeleteSummary(idx) {
         if (!activeChatContact) return;
-        if (!confirm('确定要删除这条总结吗？')) return;
+        if (!await window.showMiniConfirm('确定要删除这条总结吗？')) return;
         var historyKey = CD_KEY_PREFIX + activeChatContact.id + '_summary_history';
         var history = (await localforage.getItem(historyKey)) || [];
         history.splice(idx, 1);
@@ -942,7 +958,7 @@
     window.cdChangeRemark = async function() {
         if (!activeChatContact) return;
         var current = document.getElementById('cd-remark-value').textContent;
-        var newRemark = prompt('请输入备注名称：', current === '未设置' ? '' : current);
+        var newRemark = await window.showMiniPrompt('请输入备注名称：', current === '未设置' ? '' : current);
         if (newRemark === null) return;
         var displayRemark = newRemark.trim() || '未设置';
         document.getElementById('cd-remark-value').textContent = displayRemark;

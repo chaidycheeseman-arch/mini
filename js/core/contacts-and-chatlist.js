@@ -299,7 +299,7 @@ document.getElementById('contact-edit-id').value = '';
         }
     }
     async function deleteContact(id) {
-        if (confirm('确定要删除这个联系人吗？')) {
+        if (await window.showMiniConfirm('确定要删除这个联系人吗？')) {
             try {
                 await contactDb.contacts.delete(id);
                 renderContacts();

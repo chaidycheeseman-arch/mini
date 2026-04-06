@@ -503,7 +503,7 @@
     async function deleteMomentPost(postId) {
         const idx = momentsPosts.findIndex(p => p.id === postId);
         if (idx < 0) return;
-        if (!confirm('确定删除这条朋友圈吗？')) return;
+        if (!await window.showMiniConfirm('确定删除这条朋友圈吗？')) return;
         momentsPosts.splice(idx, 1);
         await persistMomentsPosts();
         renderMomentsFeed();
@@ -527,7 +527,7 @@
     }
 
     async function buildMomentsContactPromptPayload(contact, ctxLimit) {
-        const allMsgs = await chatListDb.messages.where('contactId').equals(contact.id).toArray();
+        const allMsgs = orderMiniChatMessages(await chatListDb.messages.where('contactId').equals(contact.id).toArray());
         const recentMsgs = (ctxLimit === 0) ? allMsgs : allMsgs.slice(-ctxLimit);
         const dialogContext = recentMsgs.map(msg => {
             const text = extractMsgPureText(msg.content);
@@ -762,7 +762,6 @@
         const avatar = typeof window.getSafeAvatarSrc === 'function'
             ? window.getSafeAvatarSrc(contact.roleAvatar)
             : (contact.roleAvatar || '');
-        const timeStr = getAmPmTime();
         const row = document.createElement('div');
         row.id = 'wechat-typing-indicator';
         row.className = 'chat-msg-row msg-left chat-typing-row';
@@ -770,9 +769,12 @@
             '<div class="chat-msg-avatar"><img src="' + avatar + '" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=\'' + DEFAULT_AVATAR_DATA_URI + '\';"></div>' +
             '<div class="msg-bubble-wrapper">' +
                 '<div class="chat-msg-content chat-typing-content">' +
-                    '<span class="chat-typing-label">正在输入...</span>' +
+                    '<span class="chat-typing-dots" aria-label="加载中">' +
+                        '<span class="chat-typing-dot"></span>' +
+                        '<span class="chat-typing-dot"></span>' +
+                        '<span class="chat-typing-dot"></span>' +
+                    '</span>' +
                 '</div>' +
-                '<div class="chat-timestamp">' + timeStr + '</div>' +
             '</div>';
         container.appendChild(row);
         requestAnimationFrame(function() {
@@ -957,20 +959,32 @@
             return null;
         }
     }
+    function orderMiniChatMessages(messages) {
+        return (Array.isArray(messages) ? messages : []).slice().sort(function(a, b) {
+            var aId = parseInt(a && a.id, 10);
+            var bId = parseInt(b && b.id, 10);
+            if (isFinite(aId) && isFinite(bId) && aId !== bId) return aId - bId;
+            var aTs = Number(a && a.timestamp) || 0;
+            var bTs = Number(b && b.timestamp) || 0;
+            if (aTs !== bTs) return aTs - bTs;
+            return 0;
+        });
+    }
+
     function detectMiniExplicitActionIntent(rawMessages) {
-        const userTexts = (Array.isArray(rawMessages) ? rawMessages : [])
-            .filter(function(msg) { return msg && msg.sender === 'me'; })
+        const source = Array.isArray(rawMessages) ? rawMessages : [];
+        const userMessages = source.filter(function(msg) { return msg && msg.sender === 'me'; });
+        const latestUserMsg = userMessages[userMessages.length - 1] || null;
+        const latestStructured = latestUserMsg ? parseMiniStructuredPayload(latestUserMsg.content) : null;
+        const userTexts = userMessages
             .slice(-3)
             .map(function(msg) { return extractMsgPureText(msg.content); })
-            .filter(function(text) { return !!String(text || '').trim(); });
+            .map(function(text) { return String(text || '').trim(); })
+            .filter(function(text) { return !!text; });
 
-        const latestUserText = String(userTexts[userTexts.length - 1] || '').trim();
+        const latestUserText = latestUserMsg ? String(extractMsgPureText(latestUserMsg.content) || '').trim() : '';
         const recentUserText = userTexts.join('\n');
         const latestCompact = latestUserText.replace(/\s+/g, '');
-        const recentCompact = recentUserText.replace(/\s+/g, '');
-        const has = function(pattern) {
-            return pattern.test(latestCompact) || pattern.test(recentCompact);
-        };
         const compactOnly = /(别废话|不要废话|少废话|别啰嗦|别磨叽|别墨迹|直接发|直接来|快点|赶紧|现在就|立刻|马上|别回文字|不要回文字|别打字|别说太多)/.test(latestCompact);
         const pack = function(intentKey) {
             return {
@@ -980,20 +994,57 @@
                 recentUserText: recentUserText
             };
         };
+        const hasLatest = function(pattern) {
+            return pattern.test(latestCompact);
+        };
 
-        if (!latestUserText) {
+        if (!latestUserText && !latestStructured) {
             return { intentKey: '', compact: compactOnly, latestUserText: '', recentUserText: recentUserText };
+        }
+
+        const pendingRp = source.slice().reverse().find(function(m) {
+            if (!m || m.sender !== 'me') return false;
+            const p = parseMiniStructuredPayload(m.content);
+            return !!(p && p.type === 'red_packet' && p.status === 'unclaimed');
+        });
+        const pendingTf = source.slice().reverse().find(function(m) {
+            if (!m || m.sender !== 'me') return false;
+            const p = parseMiniStructuredPayload(m.content);
+            return !!(p && p.type === 'transfer' && p.status === 'pending');
+        });
+
+        // 用户刚发卡片时，优先理解为“让对方处理这笔款项”，而不是“让对方再发一笔”。
+        if (latestStructured && latestStructured.type === 'red_packet' && latestStructured.status === 'unclaimed') return pack('handle_red_packet');
+        if (latestStructured && latestStructured.type === 'transfer' && latestStructured.status === 'pending') return pack('handle_transfer');
+
+        const receiveCue = /(收款|收下|收了|接收|领取|领了|点.*(收款|领取)|退回)/.test(latestCompact);
+        if (receiveCue && (pendingRp || pendingTf)) {
+            const asksRedPacket = /红包/.test(latestCompact);
+            const asksTransfer = /转账|收款|退回/.test(latestCompact);
+            if (asksRedPacket && pendingRp) return pack('handle_red_packet');
+            if (asksTransfer && pendingTf) return pack('handle_transfer');
+            if (pendingTf && pendingRp) {
+                const rpId = Number(pendingRp.id) || 0;
+                const tfId = Number(pendingTf.id) || 0;
+                return pack(tfId >= rpId ? 'handle_transfer' : 'handle_red_packet');
+            }
+            if (pendingTf) return pack('handle_transfer');
+            if (pendingRp) return pack('handle_red_packet');
         }
 
         if (/(视频通话|打视频|开视频|视频一下|视频给我|开摄像头)/.test(latestCompact) && !/(不要|别|不准).{0,2}(视频|开视频)/.test(latestCompact)) return pack('call_video');
         if (/(打电话|语音通话|打语音|来电|给我打个电话|给我打语音)/.test(latestCompact) && !/(不要|别|不准).{0,2}(电话|语音|来电)/.test(latestCompact)) return pack('call_voice');
-        if (has(/(发(个|条)?语音|发语音|语音说|来段语音|用语音|给我语音|听听你的声音|发个声音)/) && !/(不要|别|不准).{0,2}(语音|声音)/.test(latestCompact)) return pack('voice_message');
-        if (has(/(拍(张|一张)?(照片|相片|自拍|照)|发(张|一张)?(照片|相片|自拍|图)|拍给我|现在拍|给我看看你|拍张照)/) && !/(不要|别|不准).{0,2}(照片|相片|自拍|拍照|图片)/.test(latestCompact)) return pack('camera');
-        if (has(/(发(个)?定位|发位置|共享位置|定位给我|你在哪|你在哪里|你现在哪|查岗)/) && !/(不要|别|不准).{0,2}(定位|位置)/.test(latestCompact)) return pack('location');
-        if (has(/(点(个|杯|份).*(外卖|奶茶|咖啡|饭|吃的|喝的)|给我点(杯|份|个)?.*(奶茶|咖啡|外卖|吃的|喝的)|投喂我|买杯奶茶)/) && !/(不要|别|不准).{0,2}(外卖|奶茶|咖啡)/.test(latestCompact)) return pack('takeout_delivery');
-        if (has(/(送我(个|点)?礼物|给我买(个|点)?礼物|送点东西|给我个惊喜|送我点东西|买礼物给我)/) && !/(不要|别|不准).{0,2}(礼物|东西|惊喜)/.test(latestCompact)) return pack('gift_delivery');
-        if (has(/(发(个)?红包|给我红包|红包发我|塞个红包)/) && !/(不要|别|不准).{0,2}红包/.test(latestCompact)) return pack('red_packet');
-        if (has(/(转(个)?账|给我转账|转我|打点钱|给我打钱|v我|v50|v我50)/) && !/(不要|别|不准).{0,2}(转账|打钱|v我)/.test(latestCompact)) return pack('transfer');
+        if (hasLatest(/(发(个|条)?语音|发语音|语音说|来段语音|用语音|给我语音|听听你的声音|发个声音)/) && !/(不要|别|不准).{0,2}(语音|声音)/.test(latestCompact)) return pack('voice_message');
+        if (hasLatest(/(拍(张|一张)?(照片|相片|自拍|照)|发(张|一张)?(照片|相片|自拍|图)|拍给我|现在拍|给我看看你|拍张照)/) && !/(不要|别|不准).{0,2}(照片|相片|自拍|拍照|图片)/.test(latestCompact)) return pack('camera');
+        if (hasLatest(/(发(个)?定位|发位置|共享位置|定位给我|你在哪|你在哪里|你现在哪|查岗)/) && !/(不要|别|不准).{0,2}(定位|位置)/.test(latestCompact)) return pack('location');
+        if (hasLatest(/(点(个|杯|份).*(外卖|奶茶|咖啡|饭|吃的|喝的)|给我点(杯|份|个)?.*(奶茶|咖啡|外卖|吃的|喝的)|投喂我|买杯奶茶)/) && !/(不要|别|不准).{0,2}(外卖|奶茶|咖啡)/.test(latestCompact)) return pack('takeout_delivery');
+        if (hasLatest(/(送我(个|点)?礼物|给我买(个|点)?礼物|送点东西|给我个惊喜|送我点东西|买礼物给我)/) && !/(不要|别|不准).{0,2}(礼物|东西|惊喜)/.test(latestCompact)) return pack('gift_delivery');
+        if (hasLatest(/((发|塞)(个|个大|个小)?红包|给我(发|塞).{0,3}红包|红包发我|给我红包)/) && !/(不要|别|不准).{0,2}红包/.test(latestCompact)) return pack('red_packet');
+        if (
+            hasLatest(/(给我转账|给我打钱|给我转点钱|转我\d*|给我v\d*|v我\d*|打点钱给我|给我发起转账)/) &&
+            !/(不要|别|不准).{0,2}(转账|打钱|v我)/.test(latestCompact) &&
+            !receiveCue
+        ) return pack('transfer');
 
         return {
             intentKey: '',
@@ -1020,6 +1071,10 @@
                 return item.type === 'red_packet';
             case 'transfer':
                 return item.type === 'transfer' || item.type === 'transaction';
+            case 'handle_red_packet':
+                return item.type === 'handle_red_packet';
+            case 'handle_transfer':
+                return item.type === 'handle_transfer';
             case 'call_voice':
                 return item.type === 'call' || (item.type === 'call_invite' && item.mode !== 'video');
             case 'call_video':
@@ -1167,6 +1222,17 @@
                     amount: isFinite(hintedAmount) ? hintedAmount : 520,
                     memo: '先收着'
                 };
+            case 'handle_red_packet':
+                return {
+                    type: 'handle_red_packet',
+                    content: '红包我领了，谢谢你。'
+                };
+            case 'handle_transfer':
+                return {
+                    type: 'handle_transfer',
+                    action: 'received',
+                    content: '我收下了，谢谢你。'
+                };
             default:
                 return null;
         }
@@ -1197,6 +1263,65 @@
         return '给你塞了个小红包。';
     }
 
+    function getMiniExclusiveActionType(item) {
+        if (!item || typeof item !== 'object') return '';
+        if (item.type === 'camera' || item.type === 'polaroid') return 'camera';
+        if (item.type === 'location') return 'location';
+        if (item.type === 'takeout_delivery' || item.type === 'takeaway') return 'takeaway';
+        if (item.type === 'gift_delivery' || item.type === 'gift' || item.type === 'send_gift') return 'gift';
+        if (item.type === 'red_packet') return 'red_packet';
+        if (item.type === 'transfer' || item.type === 'transaction') return 'transfer';
+        if (item.type === 'call') return 'call';
+        if (item.type === 'video_call') return 'video_call';
+        if (item.type === 'call_invite') return item.mode === 'video' ? 'video_call' : 'call';
+        return '';
+    }
+
+    function isMiniReplyAllowedByRuntime(item, allowedTypes) {
+        if (!item || typeof item !== 'object' || !item.type) return false;
+        const allowSet = allowedTypes instanceof Set ? allowedTypes : new Set(Array.isArray(allowedTypes) ? allowedTypes : []);
+        if (allowSet.has(item.type)) return true;
+        if (item.type === 'transaction') return allowSet.has('transfer');
+        if (item.type === 'gift' || item.type === 'send_gift') return allowSet.has('gift_delivery');
+        if (item.type === 'takeaway') return allowSet.has('takeout_delivery');
+        if (item.type === 'call' || item.type === 'video_call') return allowSet.has('call_invite');
+        return false;
+    }
+
+    function filterMiniRoleRepliesByRuntimeRules(replyArr, runtimeOptions) {
+        const source = Array.isArray(replyArr) ? replyArr : [];
+        const options = runtimeOptions && typeof runtimeOptions === 'object' ? runtimeOptions : {};
+        const allowSet = new Set(Array.isArray(options.allowedTypes) ? options.allowedTypes : []);
+        const targetExclusiveType = String(options.exclusiveActionType || '').trim();
+        const suppressMoneyActions = !!options.suppressMoneyActions;
+        let keptExclusiveType = '';
+        let filtered = source.filter(function(item) {
+            return isMiniReplyAllowedByRuntime(item, allowSet);
+        }).filter(function(item) {
+            const actionType = getMiniExclusiveActionType(item);
+            if (!actionType) return true;
+            if (suppressMoneyActions && (actionType === 'red_packet' || actionType === 'transfer')) {
+                return false;
+            }
+            if (targetExclusiveType) {
+                if (actionType !== targetExclusiveType) return false;
+                if (keptExclusiveType) return false;
+                keptExclusiveType = actionType;
+                return true;
+            }
+            if (keptExclusiveType) return false;
+            keptExclusiveType = actionType;
+            return true;
+        });
+        if (!filtered.length && allowSet.has('text')) {
+            const fallbackText = pickMiniReplySeedText(source);
+            if (fallbackText) {
+                filtered = [{ type: 'text', content: fallbackText }];
+            }
+        }
+        return filtered;
+    }
+
     function hasRecentRoleMoneyAction(messages, maxLookback) {
         const source = Array.isArray(messages) ? messages : [];
         const lookback = Math.max(1, parseInt(maxLookback, 10) || 6);
@@ -1207,8 +1332,8 @@
         });
     }
 
-    function postProcessMiniRoleReplies(replyArr, maxCount, explicitIntent) {
-        const source = Array.isArray(replyArr) ? replyArr : [];
+    function postProcessMiniRoleReplies(replyArr, maxCount, explicitIntent, runtimeOptions) {
+        const source = filterMiniRoleRepliesByRuntimeRules(replyArr, runtimeOptions);
         const deduped = [];
         const seenKeys = new Set();
 
@@ -1330,14 +1455,14 @@
             if (!apiUrl || !apiKey || !model) {
                 throw new Error("请先在设置中配置 API 网址、密钥和模型。");
             }
-            const rawMessages = await chatListDb.messages.where('contactId').equals(lockedContact.id).toArray();
+            const rawMessages = orderMiniChatMessages(await chatListDb.messages.where('contactId').equals(lockedContact.id).toArray());
             const explicitActionIntent = detectMiniExplicitActionIntent(rawMessages);
             // ctxLimit 为 0 时携带全部上下文，否则取最近 N 条
             const recentMessages = (ctxLimit === 0) ? rawMessages : rawMessages.slice(-ctxLimit);
             const recentOnlineMessages = rawMessages.filter(function(msg) {
                 return !msg || msg.source !== 'sms';
             });
-            const recentRoleMoneyAction = hasRecentRoleMoneyAction(recentOnlineMessages, 8);
+            const recentRoleMoneyAction = hasRecentRoleMoneyAction(recentOnlineMessages, 12);
             const offlineCrossModeMemoryText = await buildOfflineCrossModeMemoryText(lockedContact, ctxLimit);
             const recentOnlineSeedTexts = recentMessages.map(function(msg) {
                 return extractMsgPureText(msg.content || '').trim();
@@ -1384,19 +1509,19 @@
             let langName = roleLang === '中' ? '中文' : roleLang + '语';
             // --- 动态概率触发系统（严格按聊天详情配置） ---
             const _defaultSpecialProbabilities = {
-                camera: 20,
-                location: 20,
-                takeaway: 20,
-                gift: 20,
-                call: 20,
-                video_call: 20,
-                red_packet: 20,
-                transfer: 20,
-                voice_message: 18,
-                emoticon: 18,
-                reply: 18,
-                recall: 6,
-                time_aware: 25
+                camera: 3.5,
+                location: 2.8,
+                takeaway: 0.8,
+                gift: 0.8,
+                call: 1.2,
+                video_call: 0.6,
+                red_packet: 0.5,
+                transfer: 0.3,
+                voice_message: 10,
+                emoticon: 12,
+                reply: 16,
+                recall: 4,
+                time_aware: 18
             };
             const _normalizeProb = (typeof window._normalizeProbabilityValue === 'function')
                 ? window._normalizeProbabilityValue
@@ -1460,6 +1585,18 @@
             const triggerReply = Math.random() < (_normalizeProb(specialProbConfig.reply, _defaultSpecialProbabilities.reply) / 100);
             const triggerRecall = Math.random() < (_normalizeProb(specialProbConfig.recall, _defaultSpecialProbabilities.recall) / 100);
             const triggerTimeAwareReply = timeAwareOn && (Math.random() < (_normalizeProb(specialProbConfig.time_aware, _defaultSpecialProbabilities.time_aware) / 100));
+            const pendingRp = rawMessages.slice().reverse().find(function(m) {
+                if (!m || m.sender !== 'me') return false;
+                const p = parseMiniStructuredPayload(m.content);
+                return !!(p && p.type === 'red_packet' && p.status === 'unclaimed');
+            });
+            const pendingTf = rawMessages.slice().reverse().find(function(m) {
+                if (!m || m.sender !== 'me') return false;
+                const p = parseMiniStructuredPayload(m.content);
+                return !!(p && p.type === 'transfer' && p.status === 'pending');
+            });
+            const explicitHandleRedPacket = explicitActionIntent.intentKey === 'handle_red_packet';
+            const explicitHandleTransfer = explicitActionIntent.intentKey === 'handle_transfer';
             if (explicitActionIntent.intentKey === 'voice_message') triggerVoice = true;
             if (explicitActionIntent.intentKey === 'camera') triggerCamera = true;
             if (explicitActionIntent.intentKey === 'location') triggerLocation = true;
@@ -1469,7 +1606,16 @@
             if (explicitActionIntent.intentKey === 'call_video') triggerVideoCall = true;
             if (explicitActionIntent.intentKey === 'red_packet') triggerRedPacket = true;
             if (explicitActionIntent.intentKey === 'transfer') triggerTransfer = true;
+            if (explicitHandleRedPacket || explicitHandleTransfer) {
+                triggerRedPacket = false;
+                triggerTransfer = false;
+            }
             if (!explicitActionIntent.intentKey && recentRoleMoneyAction) {
+                triggerRedPacket = false;
+                triggerTransfer = false;
+            }
+            if ((pendingRp || pendingTf) && (!explicitActionIntent.intentKey || explicitHandleRedPacket || explicitHandleTransfer)) {
+                // 用户有待处理红包/转账时，优先处理，不再让角色额外发新红包/转账
                 triggerRedPacket = false;
                 triggerTransfer = false;
             }
@@ -1483,6 +1629,8 @@
             ];
             let specialFeatures = [];
             let featureIndex = 1;
+            const forceHandleRedPacket = explicitHandleRedPacket && !!pendingRp;
+            const forceHandleTransfer = explicitHandleTransfer && !!pendingTf;
             // 动态推入引用指令（只有命中概率时，大模型才知道可以使用引用）
             if (triggerReply) {
                 allowedTypes.push("reply");
@@ -1515,7 +1663,20 @@
                 typeInstructions.push(`{"type": "emoticon", "desc": "表情描述", "content": "表情包的url"}`);
                 specialFeatures.push(`${featureIndex++}. 【强制】本次回复中必须包含一个表情包，使用 "type": "emoticon"，且必须从【可用表情包库】中挑选，严禁自己瞎编 url！`);
             }
-            if (triggerRedPacket) {
+            if (forceHandleRedPacket) {
+                allowedTypes = ["handle_red_packet"];
+                typeInstructions = [`{"type": "handle_red_packet", "content": "谢谢你的红包，我收下了"}`];
+                specialFeatures = [`1. 【强制且唯一】用户刚发了待领取红包，本轮只能使用 "type": "handle_red_packet" 处理该红包，绝对禁止再发送新的红包或转账。`];
+                featureIndex = 2;
+                randomMsgCount = 1;
+            } else if (forceHandleTransfer) {
+                allowedTypes = ["handle_transfer"];
+                typeInstructions = [`{"type": "handle_transfer", "action": "received", "content": "我收下这笔转账了，谢谢你"}`];
+                specialFeatures = [`1. 【强制且唯一】用户刚发了待收款转账，本轮只能使用 "type": "handle_transfer"（action 为 "received" 或 "refunded"）处理该转账，绝对禁止再发送新的红包或转账。`];
+                featureIndex = 2;
+                randomMsgCount = 1;
+            }
+            if (!forceHandleRedPacket && !forceHandleTransfer && triggerRedPacket) {
                 if (explicitActionIntent.intentKey === 'red_packet') {
                     // 用户明确要求发红包时：只允许 red_packet 类型，强制1条，禁止其他类型
                     allowedTypes = ["red_packet"];
@@ -1530,7 +1691,7 @@
                     randomMsgCount = Math.max(randomMsgCount, 2);
                 }
             }
-            if (triggerTransfer) {
+            if (!forceHandleRedPacket && !forceHandleTransfer && triggerTransfer) {
                 if (explicitActionIntent.intentKey === 'transfer') {
                     // 用户明确要求转账时：只允许 transfer 类型，强制1条，禁止其他类型
                     allowedTypes = ["transfer"];
@@ -1546,23 +1707,12 @@
                 }
             }
             // 若用户发送了红包/转账，角色可以主动处理（领取/接收/退回）
-            // 检查是否有未处理的我发的红包或转账
-            const pendingRp = rawMessages.slice().reverse().find(m => {
-                if (m.sender !== 'me') return false;
-                const p = parseMiniStructuredPayload(m.content);
-                return !!(p && p.type === 'red_packet' && p.status === 'unclaimed');
-            });
-            const pendingTf = rawMessages.slice().reverse().find(m => {
-                if (m.sender !== 'me') return false;
-                const p = parseMiniStructuredPayload(m.content);
-                return !!(p && p.type === 'transfer' && p.status === 'pending');
-            });
-            if (pendingRp) {
+            if (pendingRp && !allowedTypes.includes("handle_red_packet")) {
                 allowedTypes.push("handle_red_packet");
                 typeInstructions.push(`{"type": "handle_red_packet", "content": "哇谢谢你的红包！"}`);
                 specialFeatures.push(`${featureIndex++}. 用户发送了红包还未被领取，你可以选择使用 "type": "handle_red_packet" 来领取它（content为你的反应文字），系统会自动更新红包状态并显示提示。`);
             }
-            if (pendingTf) {
+            if (pendingTf && !allowedTypes.includes("handle_transfer")) {
                 allowedTypes.push("handle_transfer");
                 typeInstructions.push(`{"type": "handle_transfer", "action": "received", "content": "收到转账啦谢谢"}`);
                 specialFeatures.push(`${featureIndex++}. 用户发送了转账还未处理，你可以选择使用 "type": "handle_transfer" 来接收（action为"received"）或退回（action为"refunded"），content为你的反应文字，系统会自动更新状态并显示提示。`);
@@ -1600,6 +1750,8 @@
                     gift_delivery: '用户刚刚明确要求你送礼物/惊喜。本轮必须真的发送 "gift_delivery"。',
                     red_packet: '用户刚刚明确要求你发红包。本轮必须真的发送 "red_packet"。',
                     transfer: '用户刚刚明确要求你转账。本轮必须真的发送 "transfer"。',
+                    handle_red_packet: '用户刚刚让你领取红包。本轮必须真的发送 "handle_red_packet" 来处理用户发来的红包，绝对禁止再发新红包。',
+                    handle_transfer: '用户刚刚让你处理转账。本轮必须真的发送 "handle_transfer" 来处理用户发来的转账，绝对禁止再发新转账。',
                     call_voice: '用户刚刚明确要求你打语音电话。本轮必须真的发送 "call_invite"，且 mode 必须是 "voice"。',
                     call_video: '用户刚刚明确要求你打视频电话。本轮必须真的发送 "call_invite"，且 mode 必须是 "video"。'
                 };
@@ -1613,6 +1765,15 @@
                     return instr.replace('}', ', "translation": "中文翻译"}');
                 });
             }
+            const expectedExclusiveActionType = triggerCamera ? 'camera'
+                : triggerLocation ? 'location'
+                : triggerTakeaway ? 'takeaway'
+                : triggerGift ? 'gift'
+                : triggerCall ? 'call'
+                : triggerVideoCall ? 'video_call'
+                : triggerRedPacket ? 'red_packet'
+                : triggerTransfer ? 'transfer'
+                : '';
             let langInstruction = `[\n  ${typeInstructions.join(',\n  ')}\n]`;
             if (roleLang !== '中') {
                 langInstruction += `\n【语言要求】角色必须严格使用"${langName}"进行回复，且必须在JSON对象中携带 translation 字段提供对应的中文翻译！`;
@@ -1857,7 +2018,11 @@ ${langInstruction}`
                     }
                 }
             }
-            replyArr = postProcessMiniRoleReplies(replyArr, randomMsgCount, explicitActionIntent);
+            replyArr = postProcessMiniRoleReplies(replyArr, randomMsgCount, explicitActionIntent, {
+                allowedTypes: allowedTypes,
+                exclusiveActionType: expectedExclusiveActionType,
+                suppressMoneyActions: recentRoleMoneyAction && !(explicitActionIntent && (explicitActionIntent.intentKey === 'red_packet' || explicitActionIntent.intentKey === 'transfer'))
+            });
 
             // 逐条渲染回复：按消息长度和类型做轻微打字延迟，避免多条消息瞬间堆在一起
             for (let i = 0; i < replyArr.length; i++) {
@@ -2109,7 +2274,7 @@ ${langInstruction}`
             if (!apiUrl || !apiKey || !model) return;
             const ctxRaw = await localforage.getItem('miffy_api_ctx');
             const ctxLimit = (ctxRaw !== null && ctxRaw !== '') ? parseInt(ctxRaw) : 10;
-            const allMsgs = await chatListDb.messages.where('contactId').equals(lockedContact.id).toArray();
+            const allMsgs = orderMiniChatMessages(await chatListDb.messages.where('contactId').equals(lockedContact.id).toArray());
             // 至少有5条消息才考虑拉黑（太少的对话不够判断）
             if (allMsgs.length < 5) return;
             const recentMsgs = (ctxLimit === 0) ? allMsgs : allMsgs.slice(-ctxLimit);
@@ -2517,20 +2682,15 @@ ${langInstruction}`
             await refreshChatWindow();
             updateLastChatTime();
         } else if (action === 'rollback') {
-            if (confirm('确定要回溯到这条消息吗？这会删除此条之后的所有线上消息。')) {
-                const allMsgs = await chatListDb.messages.where('contactId').equals(activeChatContact.id).toArray();
-                const msgsToDelete = allMsgs.filter(function(m) {
-                    return m && m.source !== 'sms' && m.id > msgId;
-                }).map(function(m) {
-                    return m.id;
-                });
-                await chatListDb.messages.bulkDelete(msgsToDelete);
-                await refreshChatWindow();
-                updateLastChatTime();
+            if (await window.showMiniConfirm('确定要回溯到这条消息吗？这会保留这条消息，并删除它之后的所有线上消息。')) {
+                const success = await rollbackChatAfterMessage(msgId);
+                if (!success) {
+                    alert('回溯失败，未找到可处理的消息');
+                }
             }
         } else if (action === 'rewind') {
             if (currentLongPressMsgSender !== 'role') return;
-            if (confirm('确定要重回这轮角色回复吗？这会删除这一轮及其后的线上对话，并重新生成回复。')) {
+            if (await window.showMiniConfirm('确定要重回这轮角色回复吗？这会删除这一轮及其后的线上对话，并重新生成回复。')) {
                 await rewindRoleReplyFromMessage(msgId);
             }
         }
@@ -2541,7 +2701,7 @@ ${langInstruction}`
         if (chatWindow.style.display !== 'flex') return;
         const container = document.getElementById('chat-msg-container');
         container.innerHTML = '';
-        const allMessages = await chatListDb.messages.where('contactId').equals(activeChatContact.id).toArray();
+        const allMessages = orderMiniChatMessages(await chatListDb.messages.where('contactId').equals(activeChatContact.id).toArray());
         // 【聊天隔离】刷新时也必须排除 SMS 消息
         const messages = allMessages.filter(m => m.source !== 'sms');
         const myAvatar = typeof window.getSafeAvatarSrc === 'function' ? window.getSafeAvatarSrc(activeChatContact.userAvatar) : (activeChatContact.userAvatar || '');
@@ -2558,7 +2718,7 @@ ${langInstruction}`
     async function updateLastChatTime(targetContact = null) {
         const contact = targetContact || activeChatContact;
         if (!contact) return;
-        const msgs = await chatListDb.messages.where('contactId').equals(contact.id).toArray();
+        const msgs = orderMiniChatMessages(await chatListDb.messages.where('contactId').equals(contact.id).toArray());
         const chat = await chatListDb.chats.where('contactId').equals(contact.id).first();
         if (chat) {
             if (msgs.length > 0) {
@@ -2874,7 +3034,7 @@ ${langInstruction}`
     }
     async function deleteSelectedMsgs() {
         if (selectedMsgIds.size === 0) return;
-        if (confirm(`确定要删除选中的 ${selectedMsgIds.size} 条消息吗？`)) {
+        if (await window.showMiniConfirm(`确定要删除选中的 ${selectedMsgIds.size} 条消息吗？`)) {
             // 修复：多选删除时，同时删除系统小字（撤回提示、系统提示等）中被选中的条目
             // selectedMsgIds 中的 id 可能包含系统消息（isRecalled/isSystemTip），一并删除
             await chatListDb.messages.bulkDelete(Array.from(selectedMsgIds));
@@ -2942,7 +3102,7 @@ ${langInstruction}`
         const rounds = [];
         let currentRound = null;
         let hasUserAnchor = false;
-        (Array.isArray(messages) ? messages : []).forEach(function(msg) {
+        orderMiniChatMessages(messages).forEach(function(msg) {
             if (!msg || msg.source === 'sms' || msg.isSystemTip || msg.isRecalled || msg.sender === 'system') return;
             if (msg.sender === 'me') {
                 hasUserAnchor = true;
@@ -2953,12 +3113,14 @@ ${langInstruction}`
             if (!currentRound) {
                 currentRound = {
                     startMsgId: msg.id,
+                    endMsgId: msg.id,
                     timeStr: msg.timeStr || '',
                     previews: [],
                     count: 0
                 };
                 rounds.push(currentRound);
             }
+            currentRound.endMsgId = msg.id;
             currentRound.count += 1;
             const previewText = extractMsgPureText(msg.content || '').trim();
             if (previewText && currentRound.previews.length < 2) {
@@ -2976,7 +3138,7 @@ ${langInstruction}`
             listEl.innerHTML = '<div class="chat-rollback-empty">当前没有打开的聊天。</div>';
             return;
         }
-        const allMsgs = await chatListDb.messages.where('contactId').equals(activeChatContact.id).toArray();
+        const allMsgs = orderMiniChatMessages(await chatListDb.messages.where('contactId').equals(activeChatContact.id).toArray());
         const rounds = buildChatRollbackRounds(allMsgs);
         if (!rounds.length) {
             listEl.innerHTML = '<div class="chat-rollback-empty">还没有可回溯的角色回复轮次。</div>';
@@ -3007,17 +3169,17 @@ ${langInstruction}`
             const rewindBtn = document.createElement('button');
             rewindBtn.type = 'button';
             rewindBtn.className = 'chat-rollback-item-btn primary';
-            rewindBtn.textContent = '回到这里';
+            rewindBtn.textContent = '回溯到这里';
             rewindBtn.addEventListener('click', async function() {
-                const ok = confirm('确定要回溯到这一轮角色回复吗？这会删除这一轮及其后的线上对话，并重新生成回复。');
+                const ok = await window.showMiniConfirm('确定要回溯到这一轮角色回复吗？这会保留这一轮，并删除它之后的线上对话。');
                 if (!ok) return;
                 closeChatRollbackModal();
-                const success = await rewindRoleReplyFromMessage(round.startMsgId);
+                const success = await rollbackChatAfterMessage(round.endMsgId || round.startMsgId);
                 if (!success) {
                     alert('回溯失败，未找到可处理的消息轮次');
                     return;
                 }
-                showWechatMessageToast('已回溯并重新生成');
+                showWechatMessageToast('已回溯到该轮');
             });
 
             actions.appendChild(rewindBtn);
@@ -3030,6 +3192,251 @@ ${langInstruction}`
         });
     }
 
+    const CHAT_TIMELINE_SLOT_COUNT = 3;
+
+    function getChatTimelineStateKey(contactId) {
+        return 'chat_timeline_state_' + contactId;
+    }
+
+    function getChatTimelineSlotKey(contactId, slotIndex) {
+        return 'chat_timeline_slot_' + contactId + '_' + slotIndex;
+    }
+
+    function formatTimelineDatetimeInput(ts) {
+        const d = new Date(ts || Date.now());
+        if (isNaN(d.getTime())) return '';
+        return d.getFullYear() + '-' +
+            String(d.getMonth() + 1).padStart(2, '0') + '-' +
+            String(d.getDate()).padStart(2, '0') + 'T' +
+            String(d.getHours()).padStart(2, '0') + ':' +
+            String(d.getMinutes()).padStart(2, '0');
+    }
+
+    function parseTimelineDatetimeInput(value) {
+        const text = String(value || '').trim();
+        if (!text) return null;
+        const ts = Date.parse(text);
+        return Number.isFinite(ts) ? ts : null;
+    }
+
+    function buildTimelineNaturalTransitionText(targetTs, sceneText, nowTs) {
+        const timeLabel = formatMiniPromptTimestamp(targetTs) || '未知时间';
+        const dayLabel = getMiniRelativeDayLabel(targetTs, nowTs);
+        let lead = '时间轴轻轻拨到了新的节点。';
+        if (targetTs < nowTs) lead = '时间轴回退到了过去的节点。';
+        else if (targetTs > nowTs) lead = '时间轴快进到了未来的节点。';
+        const coreScene = sceneText
+            ? String(sceneText).trim()
+            : (targetTs < nowTs
+                ? '周围像回到那天的空气和节奏。'
+                : (targetTs > nowTs ? '环境像提前抵达了未来的生活片段。' : '场景保持当前节奏。'));
+        return lead + '现在是' + timeLabel + '（' + dayLabel + '），' + coreScene;
+    }
+
+    async function renderChatTimelineSlotList(contact) {
+        const slotListEl = document.getElementById('chat-timeline-slot-list');
+        if (!slotListEl) return;
+        slotListEl.innerHTML = '';
+        if (!contact) return;
+
+        for (let i = 1; i <= CHAT_TIMELINE_SLOT_COUNT; i += 1) {
+            let slot = null;
+            try {
+                slot = await localforage.getItem(getChatTimelineSlotKey(contact.id, i));
+            } catch (e) {
+                slot = null;
+            }
+
+            const item = document.createElement('div');
+            item.className = 'chat-timeline-slot-item';
+
+            const metaWrap = document.createElement('div');
+            metaWrap.className = 'chat-timeline-slot-meta';
+
+            const title = document.createElement('div');
+            title.className = 'chat-timeline-slot-title';
+            title.textContent = '时间轴存档 ' + i;
+
+            const desc = document.createElement('div');
+            desc.className = 'chat-timeline-slot-desc';
+            if (slot && slot.targetTs) {
+                const sceneTail = slot.sceneText ? (' · ' + String(slot.sceneText).trim()) : '';
+                desc.textContent = (formatMiniPromptTimestamp(slot.targetTs) || '未知时间') + sceneTail;
+            } else {
+                desc.textContent = '空槽位';
+            }
+
+            const actions = document.createElement('div');
+            actions.className = 'chat-timeline-slot-actions';
+
+            const saveBtn = document.createElement('button');
+            saveBtn.type = 'button';
+            saveBtn.className = 'chat-timeline-slot-btn';
+            saveBtn.textContent = '保存';
+            saveBtn.addEventListener('click', async function() {
+                await saveChatTimelineSlot(i);
+            });
+
+            const loadBtn = document.createElement('button');
+            loadBtn.type = 'button';
+            loadBtn.className = 'chat-timeline-slot-btn primary';
+            loadBtn.textContent = '读取';
+            if (!slot) loadBtn.disabled = true;
+            loadBtn.addEventListener('click', async function() {
+                await loadChatTimelineSlot(i);
+            });
+
+            actions.appendChild(saveBtn);
+            actions.appendChild(loadBtn);
+            metaWrap.appendChild(title);
+            metaWrap.appendChild(desc);
+            item.appendChild(metaWrap);
+            item.appendChild(actions);
+            slotListEl.appendChild(item);
+        }
+    }
+
+    async function renderChatTimelineTravelPanel() {
+        const panel = document.getElementById('chat-timeline-travel-panel');
+        if (!panel) return;
+        if (!activeChatContact) {
+            panel.innerHTML = '<div class="chat-timeline-empty">当前没有打开的聊天，无法调整时间轴。</div>';
+            return;
+        }
+
+        let state = null;
+        try {
+            state = await localforage.getItem(getChatTimelineStateKey(activeChatContact.id));
+        } catch (e) {
+            state = null;
+        }
+        const targetTs = state && Number.isFinite(Number(state.targetTs)) ? Number(state.targetTs) : Date.now();
+        const sceneText = state && typeof state.sceneText === 'string' ? state.sceneText : '';
+
+        panel.innerHTML = '' +
+            '<div class="chat-timeline-travel-row">' +
+                '<input id="chat-timeline-target-time" type="datetime-local">' +
+                '<button id="chat-timeline-set-past" type="button" class="chat-timeline-travel-btn">过去</button>' +
+                '<button id="chat-timeline-set-future" type="button" class="chat-timeline-travel-btn">未来</button>' +
+            '</div>' +
+            '<textarea id="chat-timeline-scene-input" class="chat-timeline-travel-scene" placeholder="输入情景过渡，例如：夜雨停了，我们在旧书店门口重逢。"></textarea>' +
+            '<div class="chat-timeline-travel-row">' +
+                '<button id="chat-timeline-apply-btn" type="button" class="chat-timeline-travel-btn primary">应用时间轴并自然过渡</button>' +
+            '</div>' +
+            '<div id="chat-timeline-slot-list" class="chat-timeline-slot-list"></div>';
+
+        const targetInput = document.getElementById('chat-timeline-target-time');
+        const sceneInput = document.getElementById('chat-timeline-scene-input');
+        if (targetInput) targetInput.value = formatTimelineDatetimeInput(targetTs);
+        if (sceneInput) {
+            sceneInput.value = sceneText;
+            autoGrowTextarea(sceneInput);
+        }
+
+        const setPastBtn = document.getElementById('chat-timeline-set-past');
+        if (setPastBtn) {
+            setPastBtn.addEventListener('click', function() {
+                if (!targetInput) return;
+                const base = parseTimelineDatetimeInput(targetInput.value) || Date.now();
+                targetInput.value = formatTimelineDatetimeInput(base - 86400000);
+            });
+        }
+        const setFutureBtn = document.getElementById('chat-timeline-set-future');
+        if (setFutureBtn) {
+            setFutureBtn.addEventListener('click', function() {
+                if (!targetInput) return;
+                const base = parseTimelineDatetimeInput(targetInput.value) || Date.now();
+                targetInput.value = formatTimelineDatetimeInput(base + 86400000);
+            });
+        }
+        const applyBtn = document.getElementById('chat-timeline-apply-btn');
+        if (applyBtn) {
+            applyBtn.addEventListener('click', async function() {
+                await applyChatTimelineTravel();
+            });
+        }
+
+        await renderChatTimelineSlotList(activeChatContact);
+    }
+
+    async function saveChatTimelineSlot(slotIndex) {
+        if (!activeChatContact) return;
+        const targetInput = document.getElementById('chat-timeline-target-time');
+        const sceneInput = document.getElementById('chat-timeline-scene-input');
+        const targetTs = parseTimelineDatetimeInput(targetInput ? targetInput.value : '');
+        if (!targetTs) {
+            showWechatMessageToast('请先选择时间点');
+            return;
+        }
+        const payload = {
+            targetTs: targetTs,
+            sceneText: sceneInput ? String(sceneInput.value || '').trim() : '',
+            savedAt: Date.now()
+        };
+        await localforage.setItem(getChatTimelineSlotKey(activeChatContact.id, slotIndex), payload);
+        await renderChatTimelineSlotList(activeChatContact);
+        showWechatMessageToast('已保存到存档位 ' + slotIndex);
+    }
+
+    async function loadChatTimelineSlot(slotIndex) {
+        if (!activeChatContact) return;
+        const slot = await localforage.getItem(getChatTimelineSlotKey(activeChatContact.id, slotIndex));
+        if (!slot || !slot.targetTs) {
+            showWechatMessageToast('该存档位为空');
+            return;
+        }
+        const targetInput = document.getElementById('chat-timeline-target-time');
+        const sceneInput = document.getElementById('chat-timeline-scene-input');
+        if (targetInput) targetInput.value = formatTimelineDatetimeInput(slot.targetTs);
+        if (sceneInput) {
+            sceneInput.value = slot.sceneText || '';
+            autoGrowTextarea(sceneInput);
+        }
+        showWechatMessageToast('已读取存档位 ' + slotIndex);
+    }
+
+    async function applyChatTimelineTravel() {
+        const contact = activeChatContact;
+        if (!contact) {
+            showWechatMessageToast('请先打开一个聊天');
+            return false;
+        }
+        if (isWechatContactReplyLocked(contact)) {
+            showWechatMessageToast('角色正在输入，请稍后再试');
+            return false;
+        }
+
+        const targetInput = document.getElementById('chat-timeline-target-time');
+        const sceneInput = document.getElementById('chat-timeline-scene-input');
+        const targetTs = parseTimelineDatetimeInput(targetInput ? targetInput.value : '');
+        if (!targetTs) {
+            showWechatMessageToast('时间格式无效');
+            return false;
+        }
+        const sceneText = sceneInput ? String(sceneInput.value || '').trim() : '';
+        const nowTs = Date.now();
+
+        await localforage.setItem(getChatTimelineStateKey(contact.id), {
+            targetTs: targetTs,
+            sceneText: sceneText,
+            updatedAt: nowTs
+        });
+
+        const anchorText = formatMiniPromptTimestamp(targetTs) || '未知时间';
+        const dayLabel = getMiniRelativeDayLabel(targetTs, nowTs);
+        const transitionText = buildTimelineNaturalTransitionText(targetTs, sceneText, nowTs);
+
+        await appendSystemTipMessage('时间轴锚点已切换到 ' + anchorText + '（' + dayLabel + '）', contact, 'timeline_tip');
+        const userMsgId = await appendCurrentUserMessageContent(transitionText, contact);
+        if (!userMsgId) return false;
+
+        await triggerRoleReply(contact);
+        await renderChatTimelineList();
+        await renderChatTimelineTravelPanel();
+        showWechatMessageToast('时间轴已切换到 ' + anchorText);
+        return true;
+    }
+
     async function renderChatTimelineList() {
         const listEl = document.getElementById('chat-timeline-list');
         if (!listEl) return;
@@ -3038,7 +3445,7 @@ ${langInstruction}`
             listEl.innerHTML = '<div class="chat-timeline-empty">当前没有打开的聊天。</div>';
             return;
         }
-        const allMsgs = await chatListDb.messages.where('contactId').equals(activeChatContact.id).toArray();
+        const allMsgs = orderMiniChatMessages(await chatListDb.messages.where('contactId').equals(activeChatContact.id).toArray());
         const messages = allMsgs.filter(function(msg) {
             return msg && msg.source !== 'sms';
         });
@@ -3078,6 +3485,7 @@ ${langInstruction}`
         const modal = document.getElementById('chat-timeline-modal');
         if (!modal) return;
         modal.style.display = 'flex';
+        await renderChatTimelineTravelPanel();
         await renderChatTimelineList();
     }
 
@@ -3099,9 +3507,30 @@ ${langInstruction}`
         if (modal) modal.style.display = 'none';
     }
 
+    async function rollbackChatAfterMessage(msgId) {
+        if (!activeChatContact || !msgId) return false;
+        const allMsgs = orderMiniChatMessages(await chatListDb.messages.where('contactId').equals(activeChatContact.id).toArray());
+        const messages = allMsgs.filter(function(msg) {
+            return msg && msg.source !== 'sms';
+        });
+        const anchorIndex = messages.findIndex(function(msg) {
+            return msg.id === msgId;
+        });
+        if (anchorIndex < 0) return false;
+        const idsToDelete = messages.slice(anchorIndex + 1).map(function(msg) {
+            return msg.id;
+        }).filter(Boolean);
+        if (idsToDelete.length) {
+            await chatListDb.messages.bulkDelete(idsToDelete);
+        }
+        await refreshChatWindow();
+        await updateLastChatTime(activeChatContact);
+        return true;
+    }
+
     async function rewindRoleReplyFromMessage(msgId) {
         if (!activeChatContact || !msgId) return false;
-        const allMsgs = await chatListDb.messages.where('contactId').equals(activeChatContact.id).toArray();
+        const allMsgs = orderMiniChatMessages(await chatListDb.messages.where('contactId').equals(activeChatContact.id).toArray());
         const messages = allMsgs.filter(function(msg) {
             return msg && msg.source !== 'sms';
         });
@@ -3136,21 +3565,12 @@ ${langInstruction}`
     window.closeChatRollbackModal = closeChatRollbackModal;
 
     function showWechatMessageToast(text) {
-        const chatWindow = document.getElementById('chat-window');
-        if (!chatWindow || !text) return;
-        const oldToast = document.getElementById('wechat-chat-toast');
-        if (oldToast && oldToast.parentNode) oldToast.parentNode.removeChild(oldToast);
-        const toast = document.createElement('div');
-        toast.id = 'wechat-chat-toast';
-        toast.textContent = text;
-        toast.style.cssText = 'position:absolute;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(0,0,0,0.68);color:#fff;font-size:12px;padding:8px 16px;border-radius:18px;z-index:220;white-space:nowrap;pointer-events:none;';
-        chatWindow.appendChild(toast);
-        setTimeout(function() {
-            if (toast.parentNode) toast.parentNode.removeChild(toast);
-        }, 1800);
+        if (!text) return;
+        window.showMiniToast(text, { bottom: 90, duration: 1800 });
     }
     window.openChatTimelineModal = openChatTimelineModal;
     window.closeChatTimelineModal = closeChatTimelineModal;
+    window.applyChatTimelineTravel = applyChatTimelineTravel;
     // 绑定回车监听
     document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('keydown', (e) => {

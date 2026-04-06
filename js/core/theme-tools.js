@@ -543,7 +543,7 @@
             alert('未找到对应的主题预设');
             return;
         }
-        if (!confirm(`确定删除主题预设【${preset.name}】吗？`)) return;
+        if (!await window.showMiniConfirm(`确定删除主题预设【${preset.name}】吗？`)) return;
         const nextPresets = presets.filter(function(item) { return item.id !== preset.id; });
         await saveCustomThemePresetsToStore(nextPresets);
         const nextId = nextPresets.length ? nextPresets[0].id : '';
@@ -971,7 +971,7 @@
         await syncContactGroupFilterAndList();
     }
     async function addContactGroup() {
-        const newGroup = prompt('请输入新分组名称:');
+        const newGroup = await window.showMiniPrompt('请输入新分组名称：', '');
         if (newGroup && newGroup.trim() !== '') {
             const normalizedName = newGroup.trim();
             const existingGroup = contactGroups.find(function(group) {
