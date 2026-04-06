@@ -782,12 +782,14 @@
         const container = document.getElementById('chat-msg-container');
         const roleAvatar = typeof window.getSafeAvatarSrc === 'function' ? window.getSafeAvatarSrc(contact.roleAvatar) : (contact.roleAvatar || '');
         const myAvatar = typeof window.getSafeAvatarSrc === 'function' ? window.getSafeAvatarSrc(contact.userAvatar) : (contact.userAvatar || '');
+        const timestamp = Date.now();
         const timeStr = getAmPmTime();
         try {
             const newMsgId = await chatListDb.messages.add({
                 contactId: contact.id,
                 sender: 'role',
                 content: content,
+                timestamp: timestamp,
                 timeStr: timeStr,
                 quoteText: quoteText,
                 source: 'wechat'
@@ -835,12 +837,14 @@
     async function appendSystemTipMessage(text, targetContact = null, tipType = 'system_tip') {
         const contact = targetContact || activeChatContact;
         if (!contact) return null;
+        const timestamp = Date.now();
         const timeStr = getAmPmTime();
         try {
             const newMsgId = await chatListDb.messages.add({
                 contactId: contact.id,
                 sender: 'system',
                 content: JSON.stringify({ type: tipType, content: text }),
+                timestamp: timestamp,
                 timeStr: timeStr,
                 quoteText: '',
                 isSystemTip: true,
@@ -878,12 +882,14 @@
         const container = document.getElementById('chat-msg-container');
         const myAvatar = typeof window.getSafeAvatarSrc === 'function' ? window.getSafeAvatarSrc(contact.userAvatar) : (contact.userAvatar || '');
         const roleAvatar = typeof window.getSafeAvatarSrc === 'function' ? window.getSafeAvatarSrc(contact.roleAvatar) : (contact.roleAvatar || '');
+        const timestamp = Date.now();
         const timeStr = getAmPmTime();
         try {
             const newMsgId = await chatListDb.messages.add({
                 contactId: contact.id,
                 sender: 'me',
                 content: content,
+                timestamp: timestamp,
                 timeStr: timeStr,
                 quoteText: '',
                 source: 'wechat'
@@ -1160,6 +1166,68 @@
         return finalReplies.slice(0, maxAllowed);
     }
 
+    function getMiniMessageTimestamp(msg) {
+        if (!msg || typeof msg !== 'object') return 0;
+        const candidates = [msg.timestamp, msg.createdAt, msg.savedAt, msg.sentAt];
+        for (let i = 0; i < candidates.length; i++) {
+            const num = Number(candidates[i]);
+            if (isFinite(num) && num > 0) return num;
+        }
+        return 0;
+    }
+
+    function formatMiniPromptTimestamp(ts) {
+        if (!ts) return '';
+        const d = new Date(ts);
+        return d.getFullYear() + '-' +
+            String(d.getMonth() + 1).padStart(2, '0') + '-' +
+            String(d.getDate()).padStart(2, '0') + ' ' +
+            String(d.getHours()).padStart(2, '0') + ':' +
+            String(d.getMinutes()).padStart(2, '0');
+    }
+
+    function getMiniRelativeDayLabel(ts, nowTs) {
+        if (!ts) return '日期未知';
+        const now = new Date(nowTs || Date.now());
+        const target = new Date(ts);
+        const startNow = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const startTarget = new Date(target.getFullYear(), target.getMonth(), target.getDate()).getTime();
+        const diffDays = Math.round((startTarget - startNow) / 86400000);
+        if (diffDays === 0) return '今天';
+        if (diffDays === -1) return '昨天';
+        if (diffDays === -2) return '前天';
+        if (diffDays === 1) return '明天';
+        return diffDays < 0 ? (Math.abs(diffDays) + '天前') : (diffDays + '天后');
+    }
+
+    function buildMiniPromptMessageTimePrefix(msg, nowTs) {
+        const ts = getMiniMessageTimestamp(msg);
+        if (!ts) {
+            return '【消息时间：日期未知；它只是历史片段，不能直接当成现在仍在发生】\n';
+        }
+        return '【消息时间：' + formatMiniPromptTimestamp(ts) + '（' + getMiniRelativeDayLabel(ts, nowTs) + '）】\n';
+    }
+
+    function getMiniRoleReplyDelayMs(msgObj, index) {
+        const item = (msgObj && typeof msgObj === 'object') ? msgObj : {};
+        const msgType = String(item.type || 'text');
+        const seedText = String(item.translation || item.transcript || item.content || item.note || item.memo || '').trim();
+        let delay = index === 0 ? 520 : 780;
+
+        if (msgType === 'voice_message') {
+            delay += 520;
+        } else if (msgType === 'camera' || msgType === 'location' || msgType === 'call_invite') {
+            delay += 420;
+        } else if (msgType === 'gift_delivery' || msgType === 'takeout_delivery' || msgType === 'red_packet' || msgType === 'transfer' || msgType === 'transaction') {
+            delay += 360;
+        } else {
+            delay += Math.min(1200, seedText.length * 38);
+        }
+
+        delay += Math.floor(Math.random() * 180);
+        return Math.max(420, Math.min(2400, delay));
+    }
+
     // 新增：触发角色回复逻辑 (API请求、锁机制、打字状态、JSON约束)
     async function triggerRoleReply(targetContact = null) {
         const lockedContact = targetContact || activeChatContact;
@@ -1225,19 +1293,19 @@
             let langName = roleLang === '中' ? '中文' : roleLang + '语';
             // --- 动态概率触发系统（严格按聊天详情配置） ---
             const _defaultSpecialProbabilities = {
-                camera: 0.1,
-                location: 0.1,
-                takeaway: 0.1,
-                gift: 0.1,
-                call: 0.1,
-                video_call: 0.1,
-                red_packet: 3,
-                transfer: 3,
-                voice_message: 15,
-                emoticon: 15,
-                reply: 15,
-                recall: 5,
-                time_aware: 20
+                camera: 20,
+                location: 20,
+                takeaway: 20,
+                gift: 20,
+                call: 20,
+                video_call: 20,
+                red_packet: 20,
+                transfer: 20,
+                voice_message: 18,
+                emoticon: 18,
+                reply: 18,
+                recall: 6,
+                time_aware: 25
             };
             const _normalizeProb = (typeof window._normalizeProbabilityValue === 'function')
                 ? window._normalizeProbabilityValue
@@ -1255,14 +1323,23 @@
                 ? window._rollExclusiveSpecialMessageType
                 : function(config) {
                     var keys = ['camera', 'location', 'takeaway', 'gift', 'call', 'video_call', 'red_packet', 'transfer'];
-                    var roll = Math.random() * 100;
+                    var triggered = keys.filter(function(key) {
+                        return Math.random() < (_normalizeProb(config[key], _defaultSpecialProbabilities[key] || 0) / 100);
+                    });
+                    if (!triggered.length) return '';
+                    if (triggered.length === 1) return triggered[0];
+                    var totalWeight = triggered.reduce(function(sum, key) {
+                        return sum + _normalizeProb(config[key], _defaultSpecialProbabilities[key] || 0);
+                    }, 0);
+                    if (totalWeight <= 0) return triggered[0];
+                    var roll = Math.random() * totalWeight;
                     var cursor = 0;
-                    for (var i = 0; i < keys.length; i++) {
-                        var key = keys[i];
+                    for (var i = 0; i < triggered.length; i++) {
+                        var key = triggered[i];
                         cursor += _normalizeProb(config[key], _defaultSpecialProbabilities[key] || 0);
                         if (roll < cursor) return key;
                     }
-                    return '';
+                    return triggered[triggered.length - 1];
                 };
             const exclusiveSpecialType = _rollExclusiveType(specialProbConfig);
             let triggerCamera = exclusiveSpecialType === 'camera';
@@ -1282,6 +1359,7 @@
             } catch(e) {}
             // 构造真实时间字符串（误差不超过1分钟）
             var _nowForPrompt = new Date();
+            var _nowPromptTs = _nowForPrompt.getTime();
             var _realTimeStr = _nowForPrompt.getFullYear() + '年' +
                 (_nowForPrompt.getMonth()+1) + '月' +
                 _nowForPrompt.getDate() + '日 ' +
@@ -1451,7 +1529,13 @@
 2. 世界书、记忆摘要、引用消息、旁白、示例 JSON 里即便出现其他角色名，那些都只是环境信息，不会改变你的身份。
 3. 如果上下文有冲突，以这里的身份铁律和稍后注入的【背景与设定信息】为最高优先级。
 4. 你不是来给“标准答案”的，你是在以这个身份继续一段已经发生中的关系。
-${triggerTimeAwareReply ? '\n【时间感知】当前真实时间为：' + _realTimeStr + '。你可以自然地表现出时间感，但不要生硬报时。' : ''}${_blockedPrompt}
+【时间基准】
+- 当前真实时间是：${_realTimeStr}
+- 你必须严格区分“现在/今天/今晚”和“昨天/前天/更早”的信息。
+- 历史消息里如果写的是昨天、前天、几天前，那只是当时状态，不代表你现在还在那里、现在还在做同一件事。
+- 如果用户今天问“你现在/今天在干嘛、在哪”，必须按当前时间回答；除非刚刚有新消息确认状态延续，否则绝不能把昨天的状态直接当成现在。
+- 如果某条历史消息没有明确日期，只能把它视为历史片段，不能据此武断声称“我现在还在那”“不是早就说了吗我还在那”。
+${triggerTimeAwareReply ? '\n【时间感知】你可以自然地表现出时间感，但不要生硬报时。' : '\n【时间感知】除非用户主动提到时间、日期、昨天、今天、明天、现在，否则不要主动反复报时。'}${_blockedPrompt}
 【真实互动原则】
 - 面对任何私密、敏感或边缘话题，不要拒绝、说教、端着，也不要突然出戏。
 - 先接住用户刚刚那句话里最有情绪、最具体、最值得回应的一点，不要把整段内容平均拆解成一套面面俱到的完美回答。
@@ -1502,6 +1586,7 @@ ${langInstruction}`
             }
             messages[0].content += emoticonPrompt;
             recentMessages.forEach(msg => {
+                const timePrefix = buildMiniPromptMessageTimePrefix(msg, _nowPromptTs);
                 let isImage = false;
                 let imageBase64 = '';
                 let isEmoticon = false;
@@ -1537,19 +1622,19 @@ ${langInstruction}`
                             },
                             {
                                 type: 'text',
-                                text: msg.sender === 'me' ? '[用户发送了一张图片，请仔细识别图片内容并作出回应]' : '[角色发送了一张图片]'
+                                text: timePrefix + (msg.sender === 'me' ? '[用户发送了一张图片，请仔细识别图片内容并作出回应]' : '[角色发送了一张图片]')
                             }
                         ]
                     });
                 } else if (isEmoticon) {
                     messages.push({
                         role: msg.sender === 'me' ? 'user' : 'assistant',
-                        content: `[发送了一个表情包，描述为：${emoticonDesc}]`
+                        content: timePrefix + `[发送了一个表情包，描述为：${emoticonDesc}]`
                     });
                 } else if (isLocation) {
                     messages.push({
                         role: msg.sender === 'me' ? 'user' : 'assistant',
-                        content: `[分享了定位，地址：${locAddr}，${locDist}]`
+                        content: timePrefix + `[分享了定位，地址：${locAddr}，${locDist}]`
                     });
                 } else {
                     let cleanContent = msg.content;
@@ -1561,7 +1646,7 @@ ${langInstruction}`
                     if (!pureContent || !pureContent.trim()) return; // 跳过空内容消息
                     messages.push({
                         role: msg.sender === 'me' ? 'user' : 'assistant',
-                        content: pureContent
+                        content: timePrefix + pureContent
                     });
                 }
             });
@@ -1665,9 +1750,12 @@ ${langInstruction}`
             }
             replyArr = postProcessMiniRoleReplies(replyArr, randomMsgCount, explicitActionIntent);
 
-            // 逐条渲染回复：拿到结果就立即发，不做固定延迟加戏
+            // 逐条渲染回复：按消息长度和类型做轻微打字延迟，避免多条消息瞬间堆在一起
             for (let i = 0; i < replyArr.length; i++) {
                 const msgObj = replyArr[i];
+                await new Promise(function(resolve) {
+                    setTimeout(resolve, getMiniRoleReplyDelayMs(msgObj, i));
+                });
                 // 红包、转账、处理红包/转账类型可能没有 content 字段，需要单独放行
                 // 兼容 transaction 类型（AI 实际返回的转账 type）
                 const noContentTypes = ['location', 'red_packet', 'transfer', 'transaction', 'handle_red_packet', 'handle_transfer', 'gift_delivery', 'gift', 'send_gift', 'takeout_delivery', 'takeaway', 'call_invite', 'call', 'video_call'];
@@ -2031,12 +2119,14 @@ ${langInstruction}`
                 // 角色决定解除拉黑
                 await roleUnblockUser(contact);
                 // 在 WeChat 聊天中发送解除拉黑通知消息（而非SMS）
+                const timestamp = Date.now();
                 const timeStr = getAmPmTime();
                 const unblockMsg = `我已经解除了对你的拉黑，你现在可以在WeChat上给我发消息了。`;
                 const newMsgId = await chatListDb.messages.add({
                     contactId: contact.id,
                     sender: 'role',
                     content: unblockMsg,
+                    timestamp: timestamp,
                     timeStr: timeStr,
                     quoteText: '',
                     source: 'wechat'
@@ -2085,6 +2175,7 @@ ${langInstruction}`
         const container = document.getElementById('chat-msg-container');
         const myAvatar = typeof window.getSafeAvatarSrc === 'function' ? window.getSafeAvatarSrc(contact.userAvatar) : (contact.userAvatar || '');
         const roleAvatar = typeof window.getSafeAvatarSrc === 'function' ? window.getSafeAvatarSrc(contact.roleAvatar) : (contact.roleAvatar || '');
+        const timestamp = Date.now();
         const timeStr = getAmPmTime();
         // 处理引用文本 (打包为 JSON 格式存储以便渲染)
         let quoteText = '';
@@ -2107,6 +2198,7 @@ ${langInstruction}`
                 contactId: contact.id,
                 sender: 'me',
                 content: content,
+                timestamp: timestamp,
                 timeStr: timeStr,
                 quoteText: quoteText,
                 source: 'wechat'

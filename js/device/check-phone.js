@@ -736,15 +736,13 @@
                 var wrap = document.createElement('div');
                 wrap.className = 'cp-custom-icon-wrap';
 
-                // 显示已存储的查手机桌面图标，若无则显示占位SVG
+                // 显示已存储的查手机桌面图标；默认保持纯白空白位，避免桌面过挤
                 var savedData = _cpDesktopIconData[idx];
                 if (savedData) {
                     var img = document.createElement('img');
                     img.src = savedData;
                     img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:10px;';
                     wrap.appendChild(img);
-                } else {
-                    wrap.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
                 }
 
                 var label = document.createElement('span');

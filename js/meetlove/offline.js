@@ -9,6 +9,54 @@
     var activeOfflineBubbleMsgId = null;
     var offlineReplying = false;
 
+    function getOfflineSettingsKey(contact) {
+        var target = contact || activeOfflineContact;
+        return target ? ('offline_settings_' + target.id) : '';
+    }
+
+    function applyOfflineMessageBackground(src) {
+        var msgBody = document.getElementById('offline-msg-container');
+        if (!msgBody) return;
+        if (src) {
+            msgBody.style.background = 'url(' + src + ') center/cover no-repeat';
+        } else {
+            msgBody.style.background = '#f0ede8';
+        }
+    }
+
+    function syncOfflineBackgroundPreview(src) {
+        var previewImg = document.getElementById('offline-bg-preview-img');
+        if (!previewImg) return;
+        if (src) {
+            previewImg.src = src;
+            previewImg.style.display = 'block';
+        } else {
+            previewImg.src = '';
+            previewImg.style.display = 'none';
+        }
+    }
+
+    async function applyOfflineContactVisuals(contact) {
+        var target = contact || activeOfflineContact;
+        if (!target) {
+            applyOfflineMessageBackground('');
+            syncOfflineBackgroundPreview('');
+            _applyOfflineCss('');
+            return {};
+        }
+        var settings = {};
+        try {
+            settings = await localforage.getItem(getOfflineSettingsKey(target)) || {};
+        } catch (e) {
+            settings = {};
+        }
+        var bgImage = (typeof settings.bgImage === 'string' && settings.bgImage) ? settings.bgImage : '';
+        applyOfflineMessageBackground(bgImage);
+        syncOfflineBackgroundPreview(bgImage);
+        _applyOfflineCss(typeof settings.customCss === 'string' ? settings.customCss : '');
+        return settings;
+    }
+
     function normalizeOfflineText(text) {
         return String(text || '').replace(/\r\n?/g, '\n');
     }
@@ -94,7 +142,7 @@
         return y + '\u5e74' + mo + '\u6708' + day + '\u65e5 ' + h + ':' + min;
     }
 
-    window.openOfflineChat = function() {
+    window.openOfflineChat = async function() {
         if (!activeChatContact) return;
         activeOfflineContact = activeChatContact;
         hideChatExtPanel();
@@ -108,7 +156,8 @@
         }
         var app = document.getElementById('offline-chat-app');
         if (app) app.style.display = 'flex';
-        loadOfflineMessages();
+        await applyOfflineContactVisuals(activeOfflineContact);
+        await loadOfflineMessages();
         var input = document.getElementById('offline-input-field');
         if (input) {
             input.value = '';
@@ -447,12 +496,8 @@
             // CSS
             var cssEl = document.getElementById('offline-custom-css');
             if (cssEl) cssEl.value = settings.customCss || '';
-            // 背景图预览
-            var bgPreviewImg = document.getElementById('offline-bg-preview-img');
-            if (bgPreviewImg && settings.bgImage) {
-                bgPreviewImg.src = settings.bgImage;
-                bgPreviewImg.style.display = 'block';
-            }
+            syncOfflineBackgroundPreview(settings.bgImage || '');
+            _applyOfflineCss(typeof settings.customCss === 'string' ? settings.customCss : '');
         } catch(e) {}
     };
 
@@ -481,7 +526,7 @@
         var settings = Object.assign(existing, { wordMin, wordMax, perspective, writingStyle, plotBg, customCss });
         await localforage.setItem('offline_settings_' + contactId, settings);
         // 应用CSS
-        if (customCss) _applyOfflineCss(customCss);
+        _applyOfflineCss(customCss);
         closeOfflineSettings();
         // 显示提示
         var toast = document.createElement('div');
@@ -498,17 +543,12 @@
         var reader = new FileReader();
         reader.onload = async function(e) {
             var base64 = e.target.result;
-            // 更新预览
-            var previewImg = document.getElementById('offline-bg-preview-img');
-            if (previewImg) { previewImg.src = base64; previewImg.style.display = 'block'; }
-            // 应用背景
-            var msgBody = document.getElementById('offline-msg-container');
-            if (msgBody) msgBody.style.background = 'url(' + base64 + ') center/cover no-repeat';
+            syncOfflineBackgroundPreview(base64);
+            applyOfflineMessageBackground(base64);
             // 持久化
-            var contactId = activeOfflineContact.id;
-            var settings = await localforage.getItem('offline_settings_' + contactId) || {};
+            var settings = await localforage.getItem(getOfflineSettingsKey(activeOfflineContact)) || {};
             settings.bgImage = base64;
-            await localforage.setItem('offline_settings_' + contactId, settings);
+            await localforage.setItem(getOfflineSettingsKey(activeOfflineContact), settings);
         };
         reader.readAsDataURL(file);
         event.target.value = '';
@@ -516,14 +556,11 @@
 
     window.offlineResetBg = async function() {
         if (!activeOfflineContact) return;
-        var msgBody = document.getElementById('offline-msg-container');
-        if (msgBody) msgBody.style.background = '#f0ede8';
-        var previewImg = document.getElementById('offline-bg-preview-img');
-        if (previewImg) { previewImg.src = ''; previewImg.style.display = 'none'; }
-        var contactId = activeOfflineContact.id;
-        var settings = await localforage.getItem('offline_settings_' + contactId) || {};
+        applyOfflineMessageBackground('');
+        syncOfflineBackgroundPreview('');
+        var settings = await localforage.getItem(getOfflineSettingsKey(activeOfflineContact)) || {};
         delete settings.bgImage;
-        await localforage.setItem('offline_settings_' + contactId, settings);
+        await localforage.setItem(getOfflineSettingsKey(activeOfflineContact), settings);
     };
 
     window.offlineApplyCss = function() {

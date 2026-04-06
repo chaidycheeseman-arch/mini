@@ -111,7 +111,10 @@
         zh: '乖宝~语音连接成功，mini 已正常接入。',
         en: 'Hi there, MiniMax voice connection is working.',
         ja: 'こんにちは、MiniMax 音声接続は正常です。',
-        ko: '안녕하세요, MiniMax 음성 연결이 정상입니다.'
+        ko: '안녕하세요, MiniMax 음성 연결이 정상입니다.',
+        yue: '喂，语音连接成功喇，MiniMax 已经接入好。',
+        fr: 'Salut, la connexion vocale MiniMax fonctionne correctement.',
+        th: 'สวัสดี การเชื่อมต่อเสียง MiniMax ใช้งานได้ปกติแล้ว'
     };
 
     let mmCurrentAudio = null;
@@ -440,9 +443,6 @@
         if (firstAccordion && firstAccordion !== securitySection) {
             settingsBody.insertBefore(securitySection, firstAccordion);
         }
-        if (!settingsBody.querySelector('.theme-accordion-item.active')) {
-            securitySection.classList.add('active');
-        }
     }
 
     async function ensureDeviceLockDefaults() {
@@ -569,9 +569,34 @@
     window.deviceLockCancelPasscode = deviceLockCancelPasscode;
 
     function normalizeMiniMaxLanguage(lang) {
-        const val = (lang || '').toLowerCase();
-        if (val === 'en' || val === 'ja' || val === 'ko') return val;
-        return 'zh';
+        const raw = String(lang || '').trim();
+        const val = raw.toLowerCase();
+        const aliasMap = {
+            zh: 'zh',
+            cn: 'zh',
+            '中': 'zh',
+            en: 'en',
+            english: 'en',
+            '英': 'en',
+            ja: 'ja',
+            jp: 'ja',
+            japanese: 'ja',
+            '日': 'ja',
+            ko: 'ko',
+            kr: 'ko',
+            korean: 'ko',
+            '韩': 'ko',
+            yue: 'yue',
+            cantonese: 'yue',
+            '粤': 'yue',
+            fr: 'fr',
+            french: 'fr',
+            '法': 'fr',
+            th: 'th',
+            thai: 'th',
+            '泰': 'th'
+        };
+        return aliasMap[val] || aliasMap[raw] || 'zh';
     }
 
     function normalizeMiniMaxSpeed(raw) {
@@ -818,6 +843,9 @@
         settingsBtn.addEventListener('click', async (e) => {
             e.stopPropagation();
             await loadSettingsToUI();
+            if (typeof window.collapseThemeAccordions === 'function') {
+                window.collapseThemeAccordions();
+            }
             settingsApp.style.display = 'flex';
         });
     }

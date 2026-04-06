@@ -12,8 +12,16 @@
         if (!listContainer) return;
         listContainer.innerHTML = '';
         try {
-            const contacts = await contactDb.contacts.toArray();
-            if (contacts.length === 0) {
+            const allContacts = await contactDb.contacts.toArray();
+            const activeGroupFilter = typeof window.getActiveContactGroupFilter === 'function'
+                ? window.getActiveContactGroupFilter()
+                : 'ALL';
+            const contacts = activeGroupFilter === 'ALL'
+                ? allContacts
+                : allContacts.filter(function(contact) {
+                    return (contact.roleGroup || '') === activeGroupFilter;
+                });
+            if (allContacts.length === 0) {
                 listContainer.innerHTML = `
                     <div style="margin-top: 12px; padding: 24px 20px; width: 100%; background: #fff; border-radius: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.03); text-align: center;">
                         <div style="font-size: 14px; font-weight: 600; color: #444;">还没有联系人</div>
@@ -25,9 +33,18 @@
                 `;
                 return;
             }
+            if (contacts.length === 0) {
+                listContainer.innerHTML = `
+                    <div style="margin-top: 12px; padding: 24px 20px; width: 100%; background: #fff; border-radius: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.03); text-align: center;">
+                        <div style="font-size: 14px; font-weight: 600; color: #444;">${activeGroupFilter} 分组暂无联系人</div>
+                        <div style="margin-top: 8px; font-size: 12px; color: #aaa; line-height: 1.6;">切换上方分组，或者给联系人设置为这个分组。</div>
+                    </div>
+                `;
+                return;
+            }
             contacts.forEach(c => {
                 const item = document.createElement('div');
-                item.style.cssText = 'background: #fff; border-radius: 16px; padding: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); display: flex; align-items: center; justify-content: space-between;';
+                item.style.cssText = 'width:100%; min-width:0; box-sizing:border-box; background:#fff; border-radius:16px; padding:14px; box-shadow:0 2px 10px rgba(0,0,0,0.02); display:flex; align-items:center; justify-content:space-between;';
                 let avatarHtml = c.roleAvatar ? `<img src="${c.roleAvatar}" style="width: 100%; height: 100%; object-fit: cover;" loading="lazy" decoding="async">` : `<span style="color: #ccc; font-size: 12px;">无</span>`;
                 item.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 12px; flex: 1; overflow: hidden;">

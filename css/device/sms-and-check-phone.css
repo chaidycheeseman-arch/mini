@@ -589,8 +589,8 @@
     flex-direction: column;
     align-items: center;
     width: 100%;
-    padding: 55px 20px 20px;
-    gap: 10px;
+    padding: 76px 20px 28px;
+    gap: 12px;
     overflow-y: auto;
     flex: 1;
 }
@@ -618,12 +618,12 @@
 .cp-passcode-hint {
     font-size: 13px;
     color: rgba(255,255,255,0.6);
-    margin-bottom: 4px;
+    margin-bottom: 8px;
 }
 .cp-passcode-dots {
     display: flex;
     gap: 14px;
-    margin: 4px 0;
+    margin: 6px 0 2px;
 }
 .cp-dot {
     width: 12px;
@@ -647,6 +647,7 @@
     background: rgba(255,100,100,0.15);
     padding: 4px 12px;
     border-radius: 10px;
+    margin-top: 2px;
 }
 
 /* 询问角色按钮 */
@@ -714,9 +715,11 @@
 .cp-numpad {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
     width: 100%;
-    margin-top: 4px;
+    max-width: 252px;
+    margin-top: auto;
+    padding-top: 20px;
 }
 .cp-numpad-row {
     display: grid;
@@ -771,7 +774,7 @@
     color: rgba(255,255,255,0.7);
     cursor: pointer;
     padding: 6px 20px;
-    margin-top: 4px;
+    margin-top: 10px;
 }
 .cp-passcode-cancel:active { opacity: 0.6; }
 
@@ -1340,4 +1343,31 @@
 /* ====== 查手机：桌面壁纸使用渐变而非头像 ====== */
 /* 解锁后壁纸保持深色渐变，不覆盖为头像 */
 /* 通过 JS 中不设置 cp-unlocked-wallpaper 的 background 来实现 */
+
+/* ====== Check Phone Unified Icon Refresh ====== */
+#cp-unlocked-screen .cp-desktop-icon-bg,
+#cp-unlocked-screen .cp-dock-icon-bg {
+    background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(246,243,238,0.94) 100%) !important;
+    border: 1px solid rgba(255,255,255,0.3);
+    box-shadow:
+        0 16px 26px rgba(0,0,0,0.18),
+        inset 0 1px 0 rgba(255,255,255,0.86);
+}
+
+#cp-unlocked-screen .cp-desktop-icon-bg svg,
+#cp-unlocked-screen .cp-dock-icon-bg svg {
+    display: none !important;
+}
+
+.cp-custom-icon-wrap {
+    background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(246,243,238,0.92) 100%);
+    border: 1px solid rgba(255,255,255,0.26);
+    box-shadow:
+        0 10px 18px rgba(0,0,0,0.12),
+        inset 0 1px 0 rgba(255,255,255,0.86);
+}
+
+.cp-custom-item:active .cp-custom-icon-wrap {
+    background: linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(236,232,225,0.92) 100%);
+}
 

@@ -86,6 +86,8 @@ function _buildBankCardElement(cardData) {
 const appIconNames = ["小说", "日记", "购物", "论坛", "WeChat", "纪念日", "记忆", "世界书", "游戏", "闲鱼", "查手机", "情侣空间", "音乐", "信息", "梦境", "21st Closet", "主题", "设置"];
 const themeIconGrid = document.getElementById('icon-theme-grid');
 const mainIcons = document.querySelectorAll('.icon-img img, .dock-icon img');
+const THEME_DOCK_ICON_SRC = whitePixel;
+const SETTINGS_DOCK_ICON_SRC = whitePixel;
 const headerSubtitleMap = {
     '主题': 'THEME',
     '设置': 'SETTINGS',
@@ -122,6 +124,13 @@ function resolveHeaderSubtitle(rawText, isOfflineTitle) {
         return latinTokens.join(' ').toUpperCase();
     }
     return isOfflineTitle ? 'OFFLINE' : 'SECTION';
+}
+
+function getDefaultDockIconSrc(index) {
+    const name = appIconNames[index] || '';
+    if (name === '主题') return THEME_DOCK_ICON_SRC;
+    if (name === '设置') return SETTINGS_DOCK_ICON_SRC;
+    return whitePixel;
 }
 
 function refreshHeaderSubtitles() {
@@ -336,14 +345,16 @@ async function initThemeIcons() {
     for (let index = 0; index < mainIcons.length; index++) {
         const mainImg = mainIcons[index];
         const id = 'theme-icon-' + index;
+        const iconName = appIconNames[index] || '';
+        const forcePureWhite = iconName === '主题' || iconName === '设置';
         const container = document.createElement('div');
         container.className = 'theme-icon-container';
         const itemDiv = document.createElement('div');
         itemDiv.className = 'theme-icon-item editable';
         itemDiv.id = id;
         const img = document.createElement('img');
-        const saved = themeMap[id] || null;
-        img.src = saved || whitePixel;
+        const saved = forcePureWhite ? null : (themeMap[id] || null);
+        img.src = saved || getDefaultDockIconSrc(index);
         itemDiv.appendChild(img);
         container.appendChild(itemDiv);
         const label = document.createElement('span');
@@ -510,6 +521,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (themeBtn) {
         themeBtn.addEventListener('click', function(e) {
             e.stopPropagation();
+            if (typeof window.collapseThemeAccordions === 'function') {
+                window.collapseThemeAccordions();
+            }
             document.getElementById('theme-app').style.display = 'flex';
         });
     }

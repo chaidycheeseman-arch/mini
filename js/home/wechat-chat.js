@@ -503,7 +503,7 @@
         }
         const minHeight = parseFloat(el.dataset.autoGrowMin) || 0;
         const maxHeight = parseFloat(el.dataset.autoGrowMax) || 0;
-        const hasValue = String(el.value || '').length > 0;
+        const hasValue = String(el.value || '').trim().length > 0;
         el.style.height = 'auto';
         let nextHeight = hasValue ? Math.max(el.scrollHeight, minHeight) : minHeight;
         if (maxHeight > 0 && nextHeight > maxHeight) {
@@ -634,6 +634,14 @@
 
     // 统一生成消息气泡的HTML
     function generateMsgHtml(msg, myAvatar, roleAvatar) {
+        function _normalizeChatText(raw) {
+            return String(raw || '')
+                .replace(/\r\n?/g, '\n')
+                .replace(/[ \t]+\n/g, '\n')
+                .replace(/\n{3,}/g, '\n\n')
+                .replace(/([^\n])\n(?=[^\n])/g, '$1 ');
+        }
+
         if (msg.isRecalled) {
             const myName = document.getElementById('text-wechat-me-name') ? document.getElementById('text-wechat-me-name').textContent : '我';
             const name = msg.sender === 'me' ? myName : (activeChatContact.roleName || '角色');
@@ -697,8 +705,9 @@
         // 安全转义并处理换行：将纯文本中的 \n 转为 <br>，防止 XSS 同时保留换行格式
         function _safeTextHtml(raw) {
             if (!raw) return '';
+            const normalized = _normalizeChatText(raw);
             // 先转义 HTML 特殊字符，再把换行转为 <br>
-            return raw
+            return normalized
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
@@ -1462,9 +1471,18 @@
         if (!activeChatContact) return;
         if (!confirm(`确定要清空与「${activeChatContact.roleName || '该角色'}」的所有聊天记录吗？\n角色记忆也将同步清除，此操作不可恢复！`)) return;
         try {
-            const msgs = await chatListDb.messages.where('contactId').equals(activeChatContact.id).toArray();
+            const contactId = activeChatContact.id;
+            const memoryKey = 'cd_settings_' + contactId + '_summary_history';
+            const msgs = await chatListDb.messages.where('contactId').equals(contactId).toArray();
             const ids = msgs.map(m => m.id);
-            await chatListDb.messages.bulkDelete(ids);
+            if (ids.length) {
+                await chatListDb.messages.bulkDelete(ids);
+            }
+            await localforage.removeItem(memoryKey);
+            const chat = await chatListDb.chats.where('contactId').equals(contactId).first();
+            if (chat) {
+                await chatListDb.chats.update(chat.id, { lastTime: '' });
+            }
             renderChatList();
             // 刷新聊天窗口（如果打开着）
             const chatWin = document.getElementById('chat-window');
@@ -1472,7 +1490,7 @@
                 const container = document.getElementById('chat-msg-container');
                 if (container) container.innerHTML = '';
             }
-            alert('聊天记录已清空');
+            alert('聊天记录和角色记忆已清空');
         } catch (e) {
             alert('清空失败: ' + e.message);
             console.error(e);
@@ -1865,7 +1883,14 @@
                 <div class="chat-msg-avatar"><img src="${avatar}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR_DATA_URI}';"></div>
                 <div class="msg-bubble-wrapper" style="position:relative;">
                     <div class="chat-msg-content msg-content-touch">
-                        <div class="msg-text-body">${content}</div>
+                        <div class="msg-text-body">${String(content || '')
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/\r\n?/g, '\n')
+                            .replace(/([^\n])\n(?=[^\n])/g, '$1 ')
+                            .replace(/\n/g, '<br>')}</div>
                     </div>
                     <div class="chat-timestamp">${timeStr}</div>
                     <div style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#e74c3c;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700;box-shadow:0 2px 6px rgba(231,76,60,0.5);">!</div>

@@ -542,5 +542,24 @@
         };
     }
 
+    function syncMusicHeaderSubtitle() {
+        var subtitleEl = document.getElementById('music-header-subtitle');
+        var profileTab = document.getElementById('music-tab-profile');
+        if (!subtitleEl) return;
+        subtitleEl.textContent = profileTab && profileTab.classList.contains('active') ? '主页与歌单' : '收藏与播放';
+    }
+
+    var musicTabObserverTargets = [
+        document.getElementById('music-tab-library'),
+        document.getElementById('music-tab-profile')
+    ].filter(Boolean);
+    if (musicTabObserverTargets.length) {
+        var musicTabObserver = new MutationObserver(syncMusicHeaderSubtitle);
+        musicTabObserverTargets.forEach(function(target) {
+            musicTabObserver.observe(target, { attributes: true, attributeFilter: ['class'] });
+        });
+        syncMusicHeaderSubtitle();
+    }
+
     ensureLoaded();
 })();
