@@ -320,6 +320,22 @@ document.addEventListener('dragstart', function(e) {
             }
             return;
         }
+        if (id === 'role-moments-cover') {
+            const cover = document.getElementById('role-moments-cover');
+            if (cover) {
+                cover.style.backgroundImage = `url(${src})`;
+                cover.style.backgroundSize = 'cover';
+                cover.style.backgroundPosition = 'center';
+                cover.style.backgroundColor = 'transparent';
+            }
+            const coverKey = activeChatContact ? ('role-moments-bg-img-' + activeChatContact.id) : 'role-moments-bg-img';
+            try {
+                await imgDb.images.put({ id: coverKey, src: src });
+            } catch (e) {
+                console.error("图片存入IndexedDB失败", e);
+            }
+            return;
+        }
         const target = document.getElementById(id);
         if (!target) return;
         const img = target.querySelector('img');

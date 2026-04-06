@@ -746,6 +746,40 @@
         return displayName;
     }
 
+    function removeWechatTypingIndicator() {
+        const indicator = document.getElementById('wechat-typing-indicator');
+        if (indicator && indicator.parentNode) indicator.parentNode.removeChild(indicator);
+    }
+
+    async function showWechatTypingIndicator(targetContact = null) {
+        const contact = targetContact || activeChatContact;
+        const chatWindow = document.getElementById('chat-window');
+        const container = document.getElementById('chat-msg-container');
+        if (!contact || !chatWindow || !container) return;
+        if (chatWindow.style.display !== 'flex') return;
+        if (!activeChatContact || activeChatContact.id !== contact.id) return;
+        removeWechatTypingIndicator();
+        const avatar = typeof window.getSafeAvatarSrc === 'function'
+            ? window.getSafeAvatarSrc(contact.roleAvatar)
+            : (contact.roleAvatar || '');
+        const timeStr = getAmPmTime();
+        const row = document.createElement('div');
+        row.id = 'wechat-typing-indicator';
+        row.className = 'chat-msg-row msg-left chat-typing-row';
+        row.innerHTML =
+            '<div class="chat-msg-avatar"><img src="' + avatar + '" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=\'' + DEFAULT_AVATAR_DATA_URI + '\';"></div>' +
+            '<div class="msg-bubble-wrapper">' +
+                '<div class="chat-msg-content chat-typing-content">' +
+                    '<span class="chat-typing-label">正在输入...</span>' +
+                '</div>' +
+                '<div class="chat-timestamp">' + timeStr + '</div>' +
+            '</div>';
+        container.appendChild(row);
+        requestAnimationFrame(function() {
+            container.scrollTop = container.scrollHeight;
+        });
+    }
+
     async function syncActiveChatReplyUi() {
         const sendBtn = document.querySelector('.paw-send-line');
         const titleEl = document.getElementById('chat-current-name');
@@ -756,9 +790,18 @@
             sendBtn.style.pointerEvents = isLocked ? 'none' : 'auto';
             sendBtn.style.opacity = isLocked ? '0.5' : '1';
         }
-        if (!titleEl) return;
-        if (!contact) return;
-        titleEl.textContent = isLocked ? '对方正在输入...' : await _getWechatContactDisplayName(contact);
+        if (!contact) {
+            removeWechatTypingIndicator();
+            return;
+        }
+        if (titleEl) {
+            titleEl.textContent = isLocked ? '对方正在输入...' : await _getWechatContactDisplayName(contact);
+        }
+        if (isLocked) {
+            await showWechatTypingIndicator(contact);
+        } else {
+            removeWechatTypingIndicator();
+        }
     }
 
     async function _setWechatContactReplyLocked(targetContact, locked) {
@@ -803,6 +846,7 @@
             // 核心修复：必须判断当前所在的聊天界面是不是这个锁定的联系人
             const isCurrentChatActive = chatWindow.style.display === 'flex' && activeChatContact && activeChatContact.id === contact.id;
             if (isCurrentChatActive) {
+                removeWechatTypingIndicator();
                 const msgObj = { id: newMsgId, sender: 'role', content: content, timeStr: timeStr, quoteText: quoteText };
                 container.insertAdjacentHTML('beforeend', generateMsgHtml(msgObj, myAvatar, roleAvatar));
                 bindMsgEvents();
@@ -1128,6 +1172,41 @@
         }
     }
 
+    function buildMiniTransferCompanionText(item) {
+        const memo = String(item && (item.memo || item.note || item.content) || '').trim();
+        const normalizedMemo = normalizeMiniReplySeedText(memo);
+        if (memo && normalizedMemo && normalizedMemo !== '转账' && normalizedMemo !== '先收着') {
+            return memo.length <= 24 ? memo : (memo.slice(0, 24) + '...');
+        }
+        const amount = parseFloat(item && item.amount);
+        if (isFinite(amount) && amount >= 520) return '给你转过去了，先收着。';
+        if (isFinite(amount) && amount >= 100) return '先给你转一点过去。';
+        if (isFinite(amount) && amount > 0) return '给你转了点过去。';
+        return '给你转过去了。';
+    }
+
+    function buildMiniRedPacketCompanionText(item) {
+        const memo = String(item && (item.memo || item.greeting || item.desc || item.content) || '').trim();
+        const normalizedMemo = normalizeMiniReplySeedText(memo);
+        if (memo && normalizedMemo && normalizedMemo !== '恭喜发财，大吉大利' && normalizedMemo !== '红包') {
+            return memo.length <= 24 ? memo : (memo.slice(0, 24) + '...');
+        }
+        const amount = parseFloat(item && item.amount);
+        if (isFinite(amount) && amount >= 100) return '给你塞了个红包，自己点开。';
+        if (isFinite(amount) && amount > 0) return '给你发了个红包。';
+        return '给你塞了个小红包。';
+    }
+
+    function hasRecentRoleMoneyAction(messages, maxLookback) {
+        const source = Array.isArray(messages) ? messages : [];
+        const lookback = Math.max(1, parseInt(maxLookback, 10) || 6);
+        return source.slice(-lookback).some(function(msg) {
+            if (!msg || msg.sender !== 'role') return false;
+            const parsed = parseMiniStructuredPayload(msg.content);
+            return !!(parsed && (parsed.type === 'red_packet' || parsed.type === 'transfer'));
+        });
+    }
+
     function postProcessMiniRoleReplies(replyArr, maxCount, explicitIntent) {
         const source = Array.isArray(replyArr) ? replyArr : [];
         const deduped = [];
@@ -1162,7 +1241,31 @@
             finalReplies = [deduped[0]];
         }
 
-        const maxAllowed = Math.max(1, Math.min(10, parseInt(maxCount, 10) || 1));
+        const isExplicitMoneyAction = !!(explicitIntent && (explicitIntent.intentKey === 'transfer' || explicitIntent.intentKey === 'red_packet'));
+        const primaryMoneyAction = finalReplies.find(function(item) {
+            return item && (item.type === 'transfer' || item.type === 'transaction' || item.type === 'red_packet');
+        });
+        const hasConversationReply = finalReplies.some(function(item) {
+            if (!item) return false;
+            if (item.type === 'text') return !!String(item.content || '').trim();
+            if (item.type === 'voice_message') return !!String(item.transcript || item.content || '').trim();
+            return false;
+        });
+        let needsMoneyCompanion = false;
+        if (!isExplicitMoneyAction && primaryMoneyAction && !hasConversationReply) {
+            const companionText = primaryMoneyAction.type === 'red_packet'
+                ? buildMiniRedPacketCompanionText(primaryMoneyAction)
+                : buildMiniTransferCompanionText(primaryMoneyAction);
+            if (companionText) {
+                finalReplies = [{ type: 'text', content: companionText }].concat(finalReplies);
+                needsMoneyCompanion = true;
+            }
+        }
+
+        let maxAllowed = Math.max(1, Math.min(10, parseInt(maxCount, 10) || 1));
+        if (needsMoneyCompanion) {
+            maxAllowed = Math.max(maxAllowed, 2);
+        }
         return finalReplies.slice(0, maxAllowed);
     }
 
@@ -1209,23 +1312,7 @@
     }
 
     function getMiniRoleReplyDelayMs(msgObj, index) {
-        const item = (msgObj && typeof msgObj === 'object') ? msgObj : {};
-        const msgType = String(item.type || 'text');
-        const seedText = String(item.translation || item.transcript || item.content || item.note || item.memo || '').trim();
-        let delay = index === 0 ? 520 : 780;
-
-        if (msgType === 'voice_message') {
-            delay += 520;
-        } else if (msgType === 'camera' || msgType === 'location' || msgType === 'call_invite') {
-            delay += 420;
-        } else if (msgType === 'gift_delivery' || msgType === 'takeout_delivery' || msgType === 'red_packet' || msgType === 'transfer' || msgType === 'transaction') {
-            delay += 360;
-        } else {
-            delay += Math.min(1200, seedText.length * 38);
-        }
-
-        delay += Math.floor(Math.random() * 180);
-        return Math.max(420, Math.min(2400, delay));
+        return 1600;
     }
 
     // 新增：触发角色回复逻辑 (API请求、锁机制、打字状态、JSON约束)
@@ -1247,6 +1334,10 @@
             const explicitActionIntent = detectMiniExplicitActionIntent(rawMessages);
             // ctxLimit 为 0 时携带全部上下文，否则取最近 N 条
             const recentMessages = (ctxLimit === 0) ? rawMessages : rawMessages.slice(-ctxLimit);
+            const recentOnlineMessages = rawMessages.filter(function(msg) {
+                return !msg || msg.source !== 'sms';
+            });
+            const recentRoleMoneyAction = hasRecentRoleMoneyAction(recentOnlineMessages, 8);
             const offlineCrossModeMemoryText = await buildOfflineCrossModeMemoryText(lockedContact, ctxLimit);
             const recentOnlineSeedTexts = recentMessages.map(function(msg) {
                 return extractMsgPureText(msg.content || '').trim();
@@ -1378,6 +1469,10 @@
             if (explicitActionIntent.intentKey === 'call_video') triggerVideoCall = true;
             if (explicitActionIntent.intentKey === 'red_packet') triggerRedPacket = true;
             if (explicitActionIntent.intentKey === 'transfer') triggerTransfer = true;
+            if (!explicitActionIntent.intentKey && recentRoleMoneyAction) {
+                triggerRedPacket = false;
+                triggerTransfer = false;
+            }
             if (explicitActionIntent.intentKey || explicitActionIntent.compact) {
                 randomMsgCount = 1;
             }
@@ -1421,20 +1516,34 @@
                 specialFeatures.push(`${featureIndex++}. 【强制】本次回复中必须包含一个表情包，使用 "type": "emoticon"，且必须从【可用表情包库】中挑选，严禁自己瞎编 url！`);
             }
             if (triggerRedPacket) {
-                // 发红包时：只允许 red_packet 类型，强制1条，禁止其他类型
-                allowedTypes = ["red_packet"];
-                typeInstructions = [`{"type": "red_packet", "amount": 52.0, "memo": "给你的奶茶钱"}`];
-                specialFeatures = [`1. 【强制且唯一】本次只能发一条红包消息，必须严格输出JSON格式：{"type": "red_packet", "amount": 数字, "memo": "红包附言"}。字段名必须是 amount 和 memo，绝对禁止用【红包】、[红包]等任何非JSON格式，绝对禁止输出任何其他类型的消息。`];
-                featureIndex = 2;
-                randomMsgCount = 1;
+                if (explicitActionIntent.intentKey === 'red_packet') {
+                    // 用户明确要求发红包时：只允许 red_packet 类型，强制1条，禁止其他类型
+                    allowedTypes = ["red_packet"];
+                    typeInstructions = [`{"type": "red_packet", "amount": 52.0, "memo": "给你的奶茶钱"}`];
+                    specialFeatures = [`1. 【强制且唯一】本次只能发一条红包消息，必须严格输出JSON格式：{"type": "red_packet", "amount": 数字, "memo": "红包附言"}。字段名必须是 amount 和 memo，绝对禁止用【红包】、[红包]等任何非JSON格式，绝对禁止输出任何其他类型的消息。`];
+                    featureIndex = 2;
+                    randomMsgCount = 1;
+                } else {
+                    allowedTypes.push("red_packet");
+                    typeInstructions.push(`{"type": "red_packet", "amount": 52.0, "memo": "给你的奶茶钱"}`);
+                    specialFeatures.push(`${featureIndex++}. 如果你主动发红包，不要突然只丢一张红包卡片不说话；至少补一条简短的 "text" 说明心意、缘由或提醒对方收下，再发送一条 "red_packet"，整轮保持克制，不要啰嗦。`);
+                    randomMsgCount = Math.max(randomMsgCount, 2);
+                }
             }
             if (triggerTransfer) {
-                // 发转账时：只允许 transfer 类型，强制1条，禁止其他类型
-                allowedTypes = ["transfer"];
-                typeInstructions = [`{"type": "transfer", "amount": 520, "memo": "拿去买包"}`];
-                specialFeatures = [`1. 【强制且唯一】本次只能发一条转账消息，必须严格输出JSON格式：{"type": "transfer", "amount": 数字, "memo": "转账备注"}。字段名必须是 amount 和 memo，type 必须是 transfer，绝对禁止用【转账】、[转账]等任何非JSON格式，绝对禁止输出任何其他类型的消息。`];
-                featureIndex = 2;
-                randomMsgCount = 1;
+                if (explicitActionIntent.intentKey === 'transfer') {
+                    // 用户明确要求转账时：只允许 transfer 类型，强制1条，禁止其他类型
+                    allowedTypes = ["transfer"];
+                    typeInstructions = [`{"type": "transfer", "amount": 520, "memo": "拿去买包"}`];
+                    specialFeatures = [`1. 【强制且唯一】本次只能发一条转账消息，必须严格输出JSON格式：{"type": "transfer", "amount": 数字, "memo": "转账备注"}。字段名必须是 amount 和 memo，type 必须是 transfer，绝对禁止用【转账】、[转账]等任何非JSON格式，绝对禁止输出任何其他类型的消息。`];
+                    featureIndex = 2;
+                    randomMsgCount = 1;
+                } else {
+                    allowedTypes.push("transfer");
+                    typeInstructions.push(`{"type": "transfer", "amount": 520, "memo": "给你的"}`);
+                    specialFeatures.push(`${featureIndex++}. 如果你主动转账，不要突然只丢一张转账卡片不说话；至少补一条简短的 "text" 说明态度、缘由或让对方收下，再发送一条 "transfer"，整轮保持克制，不要啰嗦。`);
+                    randomMsgCount = Math.max(randomMsgCount, 2);
+                }
             }
             // 若用户发送了红包/转账，角色可以主动处理（领取/接收/退回）
             // 检查是否有未处理的我发的红包或转账
@@ -2228,6 +2337,7 @@ ${langInstruction}`
     // ====== 气泡长按与快捷菜单逻辑 ======
     function bindMsgEvents() {
         const bubbles = document.querySelectorAll('.msg-content-touch');
+        const rows = document.querySelectorAll('.chat-msg-row');
         const panel = document.getElementById('msg-action-panel');
         if (panel) panel.style.display = 'none';
         bubbles.forEach(bubble => {
@@ -2239,6 +2349,22 @@ ${langInstruction}`
             bubble.addEventListener('touchend', handleTouchEnd);
             bubble.addEventListener('touchmove', handleTouchMove, {passive: true});
             bubble.addEventListener('contextmenu', handleContextMenu);
+        });
+        rows.forEach(function(row) {
+            if (row._multiSelectClickBound) return;
+            row._multiSelectClickBound = true;
+            row.addEventListener('click', function(e) {
+                if (!multiSelectMode) return;
+                const safeClosest = window.safeClosestTarget || function(target, selector) {
+                    return target && typeof target.closest === 'function' ? target.closest(selector) : null;
+                };
+                if (safeClosest(e.target, '.msg-checkbox')) return;
+                const msgId = parseInt(row.getAttribute('data-id'), 10);
+                if (!Number.isFinite(msgId)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                toggleMsgCheck(msgId);
+            }, true);
         });
         // 绑定角色消息头像点击 → 打开心声面板
         document.querySelectorAll('.chat-msg-row.msg-left .chat-msg-avatar').forEach(function(avatarEl) {
@@ -2312,26 +2438,30 @@ ${langInstruction}`
         currentLongPressMsgSender = sender;
         const panel = document.getElementById('msg-action-panel');
         const recallDelBtn = document.getElementById('msg-action-recall-del');
+        const rollbackBtn = document.getElementById('msg-action-rollback');
+        const rewindBtn = document.getElementById('msg-action-rewind');
         // 动态判断是撤回还是删除
         if (sender === 'me') {
             recallDelBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>撤回';
         } else {
             recallDelBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>删除';
         }
+        if (rollbackBtn) rollbackBtn.classList.remove('is-disabled');
+        if (rewindBtn) rewindBtn.classList.toggle('is-disabled', sender !== 'role');
         panel.style.opacity = '0';
         panel.style.display = 'block';
         const rect = bubbleEl.getBoundingClientRect();
-        const panelWidth = panel.offsetWidth || 170; 
-        const panelHeight = panel.offsetHeight || 100;
-        const hostEl = panel.offsetParent || document.body;
-        const hostRect = hostEl.getBoundingClientRect();
-        const hostWidth = hostEl.clientWidth || window.innerWidth;
-        const hostHeight = hostEl.clientHeight || window.innerHeight;
-        let finalX = (rect.left - hostRect.left) + (rect.width / 2) - (panelWidth / 2);
-        if (finalX < 10) finalX = 10;
-        if (finalX + panelWidth > hostWidth - 10) finalX = hostWidth - panelWidth - 10;
-        const topY = (rect.top - hostRect.top) - panelHeight - 6;
-        const bottomY = (rect.bottom - hostRect.top) + 6;
+        const anchorHost = bubbleEl.closest('#chat-window') || panel.offsetParent || document.body;
+        const hostRect = anchorHost.getBoundingClientRect();
+        const hostWidth = anchorHost.clientWidth || window.innerWidth;
+        const hostHeight = anchorHost.clientHeight || window.innerHeight;
+        const panelWidth = panel.offsetWidth || 204;
+        const panelHeight = panel.offsetHeight || 120;
+        let finalX = (rect.left - hostRect.left) + ((rect.width - panelWidth) / 2);
+        if (finalX < 7) finalX = 7;
+        if (finalX + panelWidth > hostWidth - 7) finalX = hostWidth - panelWidth - 7;
+        const topY = (rect.top - hostRect.top) - panelHeight - 4;
+        const bottomY = (rect.bottom - hostRect.top) + 4;
         let finalY = topY;
         if (topY < 8) {
             finalY = bottomY;
@@ -2372,6 +2502,8 @@ ${langInstruction}`
             const name = msg.sender === 'me' ? myName : (activeChatContact.roleName || '角色');
             document.getElementById('quote-reply-text').textContent = `回复 ${name}：${extractMsgPureText(msg.content)}`;
             document.getElementById('quote-reply-box').style.display = 'flex';
+        } else if (action === 'favorite') {
+            await favoriteMessagesByIds([msgId]);
         } else if (action === 'multi') {
             enterMultiSelectMode();
             selectedMsgIds.add(msgId);
@@ -2385,13 +2517,21 @@ ${langInstruction}`
             await refreshChatWindow();
             updateLastChatTime();
         } else if (action === 'rollback') {
-            if (confirm('确定要删除此条之后的所有消息吗？')) {
+            if (confirm('确定要回溯到这条消息吗？这会删除此条之后的所有线上消息。')) {
                 const allMsgs = await chatListDb.messages.where('contactId').equals(activeChatContact.id).toArray();
-                // 核心修改：m.id > msgId (不再包含等于，即保留当前长按的消息)
-                const msgsToDelete = allMsgs.filter(m => m.id > msgId).map(m => m.id);
+                const msgsToDelete = allMsgs.filter(function(m) {
+                    return m && m.source !== 'sms' && m.id > msgId;
+                }).map(function(m) {
+                    return m.id;
+                });
                 await chatListDb.messages.bulkDelete(msgsToDelete);
                 await refreshChatWindow();
                 updateLastChatTime();
+            }
+        } else if (action === 'rewind') {
+            if (currentLongPressMsgSender !== 'role') return;
+            if (confirm('确定要重回这轮角色回复吗？这会删除这一轮及其后的线上对话，并重新生成回复。')) {
+                await rewindRoleReplyFromMessage(msgId);
             }
         }
     }
@@ -2410,6 +2550,9 @@ ${langInstruction}`
             container.insertAdjacentHTML('beforeend', generateMsgHtml(msg, myAvatar, roleAvatar));
         });
         bindMsgEvents();
+        if (typeof syncActiveChatReplyUi === 'function') {
+            await syncActiveChatReplyUi();
+        }
         setTimeout(() => { container.scrollTop = container.scrollHeight; }, 10);
     }
     async function updateLastChatTime(targetContact = null) {
@@ -2530,6 +2673,14 @@ ${langInstruction}`
         const content = createMiniStructuredMessage('voice_message', { transcript: text });
         await appendCurrentUserMessageContent(content, contact);
         // 【注意】语音发送不触发角色自动回复。只有通话邀请这类动作才触发。
+    }
+    function openChatHtmlStageFeature() {
+        hideChatExtPanel();
+        showWechatMessageToast('HTML小剧场暂未开放');
+    }
+    function openChatSuperpowerFeature() {
+        hideChatExtPanel();
+        showWechatMessageToast('超能力暂未开放');
     }
     let currentCallComposerMode = 'voice';
     function openGiftModal() {
@@ -2694,7 +2845,10 @@ ${langInstruction}`
         updateMsgCheckboxes();
     }
     function updateMsgCheckboxes() {
-        const rows = document.querySelectorAll('.chat-msg-row');
+        const rows = Array.from(document.querySelectorAll('.chat-msg-row')).filter(function(row) {
+            return Number.isFinite(parseInt(row.getAttribute('data-id'), 10));
+        });
+        const selectAllText = document.getElementById('multi-select-all-text');
         rows.forEach(row => {
             const id = parseInt(row.getAttribute('data-id'));
             const cb = row.querySelector('.msg-checkbox');
@@ -2703,9 +2857,14 @@ ${langInstruction}`
                 else cb.classList.remove('checked');
             }
         });
+        if (selectAllText) {
+            selectAllText.textContent = rows.length > 0 && selectedMsgIds.size === rows.length ? '取消全选' : '全选';
+        }
     }
     async function toggleSelectAllMsg() {
-        const rows = document.querySelectorAll('.chat-msg-row');
+        const rows = Array.from(document.querySelectorAll('.chat-msg-row')).filter(function(row) {
+            return Number.isFinite(parseInt(row.getAttribute('data-id'), 10));
+        });
         if (selectedMsgIds.size === rows.length) {
             selectedMsgIds.clear(); 
         } else {
@@ -2724,6 +2883,274 @@ ${langInstruction}`
             updateLastChatTime();
         }
     }
+
+    async function favoriteMessagesByIds(msgIds) {
+        if (!activeChatContact) return 0;
+        const ids = Array.isArray(msgIds) ? msgIds.map(function(id) {
+            return parseInt(id, 10);
+        }).filter(function(id) {
+            return Number.isFinite(id);
+        }) : [];
+        if (!ids.length) return 0;
+        try {
+            const messages = await Promise.all(ids.map(function(id) {
+                return chatListDb.messages.get(id);
+            }));
+            const validMessages = messages.filter(Boolean);
+            if (!validMessages.length) return 0;
+            const storageKey = 'wechat_favorite_messages_v1';
+            const existing = await localforage.getItem(storageKey) || [];
+            const existingKeys = new Set(existing.map(function(item) {
+                return String(item.contactId) + ':' + String(item.msgId);
+            }));
+            var addedCount = 0;
+            validMessages.forEach(function(msg) {
+                var uniqKey = String(activeChatContact.id) + ':' + String(msg.id);
+                if (existingKeys.has(uniqKey)) return;
+                existing.push({
+                    id: 'fav_' + activeChatContact.id + '_' + msg.id,
+                    msgId: msg.id,
+                    contactId: activeChatContact.id,
+                    contactName: activeChatContact.roleName || '角色',
+                    sender: msg.sender,
+                    content: msg.content,
+                    timeStr: msg.timeStr || '',
+                    favoritedAt: Date.now(),
+                    source: 'wechat'
+                });
+                existingKeys.add(uniqKey);
+                addedCount += 1;
+            });
+            await localforage.setItem(storageKey, existing);
+            const duplicateText = ids.length === 1 ? '该消息已在收藏中' : '选中的消息已在收藏中';
+            showWechatMessageToast(addedCount > 0 ? ('已收藏 ' + addedCount + ' 条消息') : duplicateText);
+            return addedCount;
+        } catch (e) {
+            console.error('收藏消息失败', e);
+            alert('收藏失败');
+            return 0;
+        }
+    }
+
+    async function favoriteSelectedMsgs() {
+        if (!activeChatContact || selectedMsgIds.size === 0) return;
+        await favoriteMessagesByIds(Array.from(selectedMsgIds));
+        exitMultiSelectMode();
+    }
+
+    function buildChatRollbackRounds(messages) {
+        const rounds = [];
+        let currentRound = null;
+        let hasUserAnchor = false;
+        (Array.isArray(messages) ? messages : []).forEach(function(msg) {
+            if (!msg || msg.source === 'sms' || msg.isSystemTip || msg.isRecalled || msg.sender === 'system') return;
+            if (msg.sender === 'me') {
+                hasUserAnchor = true;
+                currentRound = null;
+                return;
+            }
+            if (msg.sender !== 'role' || !hasUserAnchor) return;
+            if (!currentRound) {
+                currentRound = {
+                    startMsgId: msg.id,
+                    timeStr: msg.timeStr || '',
+                    previews: [],
+                    count: 0
+                };
+                rounds.push(currentRound);
+            }
+            currentRound.count += 1;
+            const previewText = extractMsgPureText(msg.content || '').trim();
+            if (previewText && currentRound.previews.length < 2) {
+                currentRound.previews.push(previewText);
+            }
+        });
+        return rounds.reverse();
+    }
+
+    async function renderChatRollbackList() {
+        const listEl = document.getElementById('chat-rollback-list');
+        if (!listEl) return;
+        listEl.innerHTML = '';
+        if (!activeChatContact) {
+            listEl.innerHTML = '<div class="chat-rollback-empty">当前没有打开的聊天。</div>';
+            return;
+        }
+        const allMsgs = await chatListDb.messages.where('contactId').equals(activeChatContact.id).toArray();
+        const rounds = buildChatRollbackRounds(allMsgs);
+        if (!rounds.length) {
+            listEl.innerHTML = '<div class="chat-rollback-empty">还没有可回溯的角色回复轮次。</div>';
+            return;
+        }
+        rounds.forEach(function(round, index) {
+            const item = document.createElement('div');
+            item.className = 'chat-rollback-item';
+
+            const head = document.createElement('div');
+            head.className = 'chat-rollback-item-head';
+
+            const title = document.createElement('div');
+            title.className = 'chat-rollback-item-title';
+            title.textContent = '第 ' + (rounds.length - index) + ' 轮角色回复';
+
+            const meta = document.createElement('div');
+            meta.className = 'chat-rollback-item-meta';
+            meta.textContent = (round.timeStr || '未知时间') + ' · ' + round.count + ' 条';
+
+            const preview = document.createElement('div');
+            preview.className = 'chat-rollback-item-preview';
+            preview.textContent = round.previews.join('\n') || '这轮回复没有可预览文本';
+
+            const actions = document.createElement('div');
+            actions.className = 'chat-rollback-item-actions';
+
+            const rewindBtn = document.createElement('button');
+            rewindBtn.type = 'button';
+            rewindBtn.className = 'chat-rollback-item-btn primary';
+            rewindBtn.textContent = '回到这里';
+            rewindBtn.addEventListener('click', async function() {
+                const ok = confirm('确定要回溯到这一轮角色回复吗？这会删除这一轮及其后的线上对话，并重新生成回复。');
+                if (!ok) return;
+                closeChatRollbackModal();
+                const success = await rewindRoleReplyFromMessage(round.startMsgId);
+                if (!success) {
+                    alert('回溯失败，未找到可处理的消息轮次');
+                    return;
+                }
+                showWechatMessageToast('已回溯并重新生成');
+            });
+
+            actions.appendChild(rewindBtn);
+            head.appendChild(title);
+            head.appendChild(meta);
+            item.appendChild(head);
+            item.appendChild(preview);
+            item.appendChild(actions);
+            listEl.appendChild(item);
+        });
+    }
+
+    async function renderChatTimelineList() {
+        const listEl = document.getElementById('chat-timeline-list');
+        if (!listEl) return;
+        listEl.innerHTML = '';
+        if (!activeChatContact) {
+            listEl.innerHTML = '<div class="chat-timeline-empty">当前没有打开的聊天。</div>';
+            return;
+        }
+        const allMsgs = await chatListDb.messages.where('contactId').equals(activeChatContact.id).toArray();
+        const messages = allMsgs.filter(function(msg) {
+            return msg && msg.source !== 'sms';
+        });
+        if (!messages.length) {
+            listEl.innerHTML = '<div class="chat-timeline-empty">当前聊天还没有线上消息。</div>';
+            return;
+        }
+        messages.forEach(function(msg, index) {
+            const item = document.createElement('div');
+            item.className = 'chat-timeline-item';
+
+            const head = document.createElement('div');
+            head.className = 'chat-timeline-item-head';
+
+            const title = document.createElement('div');
+            title.className = 'chat-timeline-item-title';
+            title.textContent = (msg.sender === 'me' ? '我' : (activeChatContact.roleName || '角色')) + ' · 第 ' + (index + 1) + ' 条';
+
+            const meta = document.createElement('div');
+            meta.className = 'chat-timeline-item-meta';
+            meta.textContent = msg.timeStr || '未知时间';
+
+            const preview = document.createElement('div');
+            preview.className = 'chat-timeline-item-preview';
+            preview.textContent = extractMsgPureText(msg.content || '').trim() || '[空消息]';
+
+            head.appendChild(title);
+            head.appendChild(meta);
+            item.appendChild(head);
+            item.appendChild(preview);
+            listEl.appendChild(item);
+        });
+    }
+
+    async function openChatTimelineModal() {
+        hideChatExtPanel();
+        const modal = document.getElementById('chat-timeline-modal');
+        if (!modal) return;
+        modal.style.display = 'flex';
+        await renderChatTimelineList();
+    }
+
+    function closeChatTimelineModal() {
+        const modal = document.getElementById('chat-timeline-modal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    async function openChatRollbackModal() {
+        hideChatExtPanel();
+        const modal = document.getElementById('chat-rollback-modal');
+        if (!modal) return;
+        modal.style.display = 'flex';
+        await renderChatRollbackList();
+    }
+
+    function closeChatRollbackModal() {
+        const modal = document.getElementById('chat-rollback-modal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    async function rewindRoleReplyFromMessage(msgId) {
+        if (!activeChatContact || !msgId) return false;
+        const allMsgs = await chatListDb.messages.where('contactId').equals(activeChatContact.id).toArray();
+        const messages = allMsgs.filter(function(msg) {
+            return msg && msg.source !== 'sms';
+        });
+        const targetIndex = messages.findIndex(function(msg) {
+            return msg.id === msgId;
+        });
+        if (targetIndex < 0) return false;
+        if (!messages[targetIndex] || messages[targetIndex].sender !== 'role') return false;
+
+        let previousUserIndex = -1;
+        for (let i = targetIndex - 1; i >= 0; i -= 1) {
+            if (messages[i] && messages[i].sender === 'me') {
+                previousUserIndex = i;
+                break;
+            }
+        }
+
+        const deleteFromIndex = previousUserIndex + 1;
+        const idsToDelete = messages.slice(deleteFromIndex).map(function(msg) {
+            return msg.id;
+        }).filter(Boolean);
+        if (!idsToDelete.length) return false;
+
+        await chatListDb.messages.bulkDelete(idsToDelete);
+        await refreshChatWindow();
+        await updateLastChatTime(activeChatContact);
+        await triggerRoleReply(activeChatContact);
+        return true;
+    }
+
+    window.openChatRollbackModal = openChatRollbackModal;
+    window.closeChatRollbackModal = closeChatRollbackModal;
+
+    function showWechatMessageToast(text) {
+        const chatWindow = document.getElementById('chat-window');
+        if (!chatWindow || !text) return;
+        const oldToast = document.getElementById('wechat-chat-toast');
+        if (oldToast && oldToast.parentNode) oldToast.parentNode.removeChild(oldToast);
+        const toast = document.createElement('div');
+        toast.id = 'wechat-chat-toast';
+        toast.textContent = text;
+        toast.style.cssText = 'position:absolute;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(0,0,0,0.68);color:#fff;font-size:12px;padding:8px 16px;border-radius:18px;z-index:220;white-space:nowrap;pointer-events:none;';
+        chatWindow.appendChild(toast);
+        setTimeout(function() {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 1800);
+    }
+    window.openChatTimelineModal = openChatTimelineModal;
+    window.closeChatTimelineModal = closeChatTimelineModal;
     // 绑定回车监听
     document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('keydown', (e) => {

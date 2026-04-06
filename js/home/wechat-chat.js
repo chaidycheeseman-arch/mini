@@ -748,12 +748,12 @@
                 const rpAmount = structuredMsg.amount || '0.00';
                 const rpDesc = structuredMsg.memo || '恭喜发财，大吉大利';
                 const rpStatus = structuredMsg.status || 'unclaimed';
-                const rpStatusLabel = rpStatus === 'claimed' ? '已领取' : '待领取';
-                const rpStatusColor = rpStatus === 'claimed' ? '#bbb' : '#888';
+                const rpStatusLabel = rpStatus === 'claimed' ? (isMe ? '已被领取' : '已领取') : '待领取';
+                const rpStatusColor = rpStatus === 'claimed' ? '#bbb' : '#e8534a';
                 const roleName = _miniEscapeAttr(activeChatContact ? (activeChatContact.roleName || '对方') : '对方');
                 msgBodyHtml = `
                     <div class="card-wrapper" data-no-bubble="1">
-                        <div class="chat-red-packet-card${rpStatus === 'claimed' ? ' rp-claimed' : ''}" onclick="openRpClaimModal(this, '${rpAmount}', '${_miniEscapeAttr(rpDesc)}', '${rpStatus}', '${isMe ? 'me' : 'role'}', '${roleName}', ${msg.id})">
+                        <div class="chat-red-packet-card${rpStatus === 'claimed' ? ' rp-claimed' : ''}" data-rp-amount="${rpAmount}" data-rp-desc="${_miniEscapeAttr(rpDesc)}" data-rp-status="${rpStatus}" data-rp-role="${isMe ? 'me' : 'role'}" data-rp-rname="${roleName}" onclick="openRpClaimModal(this, this.dataset.rpAmount, this.dataset.rpDesc, this.dataset.rpStatus, this.dataset.rpRole, this.dataset.rpRname, ${msg.id})">
                             <div class="rp-card-icon-area">
                                 <div class="rp-card-icon-wrap">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="rgba(100,100,100,0.55)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -781,6 +781,7 @@
                 const tfDesc = structuredMsg.memo || '转账';
                 const tfStatus = structuredMsg.status || 'pending';
                 const tfStatusLabel = tfStatus === 'refunded' ? '已退回' : (tfStatus === 'received' ? '已收款' : '待收款');
+                const tfStatusColor = tfStatus === 'refunded' ? '#bbb' : (tfStatus === 'received' ? '#27ae60' : '#1a6fb5');
                 const roleName2 = _miniEscapeAttr(activeChatContact ? (activeChatContact.roleName || '对方') : '对方');
                 msgBodyHtml = `
                     <div class="card-wrapper" data-no-bubble="1">
@@ -802,7 +803,7 @@
                             </div>
                             <div class="tf-card-divider"></div>
                             <div class="tf-card-bottom">
-                                <span class="tf-card-status" style="color:#888;">${tfStatusLabel}</span>
+                                <span class="tf-card-status" style="color:${tfStatusColor};">${tfStatusLabel}</span>
                                 <span class="tf-card-brand">WeChat转账</span>
                             </div>
                         </div>
@@ -964,7 +965,7 @@
                     const roleName2 = activeChatContact ? (activeChatContact.roleName || '对方') : '对方';
                     msgBodyHtml = `
                         <div class="card-wrapper" data-no-bubble="1">
-                            <div class="chat-transfer-card" onclick="openTfActionModal(this, '${tfAmount}', '${tfDesc}', 'pending', '${isMe ? 'me' : 'role'}', '${roleName2}')">
+                            <div class="chat-transfer-card" data-tf-amount="${tfAmount}" data-tf-desc="${_miniEscapeAttr(tfDesc)}" data-tf-status="pending" data-tf-role="${isMe ? 'me' : 'role'}" data-tf-rname="${_miniEscapeAttr(roleName2)}" onclick="openTfActionModal(this, this.dataset.tfAmount, this.dataset.tfDesc, this.dataset.tfStatus, this.dataset.tfRole, this.dataset.tfRname)">
                                 <div class="tf-card-top">
                                     <div class="tf-card-icon">
                                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="rgba(255,255,255,0.95)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1015,7 +1016,7 @@
                     const roleName = activeChatContact ? (activeChatContact.roleName || '对方') : '对方';
                     msgBodyHtml = `
                         <div class="card-wrapper" data-no-bubble="1">
-                            <div class="chat-red-packet-card" onclick="openRpClaimModal(this, '${rpAmount}', '${rpDesc}', 'unclaimed', '${isMe ? 'me' : 'role'}', '${roleName}', ${msg.id})">
+                            <div class="chat-red-packet-card" data-rp-amount="${rpAmount}" data-rp-desc="${_miniEscapeAttr(rpDesc)}" data-rp-status="unclaimed" data-rp-role="${isMe ? 'me' : 'role'}" data-rp-rname="${_miniEscapeAttr(roleName)}" onclick="openRpClaimModal(this, this.dataset.rpAmount, this.dataset.rpDesc, this.dataset.rpStatus, this.dataset.rpRole, this.dataset.rpRname, ${msg.id})">
                                 <div class="rp-card-top">
                                     <div class="rp-card-icon">
                                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="rgba(255,255,255,0.95)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1987,7 +1988,11 @@
         if (chatWin.style.display !== 'flex') chatWin.style.display = 'flex';
     }
 
-    function openRoleProfileMoments() {
+    async function openRoleProfileMoments() {
+        if (typeof window.openRoleMomentsPage === 'function') {
+            await window.openRoleMomentsPage();
+            return;
+        }
         if (typeof window.syncWechatOverlayStack === 'function') {
             window.syncWechatOverlayStack(['wechat-app']);
         } else {

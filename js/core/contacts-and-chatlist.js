@@ -447,9 +447,9 @@ document.getElementById('contact-edit-id').value = '';
                 actions.className = 'chat-swipe-actions';
                 actions.innerHTML = `
                     <div class="chat-swipe-btn chat-swipe-pin${isPinned ? ' pinned' : ''}" onclick="togglePinChat('${chat.id}', this)">
-                        ${isPinned ? '取消置顶' : '置顶'}
+                        <span>${isPinned ? '取消置顶' : '置顶'}</span>
                     </div>
-                    <div class="chat-swipe-btn chat-swipe-delete" onclick="deleteChatItem('${chat.id}', this)">删除</div>
+                    <div class="chat-swipe-btn chat-swipe-delete" onclick="deleteChatItem('${chat.id}', this)"><span>删除</span></div>
                 `;
 
                 // 主内容区
@@ -503,7 +503,7 @@ document.getElementById('contact-edit-id').value = '';
     function bindSwipeGesture(wrapper, item) {
         let startX = 0, startY = 0, currentX = 0;
         let dragging = false, isHorizontal = null;
-        const ACTION_WIDTH = 130;
+        const ACTION_WIDTH = 144;
 
         function closeOtherSwipes(except) {
             document.querySelectorAll('.chat-swipe-item.swiped').forEach(el => {

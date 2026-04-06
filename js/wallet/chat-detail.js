@@ -4,7 +4,7 @@
 (function() {
     // 当前联系人的详情设置存储键前缀
     var CD_KEY_PREFIX = 'cd_settings_';
-    var SPECIAL_MESSAGE_PROBABILITY_VERSION = 3;
+    var SPECIAL_MESSAGE_PROBABILITY_VERSION = 5;
     const LEGACY_SPECIAL_MESSAGE_PROBABILITIES = Object.freeze({
         camera: 0.1,
         location: 0.1,
@@ -19,6 +19,21 @@
         reply: 15,
         recall: 5,
         time_aware: 20
+    });
+    const LOW_DEFAULT_SPECIAL_MESSAGE_PROBABILITIES = Object.freeze({
+        camera: 2.5,
+        location: 2.5,
+        takeaway: 0.5,
+        gift: 0.5,
+        call: 0.8,
+        video_call: 0.5,
+        red_packet: 0.2,
+        transfer: 0.1,
+        voice_message: 10,
+        emoticon: 12,
+        reply: 16,
+        recall: 4,
+        time_aware: 18
     });
     const DEFAULT_SPECIAL_MESSAGE_PROBABILITIES = Object.freeze({
         camera: 20,
@@ -220,7 +235,13 @@
             var normalized = _normalizeSpecialMessageProbabilities(saved);
             var savedVersionRaw = await localforage.getItem(versionKey);
             var savedVersion = parseInt(savedVersionRaw, 10) || 0;
-            if (savedVersion < SPECIAL_MESSAGE_PROBABILITY_VERSION && _isSameProbabilityConfig(normalized, LEGACY_SPECIAL_MESSAGE_PROBABILITIES)) {
+            if (
+                savedVersion < SPECIAL_MESSAGE_PROBABILITY_VERSION &&
+                (
+                    _isSameProbabilityConfig(normalized, LEGACY_SPECIAL_MESSAGE_PROBABILITIES) ||
+                    _isSameProbabilityConfig(normalized, LOW_DEFAULT_SPECIAL_MESSAGE_PROBABILITIES)
+                )
+            ) {
                 var defaults = _getDefaultSpecialMessageProbabilities();
                 try {
                     await localforage.setItem(key, defaults);

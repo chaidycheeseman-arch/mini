@@ -80,7 +80,10 @@
     }
 
     function createOfflineTextParagraph(line) {
-        var narrationMatch = line.match(/^\*([\s\S]+)\*$/);
+        var normalizedLine = String(line || '').trim();
+        if (!normalizedLine) return null;
+
+        var narrationMatch = normalizedLine.match(/^\*([\s\S]+)\*$/);
         if (narrationMatch) {
             var em = document.createElement('em');
             em.className = 'offline-narration';
@@ -90,28 +93,34 @@
 
         var paragraph = document.createElement('div');
         paragraph.className = 'offline-paragraph';
-        var pattern = /"[^"]*"|“[^”]*”/g;
+        var pattern = /\*[^*]+\*|"[^"]*"|“[^”]*”/g;
         var lastIndex = 0;
         var match;
 
-        while ((match = pattern.exec(line)) !== null) {
-            var start = match.index;
-            if (start > lastIndex) {
-                paragraph.appendChild(document.createTextNode(line.slice(lastIndex, start)));
+        while ((match = pattern.exec(normalizedLine)) !== null) {
+            if (match.index > lastIndex) {
+                paragraph.appendChild(document.createTextNode(normalizedLine.slice(lastIndex, match.index)));
             }
-            var span = document.createElement('span');
-            span.className = 'offline-dialogue';
-            span.textContent = match[0];
-            paragraph.appendChild(span);
-            lastIndex = start + match[0].length;
+            if (match[0].charAt(0) === '*') {
+                var narrationInline = document.createElement('em');
+                narrationInline.className = 'offline-narration offline-narration-inline';
+                narrationInline.textContent = match[0].slice(1, -1).trim();
+                paragraph.appendChild(narrationInline);
+            } else {
+                var dialogue = document.createElement('span');
+                dialogue.className = 'offline-dialogue';
+                dialogue.textContent = match[0];
+                paragraph.appendChild(dialogue);
+            }
+            lastIndex = match.index + match[0].length;
         }
 
-        if (lastIndex < line.length) {
-            paragraph.appendChild(document.createTextNode(line.slice(lastIndex)));
+        if (lastIndex < normalizedLine.length) {
+            paragraph.appendChild(document.createTextNode(normalizedLine.slice(lastIndex)));
         }
 
         if (!paragraph.childNodes.length) {
-            paragraph.textContent = line;
+            paragraph.textContent = normalizedLine;
         }
 
         return paragraph;
@@ -128,7 +137,7 @@
 
         cleaned.split('\n').forEach(function(line) {
             var paragraph = createOfflineTextParagraph(line);
-            container.appendChild(paragraph);
+            if (paragraph) container.appendChild(paragraph);
         });
     }
 
@@ -205,6 +214,44 @@
         if (!menu) return;
         menu.style.display = 'none';
         activeOfflineBubbleMsgId = null;
+    }
+
+    function removeOfflineTypingIndicator() {
+        var indicator = document.getElementById('offline-typing-indicator');
+        if (indicator && indicator.parentNode) indicator.parentNode.removeChild(indicator);
+    }
+
+    function showOfflineTypingIndicator() {
+        var container = document.getElementById('offline-msg-container');
+        if (!container || !activeOfflineContact) return;
+        removeOfflineTypingIndicator();
+        var row = buildOfflineBubble({
+            sender: 'role',
+            content: '',
+            timestamp: Date.now(),
+            _typing: true
+        });
+        row.id = 'offline-typing-indicator';
+        row.classList.add('offline-typing-row');
+        container.appendChild(row);
+        requestAnimationFrame(function() {
+            container.scrollTop = container.scrollHeight;
+        });
+    }
+
+    function showOfflineToast(text) {
+        var offlineApp = document.getElementById('offline-chat-app');
+        if (!offlineApp || !text) return;
+        var oldToast = document.getElementById('offline-chat-toast');
+        if (oldToast && oldToast.parentNode) oldToast.parentNode.removeChild(oldToast);
+        var toast = document.createElement('div');
+        toast.id = 'offline-chat-toast';
+        toast.textContent = text;
+        toast.style.cssText = 'position:absolute;bottom:100px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.65);color:#fff;padding:8px 18px;border-radius:20px;font-size:13px;z-index:9999;pointer-events:none;white-space:nowrap;';
+        offlineApp.appendChild(toast);
+        setTimeout(function() {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 1800);
     }
 
     function openOfflineBubbleActionMenu(msgId, bubbleEl) {
@@ -330,11 +377,18 @@
     async function continueOfflineMessage(msgId) {
         closeOfflineBubbleActionMenu();
         if (!activeOfflineContact) return;
+        if (offlineReplying) {
+            showOfflineToast('角色正在输入中');
+            return;
+        }
         try {
             var msg = await offlineDb.messages.get(msgId);
+            showOfflineTypingIndicator();
             await triggerOfflineRoleReply(activeOfflineContact, msg ? (msg.content || '') : '');
         } catch (e) {
             console.error('线下续写失败', e);
+            removeOfflineTypingIndicator();
+            showOfflineToast('续写失败');
         }
     }
 
@@ -742,6 +796,7 @@
         if (!container || !activeOfflineContact) return;
         container.innerHTML = '';
         closeOfflineBubbleActionMenu();
+        removeOfflineTypingIndicator();
         try {
             var msgs = await offlineDb.messages.where('contactId').equals(activeOfflineContact.id).toArray();
             msgs.forEach(function(msg) { container.appendChild(buildOfflineBubble(msg)); });
@@ -750,6 +805,7 @@
     }
 
     function buildOfflineBubble(msg) {
+        var isTyping = !!(msg && msg._typing);
         var isMe = msg.sender === 'me';
         var contact = activeOfflineContact;
         var userAvatar = contact ? (contact.userAvatar || '') : '';
@@ -776,6 +832,7 @@
         // 气泡本体（无尖角，头像+名字+时间戳都在气泡内）
         var bubble = document.createElement('div');
         bubble.className = 'offline-bubble';
+        if (isTyping) bubble.className += ' offline-bubble-typing';
 
         // 气泡头部：头像 + 名字 + 时间戳
         var header = document.createElement('div');
@@ -810,11 +867,16 @@
         // 气泡正文（旁白灰色斜体，对话黑色正体）
         var textEl = document.createElement('div');
         textEl.className = 'offline-bubble-text';
-        renderOfflineMessageContent(textEl, msg.content || '');
+        if (isTyping) {
+            textEl.className += ' offline-typing-text';
+            textEl.innerHTML = '<span class="offline-typing-label">正在输入...</span>';
+        } else {
+            renderOfflineMessageContent(textEl, msg.content || '');
+        }
 
         bubble.appendChild(header);
         bubble.appendChild(textEl);
-        if (msg && msg.id) {
+        if (!isTyping && msg && msg.id) {
             bubble.setAttribute('data-msg-id', String(msg.id));
             bubble.style.cursor = 'pointer';
             bubble.addEventListener('click', function(e) {
@@ -857,12 +919,16 @@
         if (offlineReplying) return;
         offlineReplying = true;
         var container = document.getElementById('offline-msg-container');
+        showOfflineTypingIndicator();
         try {
             var apiUrl = await localforage.getItem('miffy_api_url');
             var apiKey = await localforage.getItem('miffy_api_key');
             var model = await localforage.getItem('miffy_api_model');
             var temp = parseFloat(await localforage.getItem('miffy_api_temp')) || 0.7;
-            if (!apiUrl || !apiKey || !model) return;
+            if (!apiUrl || !apiKey || !model) {
+                showOfflineToast('请先配置聊天 API');
+                return;
+            }
             var ctxRaw = await localforage.getItem('miffy_api_ctx');
             var ctxLimit = (ctxRaw !== null && ctxRaw !== '') ? parseInt(ctxRaw) : 10;
             var allMsgs = await offlineDb.messages.where('contactId').equals(contact.id).toArray();
@@ -984,11 +1050,15 @@
             var app = document.getElementById('offline-chat-app');
             if (app && app.style.display === 'flex' && activeOfflineContact && activeOfflineContact.id === contact.id) {
                 var replyMsg = { id: replyId, contactId: contact.id, sender: 'role', content: replyText, timestamp: replyTs };
+                removeOfflineTypingIndicator();
                 container.appendChild(buildOfflineBubble(replyMsg));
                 requestAnimationFrame(function() { container.scrollTop = container.scrollHeight; });
             }
         } catch(e) { console.error('offline role reply failed', e); }
-        finally { offlineReplying = false; }
+        finally {
+            removeOfflineTypingIndicator();
+            offlineReplying = false;
+        }
     }
 
     document.addEventListener('DOMContentLoaded', function() {

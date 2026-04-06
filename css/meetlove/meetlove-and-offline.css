@@ -949,11 +949,12 @@
     align-items: flex-start;
     justify-content: flex-start;
     gap: 8px;
-    background: transparent;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
     flex-shrink: 0;
-    border-bottom: none;
+    border-bottom: none !important;
+    box-shadow: none !important;
     position: relative;
     z-index: 10;
 }
@@ -1181,7 +1182,7 @@
     box-shadow: 0 4px 20px rgba(0,0,0,0.08);
     border: 1px solid rgba(255,255,255,0.8);
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     gap: 8px;
 }
 .offline-input-field {
@@ -1193,16 +1194,33 @@
     font-size: 14px;
     color: #3a3028;
     resize: none;
-    line-height: 1.5;
+    line-height: 22px;
     font-family: inherit;
     height: 22px;
     min-height: 22px;
     max-height: 96px;
     overflow-y: hidden;
-    padding: 7px 0 5px;
+    padding: 0;
 }
 .offline-input-field::-webkit-scrollbar { display: none; }
 .offline-input-field::placeholder { color: #c0b8b0; }
+
+.offline-typing-row {
+    width: 100%;
+}
+.offline-bubble.offline-bubble-typing {
+    background: #fff;
+}
+.offline-typing-text {
+    padding-top: 0;
+    color: #8e847a;
+    font-size: 13px;
+}
+.offline-typing-label {
+    display: inline-flex;
+    align-items: center;
+    letter-spacing: 0.2px;
+}
 
 .offline-send-btn {
     width: 32px;
@@ -1320,7 +1338,7 @@
 
 .offline-paragraph {
     margin: 0;
-    line-height: 1.5;
+    line-height: 1.62;
     white-space: pre-wrap;
 }
 
@@ -1332,6 +1350,11 @@
     font-size: 13px;
     line-height: 1.5;
     letter-spacing: 0.2px;
+    margin: 0;
+}
+.offline-narration-inline {
+    display: inline;
+    font-size: inherit;
     margin: 0;
 }
 
