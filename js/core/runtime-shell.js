@@ -252,6 +252,11 @@ const miniSystemUiState = {
 };
 
 function getMiniSystemHost() {
+    const checkPhoneApp = document.getElementById('checkphone-app');
+    const checkPhoneScreen = document.getElementById('cp-phone-screen');
+    if (checkPhoneApp && checkPhoneScreen && checkPhoneApp.style.display !== 'none') {
+        return checkPhoneScreen;
+    }
     return document.querySelector('.phone-screen') || document.body;
 }
 
@@ -744,6 +749,16 @@ window.addEventListener('DOMContentLoaded', async () => {
             }
         }).observe(previewImg, { attributes: true });
     }
+    function bindScrollableOverlayBody(selector) {
+        const body = document.querySelector(selector);
+        if (!body || body._overlayScrollBound) return;
+        body._overlayScrollBound = true;
+        body.addEventListener('touchmove', function(e) { e.stopPropagation(); }, { passive: true });
+        body.addEventListener('wheel', function(e) { e.stopPropagation(); }, { passive: true });
+    }
+    bindScrollableOverlayBody('#theme-app .app-body');
+    bindScrollableOverlayBody('#settings-app .app-body');
+
     const themeBtn = document.getElementById('dock-btn-theme');
     if (themeBtn) {
         themeBtn.addEventListener('click', function(e) {
@@ -752,6 +767,8 @@ window.addEventListener('DOMContentLoaded', async () => {
                 window.collapseThemeAccordions();
             }
             document.getElementById('theme-app').style.display = 'flex';
+            var themeBody = document.querySelector('#theme-app .app-body');
+            if (themeBody) themeBody.scrollTop = 0;
         });
     }
     function closeThemeApp() {

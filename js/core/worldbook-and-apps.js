@@ -33,10 +33,12 @@
             items.forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'wb-card';
+                const isEnabled = item.enabled !== false;
                 const pTagClass = `tag-${item.priority}`;
                 const pTagText = item.priority === 'high' ? '高优先级' : (item.priority === 'medium' ? '中优先级' : '低优先级');
                 const aTagClass = `tag-${item.activation}`;
                 const aTagText = item.activation === 'always' ? '始终生效' : '关键词触发';
+                const injectPos = item.injectPosition === 'before' ? '前注入' : (item.injectPosition === 'after' ? '后注入' : '中注入');
                 let keywordHtml = '';
                 if(item.activation === 'keyword' && item.keywords) {
                     keywordHtml = `<div class="wb-tag" style="background:#f5f5f5; color:#777; font-weight:normal;"> ${item.keywords}</div>`;
@@ -46,6 +48,7 @@
                     <div class="wb-card-tags">
                         <div class="wb-tag ${aTagClass}">${aTagText}</div>
                         <div class="wb-tag ${pTagClass}">${pTagText}</div>
+                        <div class="wb-tag tag-inject">${injectPos}</div>
                         ${keywordHtml}
                     </div>
                     <div class="wb-card-content">${item.content}</div>
@@ -56,6 +59,12 @@
                         <div class="wb-action-icon" onclick="deleteWorldbook(${item.id})">
                             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         </div>
+                    </div>
+                    <div class="wb-card-toggle-wrap" onclick="event.stopPropagation()">
+                        <label class="wb-card-switch">
+                            <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="toggleWorldbookEnabled(${item.id}, this.checked, event)">
+                            <span class="wb-card-switch-slider"></span>
+                        </label>
                     </div>
                 `;
                 listContainer.appendChild(card);
@@ -79,6 +88,7 @@
                 document.querySelector(`input[name="wb-activation"][value="${item.activation}"]`).checked = true;
                 document.getElementById('wb-keywords').value = item.keywords || '';
                 document.getElementById('wb-priority').value = item.priority;
+                document.getElementById('wb-inject-position').value = item.injectPosition || 'middle';
                 document.getElementById('wb-content').value = item.content;
             }
         } else {
@@ -89,6 +99,7 @@
             document.querySelector(`input[name="wb-activation"][value="always"]`).checked = true;
             document.getElementById('wb-keywords').value = '';
             document.getElementById('wb-priority').value = 'medium';
+            document.getElementById('wb-inject-position').value = 'middle';
             document.getElementById('wb-content').value = '';
         }
         toggleKeywordInput();
@@ -101,16 +112,28 @@
         const activation = document.querySelector('input[name="wb-activation"]:checked').value;
         const keywords = document.getElementById('wb-keywords').value.trim();
         const priority = document.getElementById('wb-priority').value;
+        const injectPosition = document.getElementById('wb-inject-position').value;
         const content = document.getElementById('wb-content').value.trim();
         if (!title || !content) return alert('标题和内容不能为空');
-        const data = { title, category, activation, keywords, priority, content, updatedAt: new Date().getTime() };
+        const data = { title, category, activation, keywords, priority, injectPosition, content, updatedAt: new Date().getTime() };
         try {
             if (id) await db.entries.update(parseInt(id), data);
-            else { data.createdAt = new Date().getTime(); await db.entries.add(data); }
+            else { data.createdAt = new Date().getTime(); data.enabled = true; await db.entries.add(data); }
             closeWorldbookEditor();
             if (currentWbCategory !== category) switchWbCategory(category);
             else renderWorldbooks();
         } catch (error) { alert('保存失败'); }
+    }
+    async function toggleWorldbookEnabled(id, enabled, event) {
+        if (event) {
+            event.stopPropagation();
+        }
+        try {
+            await db.entries.update(parseInt(id), { enabled: !!enabled, updatedAt: new Date().getTime() });
+        } catch (error) {
+            alert('开关保存失败');
+            renderWorldbooks();
+        }
     }
     async function editWorldbook(id) { await openWorldbookEditor(id); }
     async function deleteWorldbook(id) {

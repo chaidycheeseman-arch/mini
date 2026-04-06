@@ -1009,12 +1009,12 @@
                 return;
             }
 
-            var ctxRaw = await localforage.getItem('miffy_api_ctx');
-            var ctxLimit = (ctxRaw !== null && ctxRaw !== '') ? parseInt(ctxRaw, 10) : 10;
-            if (isNaN(ctxLimit) || ctxLimit < 0) ctxLimit = 10;
+            var ctxLimit = (typeof window.readMiniApiContextLimit === 'function')
+                ? await window.readMiniApiContextLimit(20)
+                : 20;
 
             var allMsgs = await offlineDb.messages.where('contactId').equals(contact.id).toArray();
-            var recentMsgs = (ctxLimit === 0) ? allMsgs : allMsgs.slice(-ctxLimit);
+            var recentMsgs = allMsgs.slice(-ctxLimit);
 
             var allOnlineMsgs = [];
             try {
@@ -1025,7 +1025,7 @@
             } catch (eOnline) {
                 allOnlineMsgs = [];
             }
-            var recentOnlineMsgs = (ctxLimit === 0) ? allOnlineMsgs : allOnlineMsgs.slice(-ctxLimit);
+            var recentOnlineMsgs = allOnlineMsgs.slice(-ctxLimit);
 
             var offlineSettings = await localforage.getItem('offline_settings_' + contact.id) || {};
             var wordMin = Math.max(50, parseInt(offlineSettings.wordMin, 10) || 100);

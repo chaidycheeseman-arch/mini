@@ -2070,14 +2070,15 @@
 
 .music-header-back,
 .music-header-btn {
-    border-radius: 16px;
-    background: rgba(255,255,255,0.94);
-    border: 1px solid var(--control-border);
-    color: var(--text-main);
-    box-shadow: var(--control-shadow);
+    width: 34px;
+    height: 34px;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    box-shadow: none;
 }
 
-.music-header-btn.is-active,
 .music-now-play,
 .music-dock-btn.active,
 .music-bar-btn-danger {
@@ -2085,6 +2086,13 @@
     color: var(--surface-1);
     border-color: transparent;
     box-shadow: 0 12px 26px var(--shadow-strong);
+}
+
+.music-header-btn.is-active {
+    background: transparent;
+    color: var(--accent);
+    border-color: transparent;
+    box-shadow: none;
 }
 
 .music-header-title,
@@ -2228,4 +2236,103 @@
 
 .music-profile-avatar img {
     background: linear-gradient(160deg, #e9edf3, #f8fafc);
+}
+
+/* ====== Music Compact Tune ====== */
+.music-app-header {
+    padding: 12px 14px 6px;
+    gap: 8px;
+}
+
+.music-header-subtitle {
+    margin-top: 1px;
+}
+
+.music-header-back svg,
+.music-header-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+.music-scroll {
+    padding: 2px 12px 96px;
+}
+
+.music-now-card {
+    padding: 12px;
+    gap: 10px;
+    border-radius: 24px;
+}
+
+.music-panel {
+    margin-top: 10px;
+    padding: 12px;
+}
+
+.music-section-head {
+    margin-bottom: 8px;
+}
+
+.music-section-head-stack {
+    margin-bottom: 10px;
+}
+
+.music-song-list {
+    gap: 6px;
+}
+
+.music-song-row {
+    padding: 12px 12px;
+    gap: 10px;
+}
+
+.music-profile-cover-wrap {
+    padding-bottom: 36px;
+}
+
+.music-profile-card {
+    margin-top: 8px;
+    padding: 14px 12px 12px;
+}
+
+.music-profile-signature {
+    margin-top: 8px;
+    line-height: 1.45;
+}
+
+.music-stat-grid {
+    margin-top: 10px;
+    gap: 6px;
+}
+
+.music-stat-btn {
+    padding: 12px 8px 10px;
+}
+
+.music-playlist-panel {
+    margin-top: 10px;
+    padding-top: 14px;
+}
+
+.music-playlist-item {
+    padding: 12px;
+    gap: 10px;
+}
+
+.music-playlist-tools {
+    top: 10px;
+    right: 10px;
+}
+
+.music-bottom-dock {
+    left: 16px;
+    right: 16px;
+    bottom: 14px;
+    padding: 6px 8px 8px;
+    gap: 6px;
+}
+
+.music-dock-btn {
+    width: 62px;
+    height: 46px;
 }

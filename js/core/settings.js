@@ -91,6 +91,9 @@
     const ST_MODEL = 'miffy_api_model';
     const ST_TEMP = 'miffy_api_temp';
     const ST_CTX = 'miffy_api_ctx';
+    const API_CTX_MIN = 10;
+    const API_CTX_MAX = 200;
+    const API_CTX_DEFAULT = 20;
     const ST_PRESETS = 'miffy_api_presets';
     const ST_MM_REGION = 'miffy_minimax_region';
     const ST_MM_KEY = 'miffy_minimax_api_key';
@@ -127,6 +130,48 @@
     let deviceLockCode = DEFAULT_DEVICE_LOCK_CODE;
     let deviceLockInput = '';
     let deviceLockClockTimer = null;
+
+    function _setApiKeyToggleIcon(isVisible) {
+        const toggle = document.getElementById('api-key-toggle');
+        if (!toggle) return;
+        toggle.innerHTML = isVisible
+            ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"></path><path d="M10.58 10.58a2 2 0 0 0 2.84 2.84"></path><path d="M9.36 5.52A11.42 11.42 0 0 1 12 5.2c6.5 0 10 6 10 6a16.55 16.55 0 0 1-3.06 3.68"></path><path d="M6.23 6.23C3.35 8.1 2 10.5 2 10.5s3.5 6 10 6c1.63 0 3.1-.3 4.42-.82"></path></svg>'
+            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+        toggle.setAttribute('aria-label', isVisible ? '隐藏 API 密钥' : '显示 API 密钥');
+    }
+
+    window.toggleApiKeyVisibility = function() {
+        const keyInput = document.getElementById('api-key');
+        if (!keyInput) return;
+        const nextVisible = keyInput.type === 'password';
+        keyInput.type = nextVisible ? 'text' : 'password';
+        _setApiKeyToggleIcon(nextVisible);
+    };
+
+    function normalizeApiCtxLimit(raw, fallback) {
+        var fallbackNum = parseInt(fallback, 10);
+        if (!isFinite(fallbackNum) || isNaN(fallbackNum)) fallbackNum = API_CTX_DEFAULT;
+        var value = parseInt(raw, 10);
+        if (!isFinite(value) || isNaN(value)) value = fallbackNum;
+        if (value < API_CTX_MIN) value = API_CTX_MIN;
+        if (value > API_CTX_MAX) value = API_CTX_MAX;
+        return value;
+    }
+
+    async function readApiCtxLimit(fallback) {
+        var raw = null;
+        try {
+            raw = await localforage.getItem(ST_CTX);
+        } catch (e) {}
+        return normalizeApiCtxLimit(raw, fallback);
+    }
+
+    window.normalizeMiniApiContextLimit = function(raw, fallback) {
+        return normalizeApiCtxLimit(raw, fallback);
+    };
+    window.readMiniApiContextLimit = async function(fallback) {
+        return await readApiCtxLimit(fallback);
+    };
 
     function buildMiniMaxVoiceDefaultName(text) {
         const cleanText = String(text || '').trim();
@@ -1141,6 +1186,8 @@
                 window.collapseThemeAccordions();
             }
             settingsApp.style.display = 'flex';
+            var settingsBody = settingsApp.querySelector('.app-body');
+            if (settingsBody) settingsBody.scrollTop = 0;
         });
     }
     function closeSettingsApp() {
@@ -1148,7 +1195,12 @@
     }
     async function loadSettingsToUI() {
         document.getElementById('api-url').value = await localforage.getItem(ST_URL) || '';
-        document.getElementById('api-key').value = await localforage.getItem(ST_KEY) || '';
+        var apiKeyInput = document.getElementById('api-key');
+        if (apiKeyInput) {
+            apiKeyInput.value = await localforage.getItem(ST_KEY) || '';
+            apiKeyInput.type = 'password';
+        }
+        _setApiKeyToggleIcon(false);
         const savedModel = await localforage.getItem(ST_MODEL) || '';
         const modelSelect = document.getElementById('api-model');
         if(savedModel && modelSelect.options.length <= 1) {
@@ -1161,8 +1213,11 @@
         const t = await localforage.getItem(ST_TEMP) || '0.7';
         document.getElementById('api-temp').value = t;
         document.getElementById('temp-val').textContent = t;
-        const c = await localforage.getItem(ST_CTX) || '10';
-        document.getElementById('api-ctx').value = c;
+        const c = await readApiCtxLimit(API_CTX_DEFAULT);
+        const ctxInput = document.getElementById('api-ctx');
+        ctxInput.min = String(API_CTX_MIN);
+        ctxInput.max = String(API_CTX_MAX);
+        ctxInput.value = String(c);
 
         const mmConfig = await getMiniMaxStoredConfig();
         const regionEl = document.getElementById('mm-region');
@@ -1190,7 +1245,10 @@
         await localforage.setItem(ST_KEY, document.getElementById('api-key').value);
         await localforage.setItem(ST_MODEL, document.getElementById('api-model').value);
         await localforage.setItem(ST_TEMP, document.getElementById('api-temp').value);
-        await localforage.setItem(ST_CTX, document.getElementById('api-ctx').value);
+        var ctxInput = document.getElementById('api-ctx');
+        var ctxValue = normalizeApiCtxLimit(ctxInput.value, API_CTX_DEFAULT);
+        ctxInput.value = String(ctxValue);
+        await localforage.setItem(ST_CTX, String(ctxValue));
         await saveMiniMaxSettings(getMiniMaxInputsConfig());
         alert('设置已成功保存');
     }
@@ -1265,7 +1323,7 @@
             key: document.getElementById('api-key').value,
             model: document.getElementById('api-model').value,
             temp: document.getElementById('api-temp').value,
-            ctx: document.getElementById('api-ctx').value
+            ctx: String(normalizeApiCtxLimit(document.getElementById('api-ctx').value, API_CTX_DEFAULT))
         });
         await savePresets(presets);
         alert('预设已保存');
@@ -1367,7 +1425,7 @@
                 select.value = p.model || '';
                 document.getElementById('api-temp').value = p.temp || '0.7';
                 document.getElementById('temp-val').textContent = p.temp || '0.7';
-                document.getElementById('api-ctx').value = p.ctx || '10';
+                document.getElementById('api-ctx').value = String(normalizeApiCtxLimit(p.ctx, API_CTX_DEFAULT));
             }
             closePresetManager();
             alert(`已应用${presetManagerMode === 'voice' ? '语音' : ''}预设: ${p.name}`);
@@ -1405,6 +1463,19 @@
             speedEl.addEventListener('input', function() {
                 updateMiniMaxSpeedDisplay(this.value);
             });
+        }
+        const ctxInput = document.getElementById('api-ctx');
+        if (ctxInput && !ctxInput._miniCtxBound) {
+            ctxInput._miniCtxBound = true;
+            ctxInput.min = String(API_CTX_MIN);
+            ctxInput.max = String(API_CTX_MAX);
+            ctxInput.placeholder = '范围 10-200，默认 20';
+            const syncCtxValue = function() {
+                ctxInput.value = String(normalizeApiCtxLimit(ctxInput.value, API_CTX_DEFAULT));
+            };
+            ctxInput.addEventListener('change', syncCtxValue);
+            ctxInput.addEventListener('blur', syncCtxValue);
+            syncCtxValue();
         }
         updateMiniMaxVoiceLibraryCount().catch(function(err) {
             console.error('读取 MiniMax 语音库存数量失败', err);

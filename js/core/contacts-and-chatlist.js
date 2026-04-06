@@ -630,6 +630,10 @@ document.getElementById('contact-edit-id').value = '';
         }
     }
 
+    // 显式挂到 window，避免某些环境下内联 onclick 无法找到函数
+    window.togglePinChat = togglePinChat;
+    window.deleteChatItem = deleteChatItem;
+
     // 初始化渲染联系人列表与聊天列表，并恢复钱包数据
     document.addEventListener('DOMContentLoaded', () => {
         renderContacts();

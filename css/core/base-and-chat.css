@@ -594,26 +594,66 @@
         .wb-list::-webkit-scrollbar { display: none; }
         .wb-empty { text-align: center; color: #bbb; font-size: 13px; margin-top: 40px; letter-spacing: 1px; }
         .wb-card {
-            background: #fff; border-radius: 18px; padding: 18px; width: 100%;
+            background: #fff; border-radius: 18px; padding: 18px 18px 56px; width: 100%;
             box-shadow: 0 4px 16px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.02);
             display: flex; flex-direction: column; gap: 10px; position: relative;
         }
         .wb-card-title { font-size: 15px; font-weight: 600; color: #444; margin-right: 50px; line-height: 1.3; }
         .wb-card-tags { display: flex; flex-wrap: wrap; gap: 6px; }
         .wb-tag { padding: 4px 10px; border-radius: 10px; font-size: 10px; font-weight: 600; letter-spacing: 0.5px; }
-        /* 标签颜色配置 (柔和高级灰白系) */
-        .tag-high { background: #fff0f0; color: #d96a6a; }
-        .tag-medium { background: #fff7e6; color: #d49a46; }
-        .tag-low { background: #f0f9f0; color: #6db36d; }
-        .tag-always { background: #f0f4ff; color: #6a8cd9; }
-        .tag-keyword { background: #f9f0ff; color: #aa6ad9; }
+        .tag-high { background: #f2f2f2; color: #4f4f4f; }
+        .tag-medium { background: #f5f5f5; color: #666; }
+        .tag-low { background: #f8f8f8; color: #888; }
+        .tag-always { background: #f3f3f3; color: #555; }
+        .tag-keyword { background: #f6f6f6; color: #6f6f6f; }
+        .tag-inject { background: #f0f0f0; color: #5f5f5f; }
         .wb-card-content { font-size: 12px; color: #888; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .wb-card-actions { position: absolute; top: 16px; right: 16px; display: flex; gap: 10px; }
         .wb-action-icon { color: #aaa; cursor: pointer; display: flex; transition: color 0.2s; }
         .wb-action-icon:hover { color: #666; }
+        .wb-card-toggle-wrap { position: absolute; right: 16px; bottom: 14px; display: flex; align-items: center; }
+        .wb-card-switch { position: relative; width: 48px; height: 28px; display: inline-flex; }
+        .wb-card-switch input { opacity: 0; width: 0; height: 0; }
+        .wb-card-switch-slider {
+            position: absolute;
+            inset: 0;
+            border-radius: 999px;
+            background: #d4d4d4;
+            transition: background 0.2s ease;
+            cursor: pointer;
+        }
+        .wb-card-switch-slider::before {
+            content: "";
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+            transition: transform 0.2s ease;
+        }
+        .wb-card-switch input:checked + .wb-card-switch-slider {
+            background: #34c759;
+        }
+        .wb-card-switch input:checked + .wb-card-switch-slider::before {
+            transform: translateX(20px);
+        }
         /* 世界书编辑器 */
         #worldbook-editor { z-index: 90; }
         textarea.settings-input { resize: none; height: 120px; line-height: 1.5; }
+        #wb-content {
+            width: 320px !important;
+            min-width: 320px !important;
+            max-width: 320px !important;
+            height: 140px !important;
+            min-height: 140px !important;
+            max-height: 140px !important;
+            resize: none !important;
+            overflow-y: auto !important;
+            overflow-x: hidden;
+        }
         .wb-radio-group { display: flex; gap: 15px; margin-top: 5px; }
         .wb-radio-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #555; cursor: pointer; }
         .wb-radio-label input[type="radio"] { accent-color: #666; width: 14px; height: 14px; }
@@ -1045,6 +1085,10 @@
 .editable img, .icon-img img, .dock-icon img { 
     background-color: #ffffff; 
     min-height: 1px; min-width: 1px;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
 }
 /* 针对主题页图标的容器 */
 .theme-icon-container { display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; }
@@ -1918,8 +1962,7 @@ html[data-theme]:not([data-theme="day"]) .home-hero-info {
 [data-theme="night"] .chat-input-field::placeholder {
     color: rgba(183, 197, 221, 0.62);
 }
-[data-theme="night"] .icon-btn-line,
-[data-theme="night"] .paw-send-line {
+[data-theme="night"] .icon-btn-line {
     color: #b9cbeb;
 }
 [data-theme="night"] .icon-btn-line:active {
@@ -2197,6 +2240,22 @@ html[data-theme]:not([data-theme="day"]) .home-hero-info {
     min-width: 0;
     padding-top: 5px;
     text-align: center;
+    margin: 0 auto;
+}
+#sms-chat-window .app-header {
+    align-items: center !important;
+    justify-content: space-between !important;
+}
+#sms-chat-window #sms-chat-name {
+    position: static !important;
+    left: auto !important;
+    transform: none !important;
+}
+#sms-chat-name,
+#sms-chat-sub {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    text-align: center !important;
 }
 .sms-chat-header-spacer {
     width: 26px;
@@ -2254,8 +2313,8 @@ html[data-theme]:not([data-theme="day"]) .home-hero-info {
     width: auto;
     max-width: 100%;
     box-sizing: border-box;
-    min-height: 28px;
-    padding: 7px 14px;
+    min-height: 26px;
+    padding: 6px 13px;
     font-size: 13.5px; 
     line-height: 1.4; 
     overflow-wrap: anywhere;
@@ -2263,7 +2322,7 @@ html[data-theme]:not([data-theme="day"]) .home-hero-info {
     position: relative;
 }
 .msg-left .chat-msg-content { background: #ffffff; color: #222; border-radius: 2px 10px 10px 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); } 
-.msg-right .chat-msg-content { background: #e2e2e2; color: #333; border-radius: 10px 2px 10px 10px; padding-right: 26px; }
+.msg-right .chat-msg-content { background: #e2e2e2; color: #333; border-radius: 10px 2px 10px 10px; padding-right: 24px; }
 .msg-bubble-wrapper { display: flex; flex: 0 1 72%; flex-direction: column; max-width: 72%; min-width: 0; margin-top: 4px; }
 .msg-left .msg-bubble-wrapper { align-items: flex-start; }
 .msg-right .msg-bubble-wrapper { align-items: flex-end; }
@@ -2313,14 +2372,6 @@ html[data-theme]:not([data-theme="day"]) .home-hero-info {
 .icon-btn-line.active svg {
     transform: rotate(45deg);
 }
-/* 线条风猫爪发送键 - 极致审美版 */
-.paw-send-line {
-    width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
-    cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    color: #333; border: none; background: transparent; padding: 0;
-}
-.paw-send-line:active { transform: translateY(-2px) rotate(-5deg); color: #000; }
-.paw-send-line svg { width: 40px; height: 40px; stroke-width: 0.88px; transform: translate(-6px, 5px); }
 .msg-status { position: absolute; bottom: 5px; right: 6px; color: #777; display: inline-flex; align-items: center; }
 .msg-status svg { display: block; }
 .msg-left .msg-status { display: none; }
@@ -2488,7 +2539,7 @@ html[data-theme]:not([data-theme="day"]) .home-hero-info {
 }
 .chat-timeline-card {
     border: 1px solid var(--timeline-border);
-    background: var(--timeline-bg);
+    background: var(--timeline-card-bg, var(--timeline-bg));
     box-shadow: var(--timeline-shadow);
 }
 .chat-timeline-card .preset-header {
@@ -2513,7 +2564,7 @@ html[data-theme]:not([data-theme="day"]) .home-hero-info {
     border: 1px solid var(--timeline-border);
     border-radius: 12px;
     background: var(--timeline-panel);
-    box-shadow: none;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.68);
     display: flex;
     flex-direction: column;
     gap: 11px;
@@ -2576,7 +2627,7 @@ html[data-theme]:not([data-theme="day"]) .home-hero-info {
 .chat-timeline-slot-item {
     border: 1px solid var(--timeline-border);
     border-radius: 12px;
-    background: var(--timeline-bg);
+    background: var(--timeline-panel);
     padding: 9px 10px;
     display: flex;
     align-items: center;
@@ -2712,6 +2763,18 @@ html[data-theme]:not([data-theme="day"]) .home-hero-info {
     padding: 6px 12px;
     border-radius: 10px;
     font-size: 12px;
+}
+.chat-timeline-close {
+    border: 1px solid var(--timeline-border);
+    background: var(--timeline-soft);
+    color: var(--timeline-text);
+}
+.preset-card .settings-btn:active,
+.preset-card .btn-restore:active,
+.chat-timeline-travel-btn:active,
+.chat-timeline-slot-btn:active,
+.chat-timeline-close:active {
+    transform: none !important;
 }
 /* ====== 消息长按菜单与多选样式 ====== */
 #msg-action-panel {
@@ -2855,6 +2918,180 @@ html[data-theme]:not([data-theme="day"]) .home-hero-info {
 }
 .multi-action-btn:active { opacity: 0.6; }
 .multi-action-btn svg { width: 20px; height: 20px; stroke-width: 1.8; }
+
+/* 转发弹窗 */
+#wechat-forward-modal {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 260;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+#wechat-forward-sheet {
+    width: 84%;
+    max-width: 320px;
+    max-height: 82%;
+    background: #fff;
+    border-radius: 22px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+    padding: 18px 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    animation: wechat-forward-card-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+    overflow: hidden;
+}
+@keyframes wechat-forward-card-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.wechat-forward-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2px;
+}
+.wechat-forward-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #222;
+}
+.wechat-forward-close {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    background: #f5f5f5;
+    cursor: pointer;
+}
+.wechat-forward-close:active {
+    opacity: 0.75;
+}
+.wechat-forward-close svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+}
+.wechat-forward-section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #7b7b7b;
+}
+#wechat-forward-contact-list {
+    max-height: 170px;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 2px 2px 2px 0;
+}
+.wechat-forward-contact-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f7f8fa;
+    border: 1px solid #eceef2;
+    border-radius: 14px;
+    padding: 9px 10px;
+    cursor: pointer;
+}
+.wechat-forward-contact-item.is-selected {
+    border-color: rgba(91, 127, 224, 0.45);
+    background: #f0f5ff;
+}
+.wechat-forward-contact-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: #f0f3f7;
+}
+.wechat-forward-contact-avatar img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+}
+.wechat-forward-contact-name {
+    font-size: 14px;
+    color: #222;
+    line-height: 1.35;
+    word-break: break-all;
+}
+.wechat-forward-contact-check {
+    margin-left: auto;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1.5px solid #c7ccd4;
+    position: relative;
+    flex-shrink: 0;
+}
+.wechat-forward-contact-item.is-selected .wechat-forward-contact-check {
+    border-color: #5b7fe0;
+    background: #5b7fe0;
+}
+.wechat-forward-contact-item.is-selected .wechat-forward-contact-check::after {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 2px;
+    width: 5px;
+    height: 10px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+.wechat-forward-note-input {
+    width: 100%;
+    min-height: 52px;
+    max-height: 96px;
+    resize: none;
+    border: 1px solid #eaedf2;
+    background: #f7f8fa;
+    border-radius: 14px;
+    padding: 10px 11px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #555;
+    outline: none;
+    box-sizing: border-box;
+}
+.wechat-forward-note-input:focus {
+    border-color: rgba(91, 127, 224, 0.55);
+    background: #fff;
+}
+.wechat-forward-send-btn {
+    width: 100%;
+    height: 42px;
+    border: 0;
+    border-radius: 14px;
+    background: #f0f5ff;
+    color: #5b7fe0;
+    font-size: 14px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+}
+.wechat-forward-send-btn:active {
+    opacity: 0.78;
+}
+.wechat-forward-send-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 1.9;
+}
 /* ====== 相机相片卡片样式 ====== */
 .chat-photo-card {
     width: 140px;
@@ -3136,6 +3373,48 @@ html[data-theme]:not([data-theme="day"]) .home-hero-info {
     gap: 10px;
     font-size: 11px;
     color: rgba(0,0,0,0.52);
+}
+.chat-forward-card {
+    width: 236px;
+    border-radius: 16px;
+    border: none;
+    background: #fff;
+    padding: 11px 12px 9px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    cursor: pointer;
+}
+.msg-right .chat-forward-card {
+    background: #fff;
+}
+.chat-forward-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #2f3540;
+    line-height: 1.35;
+    margin-bottom: 7px;
+}
+.chat-forward-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.chat-forward-line {
+    font-size: 12px;
+    color: #5f6673;
+    line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.chat-forward-divider {
+    height: 1px;
+    background: rgba(43, 51, 63, 0.12);
+    margin: 8px 0 6px;
+}
+.chat-forward-footer {
+    font-size: 11px;
+    color: #8b92a0;
+    line-height: 1.2;
 }
 /* ====== 修复第一页方形组件放大字体溢出问题 ====== */
 .grid-layout-p1 .widget-common {
@@ -3561,15 +3840,17 @@ html[data-theme="night"] .cd-divider {
     --control-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
     --control-text: #111111;
     --control-radius: 14px;
-    --timeline-bg: #ffffff;
-    --timeline-panel: #ffffff;
-    --timeline-border: #d7d7d7;
-    --timeline-text: #111111;
-    --timeline-sub: #7b7b7b;
-    --timeline-soft: #f5f5f5;
-    --timeline-primary: #111111;
-    --timeline-primary-text: #ffffff;
-    --timeline-shadow: none;
+    --timeline-overlay: rgba(28, 29, 31, 0.34);
+    --timeline-bg: #f2f2f3;
+    --timeline-panel: #ebebed;
+    --timeline-card-bg: linear-gradient(180deg, #f7f7f8 0%, #ededee 100%);
+    --timeline-border: #c7c8cc;
+    --timeline-text: #2c2d30;
+    --timeline-sub: #6f7074;
+    --timeline-soft: #e1e2e5;
+    --timeline-primary: #5a5b61;
+    --timeline-primary-text: #f7f7f8;
+    --timeline-shadow: 0 16px 30px rgba(36, 36, 39, 0.14);
 }
 
 .phone-screen {
@@ -3643,12 +3924,19 @@ html[data-theme="night"] .cd-divider {
 .app-icon span,
 .theme-icon-container span {
     color: var(--text-main);
-    font-weight: 600;
-    letter-spacing: 0.2px;
+    font-weight: 400 !important;
+    letter-spacing: 0;
 }
 
 .icon-img,
-.dock-icon,
+.dock-icon {
+    border: none;
+    background: var(--surface-1);
+    box-shadow:
+        0 12px 24px var(--shadow),
+        inset 0 1px 0 rgba(255,255,255,0.82);
+}
+
 .theme-icon-item {
     border: 1px solid var(--border);
     background: var(--surface-1);
@@ -3658,9 +3946,13 @@ html[data-theme="night"] .cd-divider {
 }
 
 .icon-img img,
-.dock-icon img {
-    padding: 10px;
-    object-fit: contain;
+.dock-icon img,
+.theme-icon-item img {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    object-fit: cover;
+    object-position: center;
     background: transparent !important;
 }
 
@@ -3685,12 +3977,67 @@ html[data-theme="night"] .cd-divider {
     border-radius: 16px;
     background: linear-gradient(180deg, #f2f4f7 0%, #ebeef3 100%);
 }
+.polaroid-no-radius,
+.polaroid-mini {
+    padding: 10px 10px 30px 10px !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: white !important;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.07) !important;
+}
+.polaroid-stagger-group {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 14px;
+    margin: 0;
+    padding: 0;
+}
+.polaroid-mini {
+    position: relative;
+    width: auto;
+    padding: 8px 8px 24px 8px !important;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.08) !important;
+    transform-origin: center center;
+}
+.polaroid-no-radius .polaroid-img-box,
+.polaroid-mini .polaroid-img-box {
+    border-radius: 0 !important;
+    background: #f0f0f0 !important;
+}
+
+/* 第二页中间3个拍立得：核心属性抽离（仅 pl-2 / pl-3 / pl-4） */
+#pl-2,
+#pl-3,
+#pl-4 {
+    width: 84px;
+    height: auto;
+    background: white;
+    padding: 10px 10px 30px 10px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+    cursor: pointer;
+}
+#pl-2 .polaroid-img-box,
+#pl-3 .polaroid-img-box,
+#pl-4 .polaroid-img-box {
+    background: #f0f0f0 !important;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+}
+#pl-2 .polaroid-img-box img,
+#pl-3 .polaroid-img-box img,
+#pl-4 .polaroid-img-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+#pl-2 { transform: translate(-2px, 2px) rotate(-6deg); }
+#pl-3 { transform: translateY(-1px) rotate(4deg); }
+#pl-4 { transform: translate(2px, 1px) rotate(-2deg); }
 
 .full-app-page {
-    background:
-        radial-gradient(circle at top right, rgba(255,255,255,0.82) 0%, transparent 32%),
-        linear-gradient(180deg, var(--bg-main) 0%, var(--bg-sub) 100%);
-    backdrop-filter: blur(24px);
+    background: linear-gradient(180deg, var(--bg-main) 0%, var(--bg-sub) 100%);
+    backdrop-filter: blur(8px);
 }
 
 .app-header,
@@ -3698,33 +4045,69 @@ html[data-theme="night"] .cd-divider {
     height: 82px !important;
     min-height: 82px !important;
     max-height: 82px !important;
-    padding: 16px 16px 10px 8px;
-    gap: 10px;
+    padding: 14px 16px 10px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0;
+    background: transparent !important;
+    border-bottom: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
 }
 .offline-header {
     background: transparent !important;
+    border-bottom: none !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-    border-bottom: none !important;
     box-shadow: none !important;
 }
 
 .app-back {
-    width: 22px;
-    min-width: 22px;
-    height: 22px;
-    margin-top: 10px;
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    margin-top: 6px;
+    border-radius: 0;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: var(--accent, #29312f);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .app-back::before {
-    width: 8px;
-    height: 8px;
-    background: var(--text-main);
-    box-shadow: 0 6px 12px var(--shadow);
+    display: none !important;
+}
+
+.app-back svg {
+    display: block !important;
+    width: 18px;
+    height: 18px;
+    stroke: currentColor !important;
+    stroke-width: 2.3;
+    fill: none;
+}
+
+.app-header-action {
+    color: #111 !important;
+}
+.app-header-action svg {
+    stroke: currentColor !important;
 }
 
 .app-title {
-    padding-top: 6px;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 120px);
+    max-width: 260px;
+    padding-top: 0;
+    text-align: center;
+    align-items: center;
+    justify-content: center;
     font-size: 20px;
     font-weight: 760;
     color: var(--text-main);
@@ -3732,6 +4115,7 @@ html[data-theme="night"] .cd-divider {
 
 .app-title::after {
     margin-top: 7px;
+    text-align: center;
     color: var(--text-sub);
     letter-spacing: 1.6px;
 }
@@ -3740,32 +4124,67 @@ html[data-theme="night"] .cd-divider {
     padding: 16px 20px 32px !important;
 }
 
+#theme-app,
+#settings-app {
+    overscroll-behavior: contain;
+}
+
+#theme-app .app-body,
+#settings-app .app-body {
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: auto;
+    min-height: 0;
+    flex: 1 1 auto !important;
+    height: 0;
+}
+
+#theme-app .app-body > *,
+#settings-app .app-body > * {
+    width: 100%;
+    flex-shrink: 0;
+}
+
 .theme-accordion-item,
 .preset-card {
-    border-radius: 28px;
-    border: 1px solid rgba(255,255,255,0.84);
-    background: rgba(255,255,255,0.9);
-    box-shadow: 0 16px 28px var(--shadow);
+    border-radius: 22px;
+    border: 1px solid var(--border);
+    background: var(--surface-1);
+    box-shadow: 0 7px 16px var(--shadow);
+    overflow: hidden;
+    isolation: isolate;
 }
 
 .theme-section-header {
-    padding: 18px 20px;
+    padding: 16px 18px;
+    border-radius: 22px 22px 0 0;
+    transition: background 0.18s ease;
+}
+
+.theme-accordion-item:not(.active) .theme-section-header {
+    border-radius: 22px;
+}
+
+.theme-section-header:active {
+    background: rgba(31,35,40,0.05);
 }
 
 .theme-section-header span {
-    gap: 12px;
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: 0.2px;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 400 !important;
+    letter-spacing: 0;
     color: var(--text-main);
 }
 
 .theme-section-header span::before {
-    width: 30px;
-    height: 30px;
-    border-radius: 10px;
-    background: rgba(31,35,40,0.04) center / 20px 20px no-repeat var(--theme-section-icon);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.82);
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: var(--surface-2) center / 18px 18px no-repeat var(--theme-section-icon);
+    box-shadow: none;
 }
 
 .theme-section-arrow {
@@ -3776,19 +4195,19 @@ html[data-theme="night"] .cd-divider {
     justify-content: center;
     font-size: 15px;
     border-radius: 50%;
-    background: var(--surface-2);
+    background: transparent;
     color: var(--text-sub);
 }
 
 .theme-section-body {
-    padding: 22px 18px 18px;
-    border-top: 1px solid rgba(45,39,33,0.05);
-    border-radius: 0 0 28px 28px;
-    background: transparent;
+    padding: 18px 16px 16px;
+    border-top: 1px solid var(--line-color);
+    border-radius: 0 0 22px 22px;
+    background: var(--surface-1);
 }
 
 .theme-tips {
-    background: rgba(247,243,237,0.9);
+    background: var(--surface-2);
     border: 1px solid var(--border);
     color: var(--text-sub);
     box-shadow: none;
@@ -3809,7 +4228,8 @@ html[data-theme="night"] .cd-divider {
 .settings-group label {
     margin-bottom: 9px;
     font-size: 12px;
-    color: var(--text-main);
+    font-weight: 400;
+    color: var(--text-sub);
 }
 
 .settings-row {
@@ -3821,11 +4241,45 @@ html[data-theme="night"] .cd-divider {
 textarea.settings-input,
 select.settings-input {
     padding: 14px 16px;
-    border-radius: 18px;
+    border-radius: 14px;
     border: 1px solid var(--control-border);
     background: var(--input-bg);
     color: var(--text-main);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+    box-shadow: none;
+}
+
+.settings-password-wrap {
+    position: relative;
+    width: 100%;
+}
+.settings-password-wrap .settings-input {
+    padding-right: 44px;
+}
+.settings-password-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: #9a9a9a;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+.settings-password-toggle:active {
+    transform: translateY(-50%) scale(0.94);
+    background: rgba(0,0,0,0.04);
+}
+.settings-password-toggle svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2;
 }
 
 .settings-input:focus,
@@ -3839,18 +4293,24 @@ select.settings-input:focus {
 .btn-restore {
     min-height: 46px;
     padding: 12px 18px;
-    border-radius: var(--control-radius);
+    border-radius: 14px;
     border: 1px solid var(--control-border);
-    background: var(--control-bg);
-    color: var(--control-text);
-    box-shadow: var(--control-shadow);
-    font-weight: 700;
-    letter-spacing: 0.2px;
+    background: var(--surface-1);
+    color: var(--text-main);
+    box-shadow: 0 2px 8px var(--shadow);
+    font-weight: 500;
+    letter-spacing: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1.2;
+    vertical-align: middle;
 }
 
 .settings-btn:active,
 .btn-restore:active {
-    transform: translateY(1px) scale(0.98);
+    transform: translateY(1px);
 }
 
 .action-buttons {
@@ -3859,20 +4319,36 @@ select.settings-input:focus {
 }
 
 .action-buttons .btn-restore:first-child {
-    background: var(--text-main);
-    color: var(--surface-1);
-    border-color: var(--text-main);
-    box-shadow: 0 16px 30px var(--shadow-strong);
+    background: var(--accent);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 8px 18px var(--shadow);
+}
+
+#accordion-data #btn-compress-data {
+    background: linear-gradient(135deg, #5e84f2 0%, #6aa8ff 100%) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+    box-shadow: 0 10px 22px rgba(96, 140, 246, 0.28) !important;
+}
+
+#accordion-data #btn-compress-data:active {
+    transform: translateY(1px) scale(0.98);
+}
+
+html[data-theme]:not([data-theme="day"]) #accordion-data #btn-compress-data {
+    background: linear-gradient(135deg, #4f72da 0%, #5c8bff 100%) !important;
+    color: #f5f8ff !important;
 }
 
 .theme-mode-option,
 .custom-theme-panel,
 .theme-lock-preview-card,
 .runtime-debug-card {
-    border-radius: 28px;
-    border: 1px solid rgba(255,255,255,0.84);
-    background: rgba(255,255,255,0.92);
-    box-shadow: 0 14px 24px var(--shadow);
+    border-radius: 22px;
+    border: 1px solid var(--border);
+    background: var(--surface-1);
+    box-shadow: 0 8px 18px var(--shadow);
 }
 
 .theme-mode-option.active {
@@ -4071,6 +4547,11 @@ select.settings-input:focus {
     height: 44px;
     border: none;
     border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    text-align: center;
     font: inherit;
     font-size: 14px;
     cursor: pointer;

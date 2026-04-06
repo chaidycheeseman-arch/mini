@@ -1147,6 +1147,155 @@
 }
 .multi-action-btn:active { opacity: 0.6; }
 .multi-action-btn svg { width: 20px; height: 20px; stroke-width: 1.8; }
+
+#wechat-forward-modal {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 360;
+    background: rgba(0, 0, 0, 0.24);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+#wechat-forward-sheet {
+    width: 100%;
+    background: #fff;
+    border-radius: 24px 24px 0 0;
+    padding: 14px 14px calc(16px + env(safe-area-inset-bottom));
+    box-sizing: border-box;
+    max-height: 76%;
+    overflow-y: auto;
+}
+.wechat-forward-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+.wechat-forward-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #222;
+}
+.wechat-forward-close {
+    width: 28px;
+    height: 28px;
+    border-radius: 14px;
+    border: 1px solid #e8e8e8;
+    color: #666;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.wechat-forward-close svg {
+    width: 14px;
+    height: 14px;
+}
+.wechat-forward-section-title {
+    font-size: 12px;
+    color: #8d8d8d;
+    margin: 10px 0 8px;
+}
+#wechat-forward-contact-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.wechat-forward-contact-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid #ececec;
+    border-radius: 12px;
+    padding: 8px 10px;
+    cursor: pointer;
+    background: #fff;
+}
+.wechat-forward-contact-item.is-selected {
+    border-color: #b8caec;
+    background: #f6f9ff;
+}
+.wechat-forward-contact-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 1px solid #f0f0f0;
+}
+.wechat-forward-contact-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.wechat-forward-contact-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    color: #2e2e2e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.wechat-forward-contact-check {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1.5px solid #bcbcbc;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+.wechat-forward-contact-item.is-selected .wechat-forward-contact-check {
+    border-color: #3e6fb5;
+    background: radial-gradient(circle, #3e6fb5 0 4px, #fff 5px);
+}
+.wechat-forward-note-input {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    min-height: 54px;
+    max-height: 100px;
+    border: 1px solid #ececec;
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: #333;
+    background: #fafafa;
+    outline: none;
+}
+.wechat-forward-note-input:focus {
+    border-color: #d6dfea;
+    background: #fff;
+}
+.wechat-forward-send-btn {
+    margin-top: 12px;
+    width: 100%;
+    height: 44px;
+    border: none;
+    border-radius: 22px;
+    background: #ffffff;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+    color: #333;
+    font-size: 14px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+}
+.wechat-forward-send-btn svg {
+    width: 18px;
+    height: 18px;
+    stroke-width: 1.05px;
+}
+.wechat-forward-send-btn:active {
+    transform: scale(0.98);
+}
 /* ====== 相机相片卡片样式 ====== */
 .chat-photo-card {
     width: 140px;
@@ -2269,6 +2418,50 @@ img {
 }
 .msg-left .card-wrapper { align-items: flex-start; }
 .msg-right .card-wrapper { align-items: flex-end; }
+
+.chat-forward-card {
+    width: min(250px, calc(100vw - 120px));
+    border-radius: 14px;
+    background: #ffffff;
+    border: 1px solid #e4e9f2;
+    box-shadow: 0 3px 10px rgba(64, 80, 106, 0.08);
+    padding: 11px 12px 9px;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+.chat-forward-title {
+    font-size: 12px;
+    color: #4d75b9;
+    font-weight: 600;
+    line-height: 1.35;
+    text-align: left;
+    margin-bottom: 6px;
+}
+.chat-forward-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.chat-forward-line {
+    font-size: 12px;
+    color: #2f2f2f;
+    line-height: 1.4;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.chat-forward-divider {
+    height: 1px;
+    background: #edf0f5;
+    margin: 8px 0 6px;
+}
+.chat-forward-footer {
+    font-size: 11px;
+    color: #8a93a3;
+    line-height: 1.3;
+    text-align: left;
+}
 
 .card-status-tip {
     font-size: 11px;

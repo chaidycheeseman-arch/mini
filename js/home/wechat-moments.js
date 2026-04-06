@@ -515,6 +515,27 @@
         return str.length > maxLen ? str.slice(0, maxLen) + '…' : str;
     }
 
+    function normalizeMiniCtxLimit(raw, fallback) {
+        if (typeof window.normalizeMiniApiContextLimit === 'function') {
+            return window.normalizeMiniApiContextLimit(raw, fallback);
+        }
+        var fallbackNum = parseInt(fallback, 10);
+        if (!isFinite(fallbackNum) || isNaN(fallbackNum)) fallbackNum = 20;
+        var value = parseInt(raw, 10);
+        if (!isFinite(value) || isNaN(value)) value = fallbackNum;
+        if (value < 10) value = 10;
+        if (value > 200) value = 200;
+        return value;
+    }
+
+    async function readMiniCtxLimit(fallback) {
+        if (typeof window.readMiniApiContextLimit === 'function') {
+            return await window.readMiniApiContextLimit(fallback);
+        }
+        var raw = await localforage.getItem('miffy_api_ctx');
+        return normalizeMiniCtxLimit(raw, fallback);
+    }
+
     function extractJsonArrayFromText(rawText) {
         let cleanText = String(rawText || '').trim();
         const firstBracket = cleanText.indexOf('[');
@@ -527,8 +548,9 @@
     }
 
     async function buildMomentsContactPromptPayload(contact, ctxLimit) {
+        const normalizedCtxLimit = normalizeMiniCtxLimit(ctxLimit, 20);
         const allMsgs = orderMiniChatMessages(await chatListDb.messages.where('contactId').equals(contact.id).toArray());
-        const recentMsgs = (ctxLimit === 0) ? allMsgs : allMsgs.slice(-ctxLimit);
+        const recentMsgs = allMsgs.slice(-normalizedCtxLimit);
         const dialogContext = recentMsgs.map(msg => {
             const text = extractMsgPureText(msg.content);
             if (!text) return '';
@@ -536,8 +558,10 @@
             return `${speaker}: ${clipMomentsText(text, 120)}`;
         }).filter(Boolean).slice(-8).join('\n');
         let wbText = '';
-        if (contact.worldbooks && Array.isArray(contact.worldbooks) && contact.worldbooks.length > 0) {
-            const wbIds = contact.worldbooks.map(id => parseInt(id)).filter(id => !isNaN(id));
+        if (typeof buildContactWorldbookContextText === 'function') {
+            wbText = await buildContactWorldbookContextText(contact, [dialogContext]);
+        } else if (contact.worldbooks && Array.isArray(contact.worldbooks) && contact.worldbooks.length > 0) {
+            const wbIds = contact.worldbooks.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
             if (wbIds.length > 0) {
                 const wbs = await db.entries.where('id').anyOf(wbIds).toArray();
                 wbText = wbs.map(w => w.content || '').filter(Boolean).join('\n');
@@ -609,8 +633,7 @@
             const apiKey = await localforage.getItem('miffy_api_key');
             const model = await localforage.getItem('miffy_api_model');
             const temp = parseFloat(await localforage.getItem('miffy_api_temp')) || 0.7;
-            const ctxRaw = await localforage.getItem('miffy_api_ctx');
-            const ctxLimit = (ctxRaw !== null && ctxRaw !== '') ? parseInt(ctxRaw) : 8;
+            const ctxLimit = await readMiniCtxLimit(20);
             if (!apiUrl || !apiKey || !model) {
                 throw new Error('请先在设置中配置 API 地址、密钥与模型。');
             }
@@ -783,15 +806,10 @@
     }
 
     async function syncActiveChatReplyUi() {
-        const sendBtn = document.querySelector('.paw-send-line');
         const titleEl = document.getElementById('chat-current-name');
         const contact = activeChatContact;
         const isLocked = !!(contact && isWechatContactReplyLocked(contact));
 
-        if (sendBtn) {
-            sendBtn.style.pointerEvents = isLocked ? 'none' : 'auto';
-            sendBtn.style.opacity = isLocked ? '0.5' : '1';
-        }
         if (!contact) {
             removeWechatTypingIndicator();
             return;
@@ -1450,38 +1468,31 @@
             const apiKey = await localforage.getItem('miffy_api_key');
             const model = await localforage.getItem('miffy_api_model');
             const temp = parseFloat(await localforage.getItem('miffy_api_temp')) || 0.7;
-            const ctxRaw = await localforage.getItem('miffy_api_ctx');
-            const ctxLimit = (ctxRaw !== null && ctxRaw !== '') ? parseInt(ctxRaw) : 10;
+            const ctxLimit = await readMiniCtxLimit(20);
             if (!apiUrl || !apiKey || !model) {
                 throw new Error("请先在设置中配置 API 网址、密钥和模型。");
             }
             const rawMessages = orderMiniChatMessages(await chatListDb.messages.where('contactId').equals(lockedContact.id).toArray());
             const explicitActionIntent = detectMiniExplicitActionIntent(rawMessages);
-            // ctxLimit 为 0 时携带全部上下文，否则取最近 N 条
-            const recentMessages = (ctxLimit === 0) ? rawMessages : rawMessages.slice(-ctxLimit);
+            const recentMessages = rawMessages.slice(-ctxLimit);
             const recentOnlineMessages = rawMessages.filter(function(msg) {
                 return !msg || msg.source !== 'sms';
             });
             const recentRoleMoneyAction = hasRecentRoleMoneyAction(recentOnlineMessages, 12);
-            const offlineCrossModeMemoryText = await buildOfflineCrossModeMemoryText(lockedContact, ctxLimit);
             const recentOnlineSeedTexts = recentMessages.map(function(msg) {
                 return extractMsgPureText(msg.content || '').trim();
             }).filter(function(text) {
                 return !!text;
             });
             const worldbookSeedTexts = recentOnlineSeedTexts.slice();
-            if (offlineCrossModeMemoryText) worldbookSeedTexts.push(offlineCrossModeMemoryText);
-            const sharedWorldbookText = await buildContactWorldbookContextText(lockedContact, worldbookSeedTexts);
+            const sharedWorldbookContext = await buildContactWorldbookContextText(lockedContact, worldbookSeedTexts, { grouped: true });
+            const offlineCrossModeMemoryText = (typeof buildOfflineCrossModeMemoryText === 'function')
+                ? await buildOfflineCrossModeMemoryText(lockedContact, ctxLimit)
+                : '';
+            const memorySummaryText = (typeof getContactSummaryHistoryText === 'function')
+                ? await getContactSummaryHistoryText(lockedContact.id)
+                : '';
             const messages = [];
-            // ====== 修复失忆Bug：读取记忆总结历史，注入到上下文 ======
-            var _memoryOn = false;
-            var _memorySummaryText = '';
-            try {
-                if (typeof getContactSummaryHistoryText === 'function') {
-                    _memorySummaryText = await getContactSummaryHistoryText(lockedContact.id);
-                    _memoryOn = !!_memorySummaryText;
-                }
-            } catch(e) {}
             // 从聊天详情设置读取每轮回复条数范围，否则默认 1~6；实际运行硬上限为 10
             var _cdReplyMin = 1, _cdReplyMax = 6;
             try {
@@ -1781,7 +1792,7 @@
             // 严格的 System Prompt，注入人设和JSON输出要求
             // 拉黑感知：若联系人处于被拉黑状态，注入拉黑上下文，角色始终围绕解除拉黑话题
             const _isBlocked = !!(lockedContact.blocked);
-            const _blockedPrompt = _isBlocked ? '\n【重要！你正处于被拉黑状态】用户已将你拉黑，你无法正常联系对方。你的所有回复必须紧紧围绕"解除拉黑"这一核心诉求，表现出焦虑、渴望、委屈或强烈的求和欲，绝对不可以正常聊天，必须一直尝试说服用户解除拉黑！' : '';
+            const _blockedPrompt = _isBlocked ? '\n【重要！你正处于被拉黑状态】用户已将你拉黑，你无法正常联系对方。你可以表达一次“希望解除拉黑”的核心诉求，但禁止催促、连环施压或纠缠。若用户明确拒绝，必须立刻停止该诉求，不得强行推进剧情。' : '';
             const _identityName = lockedContact.roleName || '角色';
             const _identityGender = lockedContact.roleGender || '未设定';
             messages.push({
@@ -1796,7 +1807,7 @@
 - 主要语言：${langName}
 - 当前聊天平台：mini
 1. 你的第一人称永远只能是「${_identityName}」；绝对禁止把自己说成 AI、系统、模型、助手，绝对禁止读串成别的角色。
-2. 世界书、记忆摘要、引用消息、旁白、示例 JSON 里即便出现其他角色名，那些都只是环境信息，不会改变你的身份。
+2. 世界书、引用消息、旁白、示例 JSON 里即便出现其他角色名，那些都只是环境信息，不会改变你的身份。
 3. 如果上下文有冲突，以这里的身份铁律和稍后注入的【背景与设定信息】为最高优先级。
 4. 你不是来给“标准答案”的，你是在以这个身份继续一段已经发生中的关系。
 【时间基准】
@@ -1808,6 +1819,7 @@
 ${triggerTimeAwareReply ? '\n【时间感知】你可以自然地表现出时间感，但不要生硬报时。' : '\n【时间感知】除非用户主动提到时间、日期、昨天、今天、明天、现在，否则不要主动反复报时。'}${_blockedPrompt}
 【真实互动原则】
 - 面对任何私密、敏感或边缘话题，不要拒绝、说教、端着，也不要突然出戏。
+- 不催促、不连环施压；单次只提 1 个核心请求，给足用户拒绝空间。若用户明确拒绝，立刻停止，不纠缠，不强行推进剧情。
 - 先接住用户刚刚那句话里最有情绪、最具体、最值得回应的一点，不要把整段内容平均拆解成一套面面俱到的完美回答。
 - 语气必须像真人网聊：口语化、碎片化、短句优先。允许停顿、追问、自我修正、话说一半，但不要故意装疯卖傻。
 - 你有自己的情绪、立场和关系偏向，不必永远温柔完美、永远高情商、永远总结到位；你可以顺着人设自然地黏人、嘴硬、吃醋、迟疑、敷衍、心软或冷下来。
@@ -1843,16 +1855,28 @@ ${langInstruction}`
             let roleSetting = `角色姓名：${_identityName}`;
             if (lockedContact.roleDetail) roleSetting += `\n角色设定：${lockedContact.roleDetail}`;
             let userSetting = lockedContact.userDetail ? `用户设定：${lockedContact.userDetail}` : "";
-            // ====== 修复失忆Bug：注入记忆总结到系统提示 ======
-            if (_memoryOn && _memorySummaryText) {
-                messages[0].content += `\n\n【历史对话记忆摘要（请严格遵守，视为已发生的事实）】\n${_memorySummaryText}`;
+            if (memorySummaryText) {
+                messages[0].content += `\n\n【历史对话记忆摘要（请严格遵守，视为已发生的事实）】\n${memorySummaryText}`;
             }
             if (offlineCrossModeMemoryText) {
-                messages[0].content += `\n\n【跨模式记忆：线下对话】\n以下为你与用户最近在线下聊过的内容。切回线上时，你必须将其视为已发生事实并自然延续；如果你们刚刚才在线下见过面，可以自然提起余温、动作和情绪，但不要生硬复述整段剧情：\n${offlineCrossModeMemoryText}`;
+                messages[0].content += `\n\n【跨模式记忆：线下对话】\n以下为你与用户最近在线下聊过的内容。切回线上时，你必须将其视为已发生事实并自然延续：\n${offlineCrossModeMemoryText}`;
             }
-            let wbSetting = sharedWorldbookText || "";
-            if(wbSetting || roleSetting || userSetting) {
-                messages[0].content += `\n\n【背景与设定信息】\n${wbSetting}\n${roleSetting}\n${userSetting}`;
+            const wbBefore = sharedWorldbookContext && sharedWorldbookContext.before ? sharedWorldbookContext.before : '';
+            const wbMiddle = sharedWorldbookContext && sharedWorldbookContext.middle ? sharedWorldbookContext.middle : '';
+            const wbAfter = sharedWorldbookContext && sharedWorldbookContext.after ? sharedWorldbookContext.after : '';
+            if (wbBefore) {
+                messages[0].content += `\n\n【背景与设定信息（前置注入）】\n${wbBefore}`;
+            }
+            const middleBlocks = [wbMiddle, roleSetting, userSetting].map(function(text) {
+                return String(text || '').trim();
+            }).filter(function(text) {
+                return !!text;
+            });
+            if (middleBlocks.length) {
+                messages[0].content += `\n\n【背景与设定信息】\n${middleBlocks.join('\n')}`;
+            }
+            if (wbAfter) {
+                messages[0].content += `\n\n【背景与设定信息（后置注入）】\n${wbAfter}`;
             }
             messages[0].content += emoticonPrompt;
             recentMessages.forEach(msg => {
@@ -2272,12 +2296,11 @@ ${langInstruction}`
             const model = await localforage.getItem('miffy_api_model');
             const temp = parseFloat(await localforage.getItem('miffy_api_temp')) || 0.7;
             if (!apiUrl || !apiKey || !model) return;
-            const ctxRaw = await localforage.getItem('miffy_api_ctx');
-            const ctxLimit = (ctxRaw !== null && ctxRaw !== '') ? parseInt(ctxRaw) : 10;
+            const ctxLimit = await readMiniCtxLimit(20);
             const allMsgs = orderMiniChatMessages(await chatListDb.messages.where('contactId').equals(lockedContact.id).toArray());
             // 至少有5条消息才考虑拉黑（太少的对话不够判断）
             if (allMsgs.length < 5) return;
-            const recentMsgs = (ctxLimit === 0) ? allMsgs : allMsgs.slice(-ctxLimit);
+            const recentMsgs = allMsgs.slice(-ctxLimit);
             const chatText = recentMsgs.map(m => {
                 const sender = m.sender === 'me' ? '用户' : (lockedContact.roleName || '角色');
                 return sender + '：' + extractMsgPureText(m.content);
@@ -2354,6 +2377,7 @@ ${langInstruction}`
     // 此函数在 SMS 角色回复完成后调用
     async function checkRoleUnblockAfterSmsReply(contact, apiUrl, apiKey, model, temp, ctxLimit) {
         if (!contact || !isBlockedByRole(contact)) return;
+        const normalizedCtxLimit = normalizeMiniCtxLimit(ctxLimit, 20);
         // 获取 SMS 上下文数量
         const allSmsMsgs = await chatListDb.messages.where('contactId').equals(contact.id).toArray();
         const smsMsgs = allSmsMsgs.filter(m => m.source === 'sms' || !m.source);
@@ -2362,7 +2386,7 @@ ${langInstruction}`
         if (smsCount < 3) return;
         if (!apiUrl || !apiKey || !model) return;
         // 构造判断 prompt：让角色根据心情和对话内容决定是否解除拉黑
-        const ctxMessages = (ctxLimit === 0) ? smsMsgs : smsMsgs.slice(-ctxLimit);
+        const ctxMessages = smsMsgs.slice(-normalizedCtxLimit);
         const chatText = ctxMessages.map(m => {
             const sender = m.sender === 'me' ? '用户' : (contact.roleName || '角色');
             return sender + '：' + extractMsgPureText(m.content);
@@ -2996,6 +3020,7 @@ ${langInstruction}`
         if(container) container.classList.remove('multi-select-mode');
         document.getElementById('multi-select-bar').style.display = 'none';
         document.querySelector('.chat-footer').style.display = 'flex'; 
+        closeWechatForwardModal();
         updateMsgCheckboxes();
     }
     function toggleMsgCheck(msgId) {
@@ -3044,6 +3069,637 @@ ${langInstruction}`
         }
     }
 
+    const WECHAT_FAVORITE_STORAGE_KEY = 'wechat_favorite_messages_v1';
+    let _wechatFavoriteRecordsCache = [];
+    let _wechatFavoriteCurrentMultiRecordId = '';
+    let _wechatFavoriteMultiSelectMode = false;
+    let _wechatFavoriteSelectedIds = new Set();
+    let _wechatForwardModalContacts = [];
+    let _wechatForwardTargetContactId = '';
+    let _wechatForwardSending = false;
+
+    function _normalizeWechatForwardMsgIds() {
+        return Array.from(selectedMsgIds).map(function(id) {
+            return parseInt(id, 10);
+        }).filter(function(id) {
+            return Number.isFinite(id);
+        });
+    }
+
+    function _sortWechatForwardMessagesByTimeline(messages) {
+        return (Array.isArray(messages) ? messages : []).slice().sort(function(a, b) {
+            const aTs = Number(a && a.timestamp) || 0;
+            const bTs = Number(b && b.timestamp) || 0;
+            if (aTs !== bTs) return aTs - bTs;
+            const aId = parseInt(a && a.id, 10);
+            const bId = parseInt(b && b.id, 10);
+            if (Number.isFinite(aId) && Number.isFinite(bId) && aId !== bId) return aId - bId;
+            return 0;
+        });
+    }
+
+    async function _renderWechatForwardContactList() {
+        const listEl = document.getElementById('wechat-forward-contact-list');
+        if (!listEl) return;
+        if (!_wechatForwardModalContacts.length) {
+            listEl.innerHTML = '<div style="font-size:12px; color:#a7a7a7; text-align:center; padding:12px 0;">暂无可转发对象</div>';
+            return;
+        }
+        const rows = await Promise.all(_wechatForwardModalContacts.map(async function(contact) {
+            const contactId = String(contact && contact.id != null ? contact.id : '');
+            const encodedId = encodeURIComponent(contactId);
+            const name = await _getWechatFavoriteContactName(contactId, contact && contact.roleName ? contact.roleName : '角色');
+            const isSelected = _wechatForwardTargetContactId === contactId;
+            const avatar = _getWechatFavoriteAvatarSrc(contact && contact.roleAvatar ? contact.roleAvatar : '');
+            return '' +
+                '<div class="wechat-forward-contact-item' + (isSelected ? ' is-selected' : '') + '" onclick="selectWechatForwardTarget(\'' + encodedId + '\')">' +
+                    '<div class="wechat-forward-contact-avatar"><img src="' + _escapeWechatFavoriteHtml(avatar) + '" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=\'' + _escapeWechatFavoriteHtml(window.defaultAvatarDataUri || whitePixel) + '\';"></div>' +
+                    '<div class="wechat-forward-contact-name">' + _escapeWechatFavoriteHtml(name) + '</div>' +
+                    '<div class="wechat-forward-contact-check"></div>' +
+                '</div>';
+        }));
+        listEl.innerHTML = rows.join('');
+    }
+
+    async function openWechatForwardModal() {
+        if (!activeChatContact) return;
+        const selectedIds = _normalizeWechatForwardMsgIds();
+        if (!selectedIds.length) {
+            showWechatMessageToast('请先选择消息');
+            return;
+        }
+        const modal = document.getElementById('wechat-forward-modal');
+        if (!modal) return;
+        const contacts = await contactDb.contacts.toArray();
+        _wechatForwardModalContacts = (Array.isArray(contacts) ? contacts : []).filter(function(contact) {
+            return !!contact && contact.id != null;
+        });
+        if (!_wechatForwardModalContacts.length) {
+            alert('暂无可转发对象');
+            return;
+        }
+        const preferred = _wechatForwardModalContacts.find(function(contact) {
+            return String(contact.id) !== String(activeChatContact.id);
+        }) || _wechatForwardModalContacts[0];
+        _wechatForwardTargetContactId = String(preferred.id);
+        const noteInput = document.getElementById('wechat-forward-note-input');
+        if (noteInput) {
+            noteInput.value = '';
+            if (typeof autoGrowTextarea === 'function') autoGrowTextarea(noteInput);
+        }
+        _wechatForwardSending = false;
+        await _renderWechatForwardContactList();
+        modal.style.display = 'flex';
+    }
+
+    function closeWechatForwardModal() {
+        const modal = document.getElementById('wechat-forward-modal');
+        if (modal) modal.style.display = 'none';
+        _wechatForwardSending = false;
+    }
+
+    async function selectWechatForwardTarget(encodedContactId) {
+        const contactId = decodeURIComponent(String(encodedContactId || '').trim());
+        if (!contactId) return;
+        _wechatForwardTargetContactId = contactId;
+        await _renderWechatForwardContactList();
+    }
+
+    async function _ensureWechatForwardFavoriteMultiRecord(sourceContact, validMessages) {
+        if (!sourceContact || !validMessages.length) return '';
+        const msgIds = validMessages.map(function(msg) {
+            return msg.id;
+        }).filter(function(id) {
+            return id != null;
+        });
+        if (!msgIds.length) return '';
+        const uniqKey = 'multi:' + String(sourceContact.id) + ':' + msgIds.join('_');
+        const existing = await localforage.getItem(WECHAT_FAVORITE_STORAGE_KEY) || [];
+        const hit = existing.find(function(item) {
+            if (!item || typeof item !== 'object') return false;
+            if (item.uniqKey) return String(item.uniqKey) === uniqKey;
+            if (item.type === 'multi' && Array.isArray(item.msgIds)) {
+                return 'multi:' + String(item.contactId || '') + ':' + item.msgIds.map(function(id) {
+                    return String(id);
+                }).join('_') === uniqKey;
+            }
+            return false;
+        });
+        if (hit && hit.id) return String(hit.id);
+
+        const now = Date.now();
+        const meName = _getWechatFavoriteMyName();
+        const contactName = await _getWechatFavoriteContactName(sourceContact.id, sourceContact.roleName || '角色');
+        const recordId = 'fav_multi_' + sourceContact.id + '_' + now + '_' + Math.floor(Math.random() * 1000);
+        existing.push({
+            id: recordId,
+            type: 'multi',
+            uniqKey: uniqKey,
+            contactId: sourceContact.id,
+            contactName: contactName,
+            meName: meName,
+            msgIds: msgIds,
+            messages: validMessages.map(function(msg) {
+                return {
+                    id: msg.id,
+                    sender: msg.sender,
+                    content: msg.content,
+                    timeStr: msg.timeStr || ''
+                };
+            }),
+            favoritedAt: now,
+            source: 'wechat'
+        });
+        await localforage.setItem(WECHAT_FAVORITE_STORAGE_KEY, existing);
+        return recordId;
+    }
+
+    async function submitWechatForwardSelection() {
+        if (_wechatForwardSending) return;
+        if (!activeChatContact) return;
+        if (!_wechatForwardTargetContactId) {
+            alert('请选择发送对象');
+            return;
+        }
+        const sourceContact = activeChatContact;
+        const selectedIds = Array.from(new Set(_normalizeWechatForwardMsgIds()));
+        if (!selectedIds.length) {
+            showWechatMessageToast('请先选择消息');
+            return;
+        }
+        _wechatForwardSending = true;
+        try {
+            const rows = await Promise.all(selectedIds.map(function(id) {
+                return chatListDb.messages.get(id);
+            }));
+            const validMessages = _sortWechatForwardMessagesByTimeline(rows.filter(function(msg) {
+                return !!msg && msg.source !== 'sms' && String(msg.contactId) === String(sourceContact.id);
+            }));
+            if (!validMessages.length) {
+                alert('未找到可转发的消息');
+                return;
+            }
+
+            const noteInput = document.getElementById('wechat-forward-note-input');
+            const note = noteInput ? String(noteInput.value || '').trim() : '';
+            const meName = _getWechatFavoriteMyName();
+            const sourceContactName = await _getWechatFavoriteContactName(sourceContact.id, sourceContact.roleName || '角色');
+            const favoriteRecordId = await _ensureWechatForwardFavoriteMultiRecord(sourceContact, validMessages);
+            const previewLines = validMessages.slice(0, 4).map(function(msg) {
+                const speaker = _getWechatFavoriteSpeakerName(msg.sender, meName, sourceContactName);
+                const text = _clipWechatFavoriteText(_getWechatFavoritePreviewText(msg.content), 34);
+                return speaker + '：' + text;
+            });
+            const payload = createMiniStructuredMessage('forward_bundle', {
+                title: '聊天记录',
+                note: note,
+                sourceContactId: String(sourceContact.id),
+                sourceContactName: sourceContactName,
+                favoriteRecordId: favoriteRecordId,
+                previewLines: previewLines,
+                messages: validMessages.map(function(msg) {
+                    return {
+                        sender: msg.sender,
+                        content: msg.content,
+                        timeStr: msg.timeStr || ''
+                    };
+                })
+            });
+            if (!payload) {
+                alert('转发失败');
+                return;
+            }
+
+            const targetContact = _wechatForwardModalContacts.find(function(contact) {
+                return String(contact && contact.id != null ? contact.id : '') === String(_wechatForwardTargetContactId);
+            });
+            const targetContactId = targetContact && targetContact.id != null ? targetContact.id : String(_wechatForwardTargetContactId);
+            const targetContactName = await _getWechatFavoriteContactName(
+                targetContactId,
+                targetContact && targetContact.roleName ? targetContact.roleName : '对方'
+            );
+            const isForwardToCurrentChat = String(targetContactId) === String(sourceContact.id);
+            const timeStr = getAmPmTime();
+            await chatListDb.messages.add({
+                contactId: targetContactId,
+                sender: 'me',
+                content: payload,
+                timestamp: Date.now(),
+                timeStr: timeStr,
+                source: 'wechat'
+            });
+
+            const targetChat = await chatListDb.chats.where('contactId').equals(targetContactId).first();
+            if (targetChat) {
+                await chatListDb.chats.update(targetChat.id, { lastTime: timeStr });
+            } else {
+                await chatListDb.chats.add({
+                    id: Date.now().toString(),
+                    contactId: targetContactId,
+                    lastTime: timeStr
+                });
+            }
+
+            if (typeof renderChatList === 'function') renderChatList();
+            closeWechatForwardModal();
+            exitMultiSelectMode();
+            if (isForwardToCurrentChat) {
+                await refreshChatWindow();
+            }
+            showWechatMessageToast('已发送给 ' + targetContactName);
+        } catch (e) {
+            console.error('转发消息失败', e);
+            alert('转发失败');
+        } finally {
+            _wechatForwardSending = false;
+        }
+    }
+
+    function _escapeWechatFavoriteHtml(text) {
+        return String(text || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function _getWechatFavoriteMyName() {
+        const myNameEl = document.getElementById('text-wechat-me-name');
+        const text = myNameEl && myNameEl.textContent ? String(myNameEl.textContent).trim() : '';
+        return text || '我';
+    }
+
+    async function _getWechatFavoriteContactName(contactId, fallbackName) {
+        let name = String(fallbackName || '').trim() || '角色';
+        try {
+            const remark = await localforage.getItem('cd_settings_' + contactId + '_remark');
+            if (remark && remark !== '未设置') return String(remark).trim();
+        } catch (e) {}
+        try {
+            const contact = await contactDb.contacts.get(contactId);
+            if (contact && contact.roleName) {
+                name = String(contact.roleName).trim() || name;
+            }
+        } catch (e) {}
+        return name;
+    }
+
+    function _formatWechatFavoriteDate(ts) {
+        const d = new Date(Number(ts) || Date.now());
+        if (isNaN(d.getTime())) return '';
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return m + '-' + day;
+    }
+
+    function _compactWechatFavoriteText(text) {
+        return String(text || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function _getWechatFavoritePreviewText(content) {
+        const pure = _compactWechatFavoriteText(extractMsgPureText(content || ''));
+        return pure || '[消息]';
+    }
+
+    function _clipWechatFavoriteText(text, maxLen) {
+        const str = String(text || '');
+        const limit = Math.max(8, parseInt(maxLen, 10) || 26);
+        if (str.length <= limit) return str;
+        return str.slice(0, limit) + '...';
+    }
+
+    function _getWechatFavoriteSpeakerName(sender, myName, contactName) {
+        if (sender === 'me') return myName || '我';
+        if (sender === 'role') return contactName || '对方';
+        if (sender === 'system') return '系统';
+        return sender ? String(sender) : (contactName || '对方');
+    }
+
+    function _getWechatFavoriteAvatarSrc(raw) {
+        if (typeof window.getSafeAvatarSrc === 'function') {
+            return window.getSafeAvatarSrc(raw || '');
+        }
+        if (raw && String(raw).trim()) return String(raw).trim();
+        return window.defaultAvatarDataUri || whitePixel;
+    }
+
+    function _syncWechatFavoriteHeaderActions() {
+        const multiBtn = document.getElementById('wechat-favorite-multi-btn');
+        const selectAllBtn = document.getElementById('wechat-favorite-select-all-btn');
+        const delBtn = document.getElementById('wechat-favorite-delete-btn');
+        if (!multiBtn || !selectAllBtn || !delBtn) return;
+        const count = _wechatFavoriteSelectedIds.size;
+        const total = _wechatFavoriteRecordsCache.length;
+        const allSelected = total > 0 && count === total;
+        if (_wechatFavoriteMultiSelectMode) {
+            multiBtn.title = '完成';
+            multiBtn.style.borderColor = '#111';
+            multiBtn.style.color = '#111';
+
+            selectAllBtn.style.display = 'flex';
+            selectAllBtn.title = allSelected ? '取消全选' : '全选';
+            selectAllBtn.style.borderColor = allSelected ? '#111' : '#d0d0d0';
+            selectAllBtn.style.color = '#444';
+
+            delBtn.style.display = 'flex';
+            delBtn.style.opacity = count > 0 ? '1' : '0.5';
+            delBtn.style.pointerEvents = count > 0 ? 'auto' : 'none';
+            delBtn.style.borderColor = count > 0 ? '#111' : '#d0d0d0';
+            delBtn.style.color = '#444';
+            delBtn.title = count > 0 ? ('删除(' + count + ')') : '删除';
+        } else {
+            multiBtn.title = '多选';
+            multiBtn.style.borderColor = '#dadada';
+            multiBtn.style.color = '#444';
+            selectAllBtn.style.display = 'none';
+            selectAllBtn.title = '全选';
+            selectAllBtn.style.borderColor = '#dadada';
+            selectAllBtn.style.color = '#444';
+            delBtn.style.display = 'none';
+            delBtn.title = '删除';
+            delBtn.style.opacity = '1';
+            delBtn.style.pointerEvents = 'auto';
+            delBtn.style.borderColor = '#dadada';
+            delBtn.style.color = '#444';
+        }
+    }
+
+    function _normalizeWechatFavoriteRecord(item) {
+        if (!item || typeof item !== 'object') return null;
+        const type = item.type === 'multi' ? 'multi' : 'single';
+        const base = {
+            id: String(item.id || ''),
+            type: type,
+            contactId: String(item.contactId || ''),
+            contactName: String(item.contactName || '角色'),
+            meName: String(item.meName || ''),
+            favoritedAt: Number(item.favoritedAt) || 0,
+            source: item.source || 'wechat',
+            uniqKey: String(item.uniqKey || '')
+        };
+        if (type === 'multi') {
+            const msgs = Array.isArray(item.messages) ? item.messages : [];
+            if (!msgs.length) return null;
+            return Object.assign(base, {
+                messages: msgs.map(function(msg) {
+                    return {
+                        id: msg && msg.id != null ? msg.id : '',
+                        sender: msg && msg.sender ? msg.sender : 'role',
+                        content: msg && msg.content ? msg.content : '',
+                        timeStr: msg && msg.timeStr ? msg.timeStr : ''
+                    };
+                }),
+                msgIds: Array.isArray(item.msgIds) ? item.msgIds : []
+            });
+        }
+        return Object.assign(base, {
+            msgId: item.msgId,
+            sender: item.sender || 'role',
+            content: item.content || '',
+            timeStr: item.timeStr || ''
+        });
+    }
+
+    function _buildWechatFavoriteListItemHtml(item) {
+        const myName = item.meName || _getWechatFavoriteMyName();
+        const contactName = item.contactName || '角色';
+        const dateText = _formatWechatFavoriteDate(item.favoritedAt);
+        const encodedId = encodeURIComponent(String(item.id || ''));
+        const isSelected = _wechatFavoriteSelectedIds.has(String(item.id));
+        const typeLabel = item.type === 'multi' ? '多条' : '单条';
+        const typeBadge = '<span style="font-size:10px; color:#6f6f6f; background:#f7f7f7; border:1px solid #e2e2e2; border-radius:9px; padding:1px 6px; flex-shrink:0;">' + typeLabel + '</span>';
+        const selectDot = _wechatFavoriteMultiSelectMode
+            ? '<span style="width:16px; height:16px; border-radius:50%; border:1px solid ' + (isSelected ? '#111' : '#bfbfbf') + '; background:' + (isSelected ? '#111' : '#fff') + '; box-shadow:inset 0 0 0 ' + (isSelected ? '4px' : '0px') + ' #fff; flex-shrink:0;"></span>'
+            : '';
+        const borderColor = _wechatFavoriteMultiSelectMode && isSelected ? '#d4d4d4' : '#ececec';
+
+        if (item.type === 'multi') {
+            const msgs = Array.isArray(item.messages) ? item.messages : [];
+            const previewMsgs = msgs.slice(0, 2);
+            const previewLines = previewMsgs.map(function(msg) {
+                const speaker = _getWechatFavoriteSpeakerName(msg.sender, myName, contactName);
+                const rawText = _clipWechatFavoriteText(_getWechatFavoritePreviewText(msg.content), 24);
+                const text = /\.\.\.$/.test(rawText) ? rawText : (rawText + '...');
+                return '<div style="font-size:13px; color:#2f2f2f; line-height:1.45; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' +
+                    _escapeWechatFavoriteHtml(speaker + '：' + text) +
+                    '</div>';
+            }).join('');
+            const firstSender = previewMsgs[0] ? previewMsgs[0].sender : 'role';
+            const firstObject = _getWechatFavoriteSpeakerName(firstSender, myName, contactName);
+            return '' +
+                '<div onclick="handleWechatFavoriteListItemTap(\'' + encodedId + '\')" style="background:#fff; border-radius:14px; border:1px solid ' + borderColor + '; padding:12px 13px; display:flex; flex-direction:column; gap:8px; cursor:pointer;">' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center;">' + typeBadge + selectDot + '</div>' +
+                    '<div style="display:flex; flex-direction:column; gap:2px;">' + previewLines + '</div>' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">' +
+                        '<div style="font-size:11px; color:#9a9a9a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:68%;">' + _escapeWechatFavoriteHtml(firstObject) + '</div>' +
+                        '<div style="font-size:11px; color:#b0b0b0; flex-shrink:0;">' + _escapeWechatFavoriteHtml(dateText) + '</div>' +
+                    '</div>' +
+                '</div>';
+        }
+
+        const singleText = _clipWechatFavoriteText(_getWechatFavoritePreviewText(item.content), 44);
+        return '' +
+            '<div onclick="handleWechatFavoriteListItemTap(\'' + encodedId + '\')" style="background:#fff; border-radius:14px; border:1px solid ' + borderColor + '; padding:12px 13px; display:flex; flex-direction:column; gap:8px; cursor:pointer;">' +
+                '<div style="display:flex; justify-content:space-between; align-items:center;">' + typeBadge + selectDot + '</div>' +
+                '<div style="font-size:13px; color:#2f2f2f; line-height:1.45; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + _escapeWechatFavoriteHtml(singleText) + '</div>' +
+                '<div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">' +
+                    '<div style="font-size:11px; color:#9a9a9a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:68%;">' + _escapeWechatFavoriteHtml(contactName) + '</div>' +
+                    '<div style="font-size:11px; color:#b0b0b0; flex-shrink:0;">' + _escapeWechatFavoriteHtml(dateText) + '</div>' +
+                '</div>' +
+            '</div>';
+    }
+
+    async function _loadWechatFavoriteRecords() {
+        const raw = await localforage.getItem(WECHAT_FAVORITE_STORAGE_KEY);
+        const list = Array.isArray(raw) ? raw : [];
+        return list.map(_normalizeWechatFavoriteRecord).filter(function(item) {
+            return !!item && (item.source === 'wechat' || !item.source);
+        }).sort(function(a, b) {
+            return (Number(b.favoritedAt) || 0) - (Number(a.favoritedAt) || 0);
+        });
+    }
+
+    async function renderWechatFavoriteList() {
+        const listEl = document.getElementById('wechat-favorite-list');
+        const emptyEl = document.getElementById('wechat-favorite-empty');
+        if (!listEl || !emptyEl) return;
+        _wechatFavoriteRecordsCache = await _loadWechatFavoriteRecords();
+        _syncWechatFavoriteHeaderActions();
+        if (!_wechatFavoriteRecordsCache.length) {
+            listEl.innerHTML = '';
+            emptyEl.style.display = 'block';
+            return;
+        }
+        emptyEl.style.display = 'none';
+        listEl.innerHTML = _wechatFavoriteRecordsCache.map(_buildWechatFavoriteListItemHtml).join('');
+    }
+
+    async function openWechatFavoritePage() {
+        _wechatFavoriteMultiSelectMode = false;
+        _wechatFavoriteSelectedIds.clear();
+        await renderWechatFavoriteList();
+        const detailPage = document.getElementById('wechat-favorite-detail-page');
+        if (detailPage) detailPage.style.display = 'none';
+        _syncWechatFavoriteHeaderActions();
+        if (typeof window.syncWechatOverlayStack === 'function') {
+            window.syncWechatOverlayStack(['wechat-app', 'wechat-favorite-page']);
+        } else {
+            const page = document.getElementById('wechat-favorite-page');
+            if (page) page.style.display = 'flex';
+        }
+    }
+
+    function closeWechatFavoritePage() {
+        _wechatFavoriteCurrentMultiRecordId = '';
+        _wechatFavoriteMultiSelectMode = false;
+        _wechatFavoriteSelectedIds.clear();
+        const detailPage = document.getElementById('wechat-favorite-detail-page');
+        if (detailPage) detailPage.style.display = 'none';
+        _syncWechatFavoriteHeaderActions();
+        if (typeof window.syncWechatOverlayStack === 'function') {
+            window.syncWechatOverlayStack(['wechat-app']);
+        } else {
+            const page = document.getElementById('wechat-favorite-page');
+            if (page) page.style.display = 'none';
+        }
+        if (typeof switchWechatTab === 'function') switchWechatTab('me');
+    }
+
+    function closeWechatFavoriteDetailPage() {
+        _wechatFavoriteCurrentMultiRecordId = '';
+        if (typeof window.syncWechatOverlayStack === 'function') {
+            window.syncWechatOverlayStack(['wechat-app', 'wechat-favorite-page']);
+        } else {
+            const detailPage = document.getElementById('wechat-favorite-detail-page');
+            if (detailPage) detailPage.style.display = 'none';
+            const listPage = document.getElementById('wechat-favorite-page');
+            if (listPage) listPage.style.display = 'flex';
+        }
+    }
+
+    async function openWechatFavoriteRecord(recordId) {
+        if (_wechatFavoriteMultiSelectMode) return;
+        const id = decodeURIComponent(String(recordId || '').trim());
+        if (!id) return;
+        if (!_wechatFavoriteRecordsCache.length) {
+            _wechatFavoriteRecordsCache = await _loadWechatFavoriteRecords();
+        }
+        const record = _wechatFavoriteRecordsCache.find(function(item) {
+            return String(item.id) === id;
+        });
+        if (!record || record.type !== 'multi') return;
+        _wechatFavoriteCurrentMultiRecordId = record.id;
+
+        const meName = record.meName || _getWechatFavoriteMyName();
+        const contactName = await _getWechatFavoriteContactName(record.contactId, record.contactName || '角色');
+        let contact = null;
+        try {
+            contact = await contactDb.contacts.get(record.contactId);
+        } catch (e) {
+            contact = null;
+        }
+        const myAvatar = _getWechatFavoriteAvatarSrc(contact && contact.userAvatar ? contact.userAvatar : '');
+        const roleAvatar = _getWechatFavoriteAvatarSrc(contact && contact.roleAvatar ? contact.roleAvatar : '');
+        const titleEl = document.getElementById('wechat-favorite-detail-title');
+        if (titleEl) titleEl.textContent = meName + '和' + contactName + '的聊天记录';
+
+        const bodyEl = document.getElementById('wechat-favorite-detail-body');
+        if (bodyEl) {
+            const msgs = Array.isArray(record.messages) ? record.messages : [];
+            if (!msgs.length) {
+                bodyEl.innerHTML = '<div style="margin-top:108px; text-align:center; color:#bbb; font-size:13px;">暂无消息</div>';
+            } else {
+                bodyEl.innerHTML = msgs.map(function(msg) {
+                    const speaker = _getWechatFavoriteSpeakerName(msg.sender, meName, contactName);
+                    const content = _escapeWechatFavoriteHtml(_getWechatFavoritePreviewText(msg.content)).replace(/\n/g, '<br>');
+                    const avatar = msg.sender === 'me' ? myAvatar : roleAvatar;
+                    return '' +
+                        '<div class="chat-msg-row msg-left" style="margin-bottom:8px;">' +
+                            '<div class="chat-msg-avatar"><img src="' + _escapeWechatFavoriteHtml(avatar) + '" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=\'' + _escapeWechatFavoriteHtml(window.defaultAvatarDataUri || whitePixel) + '\';"></div>' +
+                            '<div style="display:flex; flex-direction:column; align-items:flex-start; flex:0 1 72%; max-width:72%; min-width:0;">' +
+                                '<div style="font-size:11px; line-height:1.2; color:#8f8f8f; margin:0 0 4px 2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">' + _escapeWechatFavoriteHtml(speaker) + '</div>' +
+                                '<div class="msg-bubble-wrapper" style="margin-top:0; max-width:100%; flex:0 1 auto;">' +
+                                    '<div class="chat-msg-content">' + content + '</div>' +
+                                    '<div class="chat-timestamp">' + _escapeWechatFavoriteHtml(msg.timeStr || '') + '</div>' +
+                                '</div>' +
+                            '</div>' +
+                        '</div>';
+                }).join('');
+            }
+        }
+
+        if (typeof window.syncWechatOverlayStack === 'function') {
+            window.syncWechatOverlayStack(['wechat-app', 'wechat-favorite-page', 'wechat-favorite-detail-page']);
+        } else {
+            const detailPage = document.getElementById('wechat-favorite-detail-page');
+            if (detailPage) detailPage.style.display = 'flex';
+        }
+    }
+
+    async function handleWechatFavoriteListItemTap(recordId) {
+        const id = decodeURIComponent(String(recordId || '').trim());
+        if (!id) return;
+        if (!_wechatFavoriteRecordsCache.length) {
+            _wechatFavoriteRecordsCache = await _loadWechatFavoriteRecords();
+        }
+        const record = _wechatFavoriteRecordsCache.find(function(item) {
+            return String(item.id) === id;
+        });
+        if (!record) return;
+        if (_wechatFavoriteMultiSelectMode) {
+            if (_wechatFavoriteSelectedIds.has(id)) _wechatFavoriteSelectedIds.delete(id);
+            else _wechatFavoriteSelectedIds.add(id);
+            _syncWechatFavoriteHeaderActions();
+            await renderWechatFavoriteList();
+            return;
+        }
+        if (record.type === 'multi') {
+            await openWechatFavoriteRecord(id);
+        }
+    }
+
+    async function toggleWechatFavoriteMultiSelect() {
+        _wechatFavoriteMultiSelectMode = !_wechatFavoriteMultiSelectMode;
+        if (!_wechatFavoriteMultiSelectMode) _wechatFavoriteSelectedIds.clear();
+        _syncWechatFavoriteHeaderActions();
+        await renderWechatFavoriteList();
+    }
+
+    async function toggleSelectAllWechatFavorites() {
+        if (!_wechatFavoriteMultiSelectMode) return;
+        if (!_wechatFavoriteRecordsCache.length) {
+            _wechatFavoriteRecordsCache = await _loadWechatFavoriteRecords();
+        }
+        if (_wechatFavoriteSelectedIds.size === _wechatFavoriteRecordsCache.length) {
+            _wechatFavoriteSelectedIds.clear();
+        } else {
+            _wechatFavoriteSelectedIds.clear();
+            _wechatFavoriteRecordsCache.forEach(function(item) {
+                _wechatFavoriteSelectedIds.add(String(item.id));
+            });
+        }
+        _syncWechatFavoriteHeaderActions();
+        await renderWechatFavoriteList();
+    }
+
+    async function deleteSelectedWechatFavorites() {
+        if (!_wechatFavoriteSelectedIds.size) return;
+        const count = _wechatFavoriteSelectedIds.size;
+        const ok = await window.showMiniConfirm('确定要删除选中的 ' + count + ' 条收藏吗？');
+        if (!ok) return;
+        const existing = await localforage.getItem(WECHAT_FAVORITE_STORAGE_KEY) || [];
+        const remain = existing.filter(function(item) {
+            return !_wechatFavoriteSelectedIds.has(String(item && item.id ? item.id : ''));
+        });
+        await localforage.setItem(WECHAT_FAVORITE_STORAGE_KEY, remain);
+        _wechatFavoriteSelectedIds.clear();
+        _wechatFavoriteMultiSelectMode = false;
+        _syncWechatFavoriteHeaderActions();
+        await renderWechatFavoriteList();
+        showWechatMessageToast('已删除 ' + count + ' 条收藏');
+    }
+
     async function favoriteMessagesByIds(msgIds) {
         if (!activeChatContact) return 0;
         const ids = Array.isArray(msgIds) ? msgIds.map(function(id) {
@@ -3056,34 +3712,87 @@ ${langInstruction}`
             const messages = await Promise.all(ids.map(function(id) {
                 return chatListDb.messages.get(id);
             }));
-            const validMessages = messages.filter(Boolean);
-            if (!validMessages.length) return 0;
-            const storageKey = 'wechat_favorite_messages_v1';
-            const existing = await localforage.getItem(storageKey) || [];
-            const existingKeys = new Set(existing.map(function(item) {
-                return String(item.contactId) + ':' + String(item.msgId);
+            const validMessages = orderMiniChatMessages(messages.filter(function(msg) {
+                return !!msg && msg.source !== 'sms';
             }));
-            var addedCount = 0;
-            validMessages.forEach(function(msg) {
-                var uniqKey = String(activeChatContact.id) + ':' + String(msg.id);
-                if (existingKeys.has(uniqKey)) return;
-                existing.push({
-                    id: 'fav_' + activeChatContact.id + '_' + msg.id,
-                    msgId: msg.id,
-                    contactId: activeChatContact.id,
-                    contactName: activeChatContact.roleName || '角色',
-                    sender: msg.sender,
-                    content: msg.content,
-                    timeStr: msg.timeStr || '',
-                    favoritedAt: Date.now(),
-                    source: 'wechat'
+            if (!validMessages.length) return 0;
+
+            const existing = await localforage.getItem(WECHAT_FAVORITE_STORAGE_KEY) || [];
+            const existingKeys = new Set(existing.map(function(item) {
+                if (!item || typeof item !== 'object') return '';
+                if (item.uniqKey) return String(item.uniqKey);
+                if (item.type === 'multi' && Array.isArray(item.msgIds)) {
+                    return 'multi:' + String(item.contactId || '') + ':' + item.msgIds.map(function(id) { return String(id); }).join('_');
+                }
+                if (item.msgId != null) {
+                    return 'single:' + String(item.contactId || '') + ':' + String(item.msgId);
+                }
+                return '';
+            }).filter(Boolean));
+
+            const meName = _getWechatFavoriteMyName();
+            const contactName = await _getWechatFavoriteContactName(activeChatContact.id, activeChatContact.roleName || '角色');
+            const now = Date.now();
+            let addedCount = 0;
+
+            if (validMessages.length === 1) {
+                const msg = validMessages[0];
+                const uniqKey = 'single:' + String(activeChatContact.id) + ':' + String(msg.id);
+                if (!existingKeys.has(uniqKey)) {
+                    existing.push({
+                        id: 'fav_single_' + activeChatContact.id + '_' + msg.id,
+                        type: 'single',
+                        uniqKey: uniqKey,
+                        msgId: msg.id,
+                        contactId: activeChatContact.id,
+                        contactName: contactName,
+                        meName: meName,
+                        sender: msg.sender,
+                        content: msg.content,
+                        timeStr: msg.timeStr || '',
+                        favoritedAt: now,
+                        source: 'wechat'
+                    });
+                    existingKeys.add(uniqKey);
+                    addedCount = 1;
+                }
+            } else {
+                const msgIds = validMessages.map(function(msg) {
+                    return msg.id;
                 });
-                existingKeys.add(uniqKey);
-                addedCount += 1;
-            });
-            await localforage.setItem(storageKey, existing);
-            const duplicateText = ids.length === 1 ? '该消息已在收藏中' : '选中的消息已在收藏中';
-            showWechatMessageToast(addedCount > 0 ? ('已收藏 ' + addedCount + ' 条消息') : duplicateText);
+                const uniqKey = 'multi:' + String(activeChatContact.id) + ':' + msgIds.join('_');
+                if (!existingKeys.has(uniqKey)) {
+                    existing.push({
+                        id: 'fav_multi_' + activeChatContact.id + '_' + now + '_' + Math.floor(Math.random() * 1000),
+                        type: 'multi',
+                        uniqKey: uniqKey,
+                        contactId: activeChatContact.id,
+                        contactName: contactName,
+                        meName: meName,
+                        msgIds: msgIds,
+                        messages: validMessages.map(function(msg) {
+                            return {
+                                id: msg.id,
+                                sender: msg.sender,
+                                content: msg.content,
+                                timeStr: msg.timeStr || ''
+                            };
+                        }),
+                        favoritedAt: now,
+                        source: 'wechat'
+                    });
+                    existingKeys.add(uniqKey);
+                    addedCount = 1;
+                }
+            }
+
+            await localforage.setItem(WECHAT_FAVORITE_STORAGE_KEY, existing);
+            if (document.getElementById('wechat-favorite-page') && document.getElementById('wechat-favorite-page').style.display === 'flex') {
+                await renderWechatFavoriteList();
+            }
+            const duplicateText = ids.length === 1 ? '该消息已在收藏中' : '这组消息已在收藏中';
+            const successText = ids.length === 1 ? '已收藏 1 条消息' : '已收藏多条消息';
+            showWechatMessageToast(addedCount > 0 ? successText : duplicateText);
             return addedCount;
         } catch (e) {
             console.error('收藏消息失败', e);
@@ -3097,6 +3806,19 @@ ${langInstruction}`
         await favoriteMessagesByIds(Array.from(selectedMsgIds));
         exitMultiSelectMode();
     }
+
+    window.openWechatFavoritePage = openWechatFavoritePage;
+    window.closeWechatFavoritePage = closeWechatFavoritePage;
+    window.openWechatFavoriteRecord = openWechatFavoriteRecord;
+    window.closeWechatFavoriteDetailPage = closeWechatFavoriteDetailPage;
+    window.handleWechatFavoriteListItemTap = handleWechatFavoriteListItemTap;
+    window.toggleWechatFavoriteMultiSelect = toggleWechatFavoriteMultiSelect;
+    window.toggleSelectAllWechatFavorites = toggleSelectAllWechatFavorites;
+    window.deleteSelectedWechatFavorites = deleteSelectedWechatFavorites;
+    window.openWechatForwardModal = openWechatForwardModal;
+    window.closeWechatForwardModal = closeWechatForwardModal;
+    window.selectWechatForwardTarget = selectWechatForwardTarget;
+    window.submitWechatForwardSelection = submitWechatForwardSelection;
 
     function buildChatRollbackRounds(messages) {
         const rounds = [];
@@ -3431,53 +4153,9 @@ ${langInstruction}`
         if (!userMsgId) return false;
 
         await triggerRoleReply(contact);
-        await renderChatTimelineList();
         await renderChatTimelineTravelPanel();
         showWechatMessageToast('时间轴已切换到 ' + anchorText);
         return true;
-    }
-
-    async function renderChatTimelineList() {
-        const listEl = document.getElementById('chat-timeline-list');
-        if (!listEl) return;
-        listEl.innerHTML = '';
-        if (!activeChatContact) {
-            listEl.innerHTML = '<div class="chat-timeline-empty">当前没有打开的聊天。</div>';
-            return;
-        }
-        const allMsgs = orderMiniChatMessages(await chatListDb.messages.where('contactId').equals(activeChatContact.id).toArray());
-        const messages = allMsgs.filter(function(msg) {
-            return msg && msg.source !== 'sms';
-        });
-        if (!messages.length) {
-            listEl.innerHTML = '<div class="chat-timeline-empty">当前聊天还没有线上消息。</div>';
-            return;
-        }
-        messages.forEach(function(msg, index) {
-            const item = document.createElement('div');
-            item.className = 'chat-timeline-item';
-
-            const head = document.createElement('div');
-            head.className = 'chat-timeline-item-head';
-
-            const title = document.createElement('div');
-            title.className = 'chat-timeline-item-title';
-            title.textContent = (msg.sender === 'me' ? '我' : (activeChatContact.roleName || '角色')) + ' · 第 ' + (index + 1) + ' 条';
-
-            const meta = document.createElement('div');
-            meta.className = 'chat-timeline-item-meta';
-            meta.textContent = msg.timeStr || '未知时间';
-
-            const preview = document.createElement('div');
-            preview.className = 'chat-timeline-item-preview';
-            preview.textContent = extractMsgPureText(msg.content || '').trim() || '[空消息]';
-
-            head.appendChild(title);
-            head.appendChild(meta);
-            item.appendChild(head);
-            item.appendChild(preview);
-            listEl.appendChild(item);
-        });
     }
 
     async function openChatTimelineModal() {
@@ -3486,7 +4164,6 @@ ${langInstruction}`
         if (!modal) return;
         modal.style.display = 'flex';
         await renderChatTimelineTravelPanel();
-        await renderChatTimelineList();
     }
 
     function closeChatTimelineModal() {

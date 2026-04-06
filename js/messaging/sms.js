@@ -51,6 +51,20 @@
         return ampm + ' ' + h + ':' + (m < 10 ? '0' + m : m);
     }
 
+    async function readSmsCtxLimit(fallback) {
+        if (typeof window.readMiniApiContextLimit === 'function') {
+            return await window.readMiniApiContextLimit(fallback);
+        }
+        var raw = await localforage.getItem('miffy_api_ctx');
+        var value = parseInt(raw, 10);
+        var base = parseInt(fallback, 10);
+        if (!isFinite(base) || isNaN(base)) base = 20;
+        if (!isFinite(value) || isNaN(value)) value = base;
+        if (value < 10) value = 10;
+        if (value > 200) value = 200;
+        return value;
+    }
+
     // 打开信息应用
     var smsBtnEl = document.getElementById('app-btn-sms');
     if (smsBtnEl) {
@@ -586,8 +600,7 @@
             var apiKey = await localforage.getItem('miffy_api_key');
             var model = await localforage.getItem('miffy_api_model');
             var temp = parseFloat(await localforage.getItem('miffy_api_temp')) || 0.7;
-            var ctxRaw = await localforage.getItem('miffy_api_ctx');
-            var ctxLimit = (ctxRaw !== null && ctxRaw !== '') ? parseInt(ctxRaw) : 10;
+            var ctxLimit = await readSmsCtxLimit(20);
 
             if (!apiUrl || !apiKey || !model) {
                 // 没有配置API，移除输入指示器
@@ -598,7 +611,7 @@
             }
 
             var rawMessages = await chatListDb.messages.where('contactId').equals(lockedContact.id).toArray();
-            var recentMessages = (ctxLimit === 0) ? rawMessages : rawMessages.slice(-ctxLimit);
+            var recentMessages = rawMessages.slice(-ctxLimit);
 
             // 构造真实时间字符串（时间感知）
             var _smsNow = new Date();
@@ -713,8 +726,7 @@
             var apiKeyForUnblock = await localforage.getItem('miffy_api_key');
             var modelForUnblock = await localforage.getItem('miffy_api_model');
             var tempForUnblock = parseFloat(await localforage.getItem('miffy_api_temp')) || 0.7;
-            var ctxRawForUnblock = await localforage.getItem('miffy_api_ctx');
-            var ctxLimitForUnblock = (ctxRawForUnblock !== null && ctxRawForUnblock !== '') ? parseInt(ctxRawForUnblock) : 10;
+            var ctxLimitForUnblock = await readSmsCtxLimit(20);
         await checkRoleUnblockAfterSmsReply(lockedContact, apiUrlForUnblock, apiKeyForUnblock, modelForUnblock, tempForUnblock, ctxLimitForUnblock);
         } catch(eUnblock) { console.error('解除拉黑检查失败', eUnblock); }
     }
