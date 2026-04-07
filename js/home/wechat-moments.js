@@ -1489,6 +1489,7 @@
             const offlineCrossModeMemoryText = (typeof buildOfflineCrossModeMemoryText === 'function')
                 ? await buildOfflineCrossModeMemoryText(lockedContact, ctxLimit)
                 : '';
+            const smsCrossModeMemoryText = await buildSmsCrossModeMemoryText(lockedContact, ctxLimit);
             const memorySummaryText = (typeof getContactSummaryHistoryText === 'function')
                 ? await getContactSummaryHistoryText(lockedContact.id)
                 : '';
@@ -1861,6 +1862,9 @@ ${langInstruction}`
             if (offlineCrossModeMemoryText) {
                 messages[0].content += `\n\n【跨模式记忆：线下对话】\n以下为你与用户最近在线下聊过的内容。切回线上时，你必须将其视为已发生事实并自然延续：\n${offlineCrossModeMemoryText}`;
             }
+            if (smsCrossModeMemoryText) {
+                messages[0].content += `\n\n【跨模式记忆：信息对话】\n以下为你与用户最近在信息应用里聊过的内容。回到 WeChat 时，你必须将其视为已发生事实并自然承接：\n${smsCrossModeMemoryText}`;
+            }
             const wbBefore = sharedWorldbookContext && sharedWorldbookContext.before ? sharedWorldbookContext.before : '';
             const wbMiddle = sharedWorldbookContext && sharedWorldbookContext.middle ? sharedWorldbookContext.middle : '';
             const wbAfter = sharedWorldbookContext && sharedWorldbookContext.after ? sharedWorldbookContext.after : '';
@@ -1879,8 +1883,13 @@ ${langInstruction}`
                 messages[0].content += `\n\n【背景与设定信息（后置注入）】\n${wbAfter}`;
             }
             messages[0].content += emoticonPrompt;
+            const myNameElForPrompt = document.getElementById('text-wechat-me-name');
+            const myNameForPrompt = myNameElForPrompt && myNameElForPrompt.textContent
+                ? String(myNameElForPrompt.textContent).trim()
+                : '我';
             recentMessages.forEach(msg => {
                 const timePrefix = buildMiniPromptMessageTimePrefix(msg, _nowPromptTs);
+                const structuredPayload = parseMiniStructuredPayload(msg && msg.content ? msg.content : '');
                 let isImage = false;
                 let imageBase64 = '';
                 let isEmoticon = false;
@@ -1930,6 +1939,18 @@ ${langInstruction}`
                         role: msg.sender === 'me' ? 'user' : 'assistant',
                         content: timePrefix + `[分享了定位，地址：${locAddr}，${locDist}]`
                     });
+                } else if (structuredPayload && structuredPayload.type === 'forward_bundle') {
+                    const forwardPromptText = buildMiniForwardBundlePromptText(structuredPayload, {
+                        meName: myNameForPrompt,
+                        currentRoleName: _identityName,
+                        currentRoleId: lockedContact && lockedContact.id != null ? String(lockedContact.id) : ''
+                    });
+                    if (forwardPromptText) {
+                        messages.push({
+                            role: msg.sender === 'me' ? 'user' : 'assistant',
+                            content: timePrefix + forwardPromptText
+                        });
+                    }
                 } else {
                     let cleanContent = msg.content;
                     if (cleanContent.includes('msg-original-text')) {
@@ -2555,6 +2576,32 @@ ${langInstruction}`
                 toggleMsgCheck(msgId);
             }, true);
         });
+        // 转发聊天记录卡片：统一走容器级事件委托，避免逐卡片解绑/重绑产生冲突
+        const chatContainer = document.getElementById('chat-msg-container');
+        if (chatContainer && !chatContainer._forwardCardDelegatedBound) {
+            chatContainer._forwardCardDelegatedBound = true;
+            chatContainer.addEventListener('click', function(e) {
+                const safeClosest = window.safeClosestTarget || function(target, selector) {
+                    return target && typeof target.closest === 'function' ? target.closest(selector) : null;
+                };
+                const card = safeClosest(e.target, '.chat-forward-card');
+                if (!card) return;
+                const forwardMsgIdRaw = card.getAttribute('data-forward-msg-id')
+                    || (card.dataset ? card.dataset.forwardMsgId : '');
+                // 多选模式由 chat-msg-row 捕获阶段统一处理勾选，不再重复切换
+                if (multiSelectMode) {
+                    return;
+                }
+                e.preventDefault();
+                e.stopPropagation();
+                if (!forwardMsgIdRaw) {
+                    return;
+                }
+                Promise.resolve(window.openWechatForwardCardDetail(forwardMsgIdRaw)).catch(function(err) {
+                    console.error('打开转发聊天记录详情失败', err);
+                });
+            });
+        }
         // 绑定角色消息头像点击 → 打开心声面板
         document.querySelectorAll('.chat-msg-row.msg-left .chat-msg-avatar').forEach(function(avatarEl) {
             if (!avatarEl._hvBound) {
@@ -3071,7 +3118,6 @@ ${langInstruction}`
 
     const WECHAT_FAVORITE_STORAGE_KEY = 'wechat_favorite_messages_v1';
     let _wechatFavoriteRecordsCache = [];
-    let _wechatFavoriteCurrentMultiRecordId = '';
     let _wechatFavoriteMultiSelectMode = false;
     let _wechatFavoriteSelectedIds = new Set();
     let _wechatForwardModalContacts = [];
@@ -3253,6 +3299,7 @@ ${langInstruction}`
             const payload = createMiniStructuredMessage('forward_bundle', {
                 title: '聊天记录',
                 note: note,
+                sourceUserName: meName,
                 sourceContactId: String(sourceContact.id),
                 sourceContactName: sourceContactName,
                 favoriteRecordId: favoriteRecordId,
@@ -3551,7 +3598,6 @@ ${langInstruction}`
     }
 
     function closeWechatFavoritePage() {
-        _wechatFavoriteCurrentMultiRecordId = '';
         _wechatFavoriteMultiSelectMode = false;
         _wechatFavoriteSelectedIds.clear();
         const detailPage = document.getElementById('wechat-favorite-detail-page');
@@ -3567,7 +3613,6 @@ ${langInstruction}`
     }
 
     function closeWechatFavoriteDetailPage() {
-        _wechatFavoriteCurrentMultiRecordId = '';
         if (typeof window.syncWechatOverlayStack === 'function') {
             window.syncWechatOverlayStack(['wechat-app', 'wechat-favorite-page']);
         } else {
@@ -3589,8 +3634,6 @@ ${langInstruction}`
             return String(item.id) === id;
         });
         if (!record || record.type !== 'multi') return;
-        _wechatFavoriteCurrentMultiRecordId = record.id;
-
         const meName = record.meName || _getWechatFavoriteMyName();
         const contactName = await _getWechatFavoriteContactName(record.contactId, record.contactName || '角色');
         let contact = null;
@@ -3601,33 +3644,19 @@ ${langInstruction}`
         }
         const myAvatar = _getWechatFavoriteAvatarSrc(contact && contact.userAvatar ? contact.userAvatar : '');
         const roleAvatar = _getWechatFavoriteAvatarSrc(contact && contact.roleAvatar ? contact.roleAvatar : '');
-        const titleEl = document.getElementById('wechat-favorite-detail-title');
-        if (titleEl) titleEl.textContent = meName + '和' + contactName + '的聊天记录';
-
-        const bodyEl = document.getElementById('wechat-favorite-detail-body');
-        if (bodyEl) {
-            const msgs = Array.isArray(record.messages) ? record.messages : [];
-            if (!msgs.length) {
-                bodyEl.innerHTML = '<div style="margin-top:108px; text-align:center; color:#bbb; font-size:13px;">暂无消息</div>';
-            } else {
-                bodyEl.innerHTML = msgs.map(function(msg) {
-                    const speaker = _getWechatFavoriteSpeakerName(msg.sender, meName, contactName);
-                    const content = _escapeWechatFavoriteHtml(_getWechatFavoritePreviewText(msg.content)).replace(/\n/g, '<br>');
-                    const avatar = msg.sender === 'me' ? myAvatar : roleAvatar;
-                    return '' +
-                        '<div class="chat-msg-row msg-left" style="margin-bottom:8px;">' +
-                            '<div class="chat-msg-avatar"><img src="' + _escapeWechatFavoriteHtml(avatar) + '" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=\'' + _escapeWechatFavoriteHtml(window.defaultAvatarDataUri || whitePixel) + '\';"></div>' +
-                            '<div style="display:flex; flex-direction:column; align-items:flex-start; flex:0 1 72%; max-width:72%; min-width:0;">' +
-                                '<div style="font-size:11px; line-height:1.2; color:#8f8f8f; margin:0 0 4px 2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">' + _escapeWechatFavoriteHtml(speaker) + '</div>' +
-                                '<div class="msg-bubble-wrapper" style="margin-top:0; max-width:100%; flex:0 1 auto;">' +
-                                    '<div class="chat-msg-content">' + content + '</div>' +
-                                    '<div class="chat-timestamp">' + _escapeWechatFavoriteHtml(msg.timeStr || '') + '</div>' +
-                                '</div>' +
-                            '</div>' +
-                        '</div>';
-                }).join('');
-            }
-        }
+        window.renderWechatRecordDetailPage({
+            titleElementId: 'wechat-favorite-detail-title',
+            bodyElementId: 'wechat-favorite-detail-body',
+            heading: meName + '和' + contactName + '的聊天记录',
+            sourceLabel: '收藏聊天记录',
+            currentSceneLabel: '当前页面',
+            currentSceneValue: '收藏记录',
+            messages: Array.isArray(record.messages) ? record.messages : [],
+            meName: meName,
+            peerName: contactName,
+            myAvatar: myAvatar,
+            peerAvatar: roleAvatar
+        });
 
         if (typeof window.syncWechatOverlayStack === 'function') {
             window.syncWechatOverlayStack(['wechat-app', 'wechat-favorite-page', 'wechat-favorite-detail-page']);
@@ -3807,6 +3836,79 @@ ${langInstruction}`
         exitMultiSelectMode();
     }
 
+    async function openRoleMomentsPage() {
+        if (!activeChatContact) return;
+        const page = document.getElementById('role-moments-app');
+        if (!page) return;
+
+        const nameEl = document.getElementById('role-moments-name');
+        const avatarEl = document.getElementById('role-moments-avatar-img');
+        const listEl = document.getElementById('role-moments-post-list');
+        const emptyEl = document.getElementById('role-moments-empty-tip');
+
+        const displayName = await getMomentsContactDisplayName(activeChatContact);
+        if (nameEl) nameEl.textContent = displayName || activeChatContact.roleName || '角色';
+        if (avatarEl) avatarEl.src = (activeChatContact.roleAvatar || (window.defaultAvatarDataUri || whitePixel));
+
+        if (listEl && emptyEl) {
+            const rolePosts = momentsPosts
+                .slice()
+                .filter(function(post) {
+                    const pid = post && (post.contactId || post.authorContactId || post.roleId);
+                    return String(pid || '') === String(activeChatContact.id);
+                })
+                .sort(function(a, b) {
+                    return (b && b.createdAt ? b.createdAt : 0) - (a && a.createdAt ? a.createdAt : 0);
+                });
+
+            if (!rolePosts.length) {
+                emptyEl.style.display = 'block';
+                listEl.innerHTML = '';
+            } else {
+                emptyEl.style.display = 'none';
+                listEl.innerHTML = rolePosts.map(function(post) {
+                    const text = post && post.text ? escapeMomentsHtml(post.text) : '';
+                    const time = formatMomentsTime(post && post.createdAt ? post.createdAt : Date.now());
+                    const textHtml = text ? '<div class="moments-post-text">' + text + '</div>' : '';
+                    const images = Array.isArray(post && post.images) ? post.images : [];
+                    const imagesHtml = images.length
+                        ? '<div class="moments-post-images">' + images.map(function(src) {
+                            return '<img src="' + escapeMomentsHtml(src) + '" loading="lazy" decoding="async">';
+                        }).join('') + '</div>'
+                        : '';
+                    return '' +
+                        '<div class="moments-post-card">' +
+                            '<div class="moments-post-avatar"><img src="' + escapeMomentsHtml(activeChatContact.roleAvatar || (window.defaultAvatarDataUri || whitePixel)) + '" loading="lazy" decoding="async"></div>' +
+                            '<div class="moments-post-main">' +
+                                '<div class="moments-post-name-row"><span class="moments-post-name">' + escapeMomentsHtml(displayName || activeChatContact.roleName || '角色') + '</span><span class="moments-post-time">' + escapeMomentsHtml(time) + '</span></div>' +
+                                textHtml +
+                                imagesHtml +
+                            '</div>' +
+                        '</div>';
+                }).join('');
+            }
+        }
+
+        if (typeof window.syncWechatOverlayStack === 'function') {
+            window.syncWechatOverlayStack(['wechat-app', 'role-profile-app', 'role-moments-app']);
+        } else {
+            page.style.display = 'flex';
+            const profile = document.getElementById('role-profile-app');
+            if (profile) profile.style.display = 'flex';
+        }
+    }
+
+    function closeRoleMoments() {
+        if (typeof window.syncWechatOverlayStack === 'function') {
+            window.syncWechatOverlayStack(['wechat-app', 'role-profile-app']);
+            return;
+        }
+        const page = document.getElementById('role-moments-app');
+        if (page) page.style.display = 'none';
+        const profile = document.getElementById('role-profile-app');
+        if (profile) profile.style.display = 'flex';
+    }
+
     window.openWechatFavoritePage = openWechatFavoritePage;
     window.closeWechatFavoritePage = closeWechatFavoritePage;
     window.openWechatFavoriteRecord = openWechatFavoriteRecord;
@@ -3819,6 +3921,8 @@ ${langInstruction}`
     window.closeWechatForwardModal = closeWechatForwardModal;
     window.selectWechatForwardTarget = selectWechatForwardTarget;
     window.submitWechatForwardSelection = submitWechatForwardSelection;
+    window.openRoleMomentsPage = openRoleMomentsPage;
+    window.closeRoleMoments = closeRoleMoments;
 
     function buildChatRollbackRounds(messages) {
         const rounds = [];

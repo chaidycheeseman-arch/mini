@@ -6,6 +6,7 @@
     var originalConsole = {};
     var logs = [];
     var persistTimer = null;
+    var suppressCapture = false;
 
     ['log', 'info', 'warn', 'error'].forEach(function(level) {
         originalConsole[level] = typeof console[level] === 'function'
@@ -85,6 +86,7 @@
     }
 
     function schedulePersist() {
+        if (suppressCapture) return;
         if (persistTimer) clearTimeout(persistTimer);
         persistTimer = setTimeout(function() {
             persistTimer = null;
@@ -106,6 +108,7 @@
     }
 
     function addEntry(level, args, source) {
+        if (suppressCapture) return;
         var text = Array.prototype.slice.call(args || []).map(stringifyArg).join(' ').trim();
         if (!text) return;
         logs.push({
@@ -120,6 +123,30 @@
         }
         schedulePersist();
         queueRender();
+    }
+
+    function clearAllPersistedRuntimeLogs() {
+        clearPersistedLogStorage();
+        if (!window.localforage) return Promise.resolve();
+        var removeOne = function(key) {
+            if (typeof localforage.removeItem !== 'function') return Promise.resolve();
+            return localforage.removeItem(key).catch(function() {});
+        };
+        if (typeof localforage.keys !== 'function') {
+            return removeOne(STORAGE_KEY);
+        }
+        return localforage.keys().then(function(keys) {
+            var removeTasks = [];
+            (Array.isArray(keys) ? keys : []).forEach(function(key) {
+                if (String(key).indexOf('mini_runtime_logs') !== -1) {
+                    removeTasks.push(removeOne(key));
+                }
+            });
+            if (!removeTasks.length) removeTasks.push(removeOne(STORAGE_KEY));
+            return Promise.all(removeTasks);
+        }).catch(function() {
+            return removeOne(STORAGE_KEY);
+        });
     }
 
     function getPlainText() {
@@ -318,19 +345,21 @@
     };
 
     window.clearRuntimeLogViewer = function() {
+        suppressCapture = true;
         logs = [];
         if (persistTimer) {
             clearTimeout(persistTimer);
             persistTimer = null;
         }
         renderLogs();
-        clearPersistedLogStorage();
-        if (window.localforage && typeof localforage.removeItem === 'function') {
-            return localforage.removeItem(STORAGE_KEY).catch(function(error) {
-                originalConsole.error('[runtime-log] clear failed', error);
-            });
-        }
-        return Promise.resolve();
+        return clearAllPersistedRuntimeLogs().catch(function(error) {
+            originalConsole.error('[runtime-log] clear failed', error);
+        }).finally(function() {
+            restorePromise = Promise.resolve();
+            logs = [];
+            renderLogs();
+            suppressCapture = false;
+        });
     };
 
     window.copyRuntimeLogViewer = function() {

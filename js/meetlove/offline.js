@@ -190,8 +190,14 @@
         if (titleEl) {
             var displayName = activeOfflineContact.roleName || '\u7ebf\u4e0b';
             titleEl.textContent = displayName;
+            if (typeof window.setMiniHeaderFixedSubtitle === 'function') {
+                window.setMiniHeaderFixedSubtitle(titleEl, activeOfflineContact.roleName || displayName, 'OFFLINE');
+            }
             localforage.getItem('cd_settings_' + activeOfflineContact.id + '_remark').then(function(remark) {
                 if (remark && remark !== '\u672a\u8bbe\u7f6e') titleEl.textContent = remark;
+                if (typeof window.setMiniHeaderFixedSubtitle === 'function') {
+                    window.setMiniHeaderFixedSubtitle(titleEl, activeOfflineContact.roleName || remark || displayName, 'OFFLINE');
+                }
             }).catch(function() {});
         }
         var app = document.getElementById('offline-chat-app');

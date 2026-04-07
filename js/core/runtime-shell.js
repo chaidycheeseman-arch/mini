@@ -91,18 +91,21 @@ const SETTINGS_DOCK_ICON_SRC = whitePixel;
 const headerSubtitleMap = {
     '主题': 'THEME',
     '设置': 'SETTINGS',
-    '世界书': 'WORLDBOOK',
+    '后台日志': 'BACKGROUND LOG',
+    '世界书': 'WORLD BOOK',
     '消息': 'MESSAGES',
     '联系人': 'CONTACTS',
-    '个人中心': 'PROFILE',
-    '资产钱包': 'WALLET',
-    '银行卡': 'BANK CARD',
+    '个人中心': 'PROFILE CENTER',
+    '收藏记录': 'FAVORITE RECORDS',
+    '聊天记录': 'CHAT HISTORY',
+    '资产钱包': 'ASSET WALLET',
+    '银行卡': 'BANK CARDS',
     '面具预设': 'MASK PRESETS',
     '表情包库': 'STICKER LIBRARY',
-    '信息': 'INBOX',
+    '信息': 'MESSAGES',
     '首页': 'HOME',
-    '聊天详情': 'CHAT DETAIL',
-    '发朋友圈': 'MOMENTS',
+    '聊天详情': 'CHAT DETAILS',
+    '发朋友圈': 'POST MOMENTS',
     '理财': 'FINANCE',
     '记忆': 'MEMORY',
     '游戏': 'GAME',
@@ -113,18 +116,77 @@ const headerSubtitleMap = {
     '大厅设置': 'HALL SETTINGS',
     '线下设置': 'OFFLINE SETTINGS'
 };
+const headerSubtitleKeywordMap = [
+    ['聊天记录', 'CHAT HISTORY'],
+    ['聊天详情', 'CHAT DETAILS'],
+    ['收藏记录', 'FAVORITE RECORDS'],
+    ['后台日志', 'BACKGROUND LOG'],
+    ['发朋友圈', 'POST MOMENTS'],
+    ['个人中心', 'PROFILE CENTER'],
+    ['资产钱包', 'ASSET WALLET'],
+    ['世界书', 'WORLD BOOK']
+];
 
 function resolveHeaderSubtitle(rawText, isOfflineTitle) {
     var raw = (rawText || '').trim();
     var compact = raw.replace(/\s+/g, '');
     if (!compact) return isOfflineTitle ? 'OFFLINE' : 'SECTION';
     if (headerSubtitleMap[compact]) return headerSubtitleMap[compact];
+    for (var i = 0; i < headerSubtitleKeywordMap.length; i++) {
+        if (compact.indexOf(headerSubtitleKeywordMap[i][0]) !== -1) {
+            return headerSubtitleKeywordMap[i][1];
+        }
+    }
     var latinTokens = compact.match(/[A-Za-z0-9]+/g);
     if (latinTokens && latinTokens.length) {
         return latinTokens.join(' ').toUpperCase();
     }
     return isOfflineTitle ? 'OFFLINE' : 'SECTION';
 }
+
+function normalizeMiniHeaderSubtitleText(rawText, fallback) {
+    var fallbackText = String(fallback || 'SECTION')
+        .replace(/[^A-Za-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toUpperCase();
+    var text = String(rawText || '')
+        .replace(/[^A-Za-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toUpperCase();
+    return text || fallbackText || 'SECTION';
+}
+
+function getMiniRolePinyinSubtitle(rawName, fallback) {
+    var baseName = String(rawName || '').trim();
+    var fallbackText = normalizeMiniHeaderSubtitleText(fallback || 'SECTION', 'SECTION');
+    if (!baseName) return fallbackText;
+    var subtitle = '';
+    try {
+        if (/[\u3400-\u9fff]/.test(baseName) && window.pinyinPro && typeof window.pinyinPro.pinyin === 'function') {
+            subtitle = window.pinyinPro.pinyin(baseName, { toneType: 'none' });
+        }
+    } catch (e) {
+        subtitle = '';
+    }
+    if (!subtitle) {
+        subtitle = baseName;
+    }
+    return normalizeMiniHeaderSubtitleText(subtitle, fallbackText);
+}
+
+function setMiniHeaderFixedSubtitle(target, rawName, fallback) {
+    var el = typeof target === 'string' ? document.getElementById(target) : target;
+    if (!el) return normalizeMiniHeaderSubtitleText(fallback || 'SECTION', 'SECTION');
+    var subtitle = getMiniRolePinyinSubtitle(rawName, fallback);
+    el.setAttribute('data-subtitle-fixed', subtitle);
+    el.setAttribute('data-subtitle', subtitle);
+    return subtitle;
+}
+
+window.getMiniRolePinyinSubtitle = getMiniRolePinyinSubtitle;
+window.setMiniHeaderFixedSubtitle = setMiniHeaderFixedSubtitle;
 
 function getDefaultDockIconSrc(index) {
     const name = appIconNames[index] || '';
@@ -168,6 +230,10 @@ document.addEventListener('DOMContentLoaded', function() {
         resistanceRatio: 0, // 减少边缘回弹的计算阻力
         observer: true,     // 开启 DOM 变动监听
         observeParents: true,
+        pagination: {
+            el: '.desktop-pagination',
+            clickable: true
+        },
         on: {
             touchStart: function() { menu.style.display = 'none'; },
             slideChange: function() { menu.style.display = 'none'; }
@@ -460,6 +526,143 @@ window.alert = function(message) {
 };
 window.showToast = window.showMiniToast;
 
+const MINI_MODAL_CONFIGS = [
+    { modalId: 'preset-manager', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'worldbook-editor', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'mask-editor-modal', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'contact-editor-modal', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'chat-type-modal', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'emoticon-add-modal', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'emoticon-move-modal', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'single-chat-select-modal', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'block-request-list-modal', kind: 'center' },
+    { modalId: 'batch-export-modal', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'wechat-forward-modal', panelSelector: '#wechat-forward-sheet', kind: 'center' },
+    { modalId: 'hv-history-modal', panelSelector: '#hv-history-sheet', kind: 'center' },
+    { modalId: 'msg-edit-modal', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'msg-recall-modal', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'chat-timeline-modal', panelSelector: '.chat-timeline-card', kind: 'center' },
+    { modalId: 'chat-rollback-modal', panelSelector: '.chat-rollback-card', kind: 'center' },
+    { modalId: 'camera-modal', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'moments-comment-modal', panelSelector: '.moments-comment-card', kind: 'center' },
+    { modalId: 'voice-modal', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'location-modal', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'gift-modal', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'takeout-modal', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'call-composer-modal', panelSelector: '.preset-card', kind: 'center' },
+    { modalId: 'voice-storage-modal', panelSelector: '.voice-storage-card', kind: 'center' },
+    { modalId: 'rp-claim-modal', panelSelector: '#rp-claim-card', kind: 'center' },
+    { modalId: 'tf-action-modal', panelSelector: '#tf-action-card', kind: 'center' },
+    { modalId: 'add-bank-card-modal', panelSelector: '#add-bank-card-sheet', kind: 'bottom' },
+    { modalId: 'no-pwd-pay-modal', panelSelector: '#no-pwd-pay-sheet', kind: 'bottom' },
+    { modalId: 'checkphone-contact-modal', kind: 'bottom' },
+    { modalId: 'red-packet-modal', panelSelector: '#red-packet-sheet', kind: 'bottom' },
+    { modalId: 'transfer-modal', panelSelector: '#transfer-sheet', kind: 'bottom' },
+    { modalId: 'stock-trade-modal', panelSelector: '#stock-trade-sheet', kind: 'bottom' },
+    { modalId: 'recharge-modal', panelSelector: '#recharge-sheet', kind: 'bottom' },
+    { modalId: 'withdraw-modal', panelSelector: '#withdraw-sheet', kind: 'bottom' },
+    { modalId: 'offline-manage-modal', panelSelector: '#offline-manage-sheet', kind: 'bottom' },
+    { modalId: 'ml-settings-modal', panelSelector: '#ml-settings-sheet', kind: 'bottom' },
+    { modalId: 'ml-edit-modal', panelSelector: '#ml-edit-sheet', kind: 'bottom' },
+    { modalId: 'offline-edit-modal', panelSelector: '#offline-edit-sheet', kind: 'bottom' },
+    { overlayId: 'pay-pwd-overlay', panelId: 'pay-pwd-sheet', kind: 'bottom' },
+    { overlayId: 'tf-pay-pwd-overlay', panelId: 'tf-pay-pwd-sheet', kind: 'bottom', closeFn: 'closeTfPayPwd' },
+    { overlayId: 'rp-pay-pwd-overlay', panelId: 'rp-pay-pwd-sheet', kind: 'bottom', closeFn: 'closeRpPayPwd' },
+    { overlayId: 'offline-settings-overlay', panelId: 'offline-settings-sidebar', kind: 'side', closeFn: 'closeOfflineSettings' }
+];
+const MINI_MODAL_CLOSE_SELECTORS = [
+    '.rp-modal-close',
+    '.tf-modal-close',
+    '.rp-sheet-close',
+    '.tf-sheet-close',
+    '.preset-close',
+    '.wechat-forward-close',
+    '.voice-storage-close',
+    '.chat-timeline-close',
+    '.chat-rollback-close'
+].join(', ');
+
+function removeMiniModalCornerClosers(surface) {
+    if (!surface) return;
+    if (MINI_MODAL_CLOSE_SELECTORS) {
+        surface.querySelectorAll(MINI_MODAL_CLOSE_SELECTORS).forEach(function(node) {
+            node.remove();
+        });
+    }
+    surface.querySelectorAll('[onclick]').forEach(function(node) {
+        const text = (node.textContent || '').replace(/\s+/g, '');
+        const handler = node.getAttribute('onclick') || '';
+        if (!/close|cancel/i.test(handler)) return;
+        if (text === '×' || text.toLowerCase() === 'x') {
+            node.remove();
+        }
+    });
+}
+
+function resolveMiniModalSurface(config) {
+    if (config.panelId) return document.getElementById(config.panelId);
+    if (!config.modalId) return null;
+    const modal = document.getElementById(config.modalId);
+    if (!modal) return null;
+    if (config.panelSelector) return modal.querySelector(config.panelSelector);
+    return modal.firstElementChild;
+}
+
+function tagMiniModalSurface(surface, kind) {
+    if (!surface) return;
+    surface.classList.remove('mini-modal-card', 'mini-modal-sheet', 'mini-side-panel');
+    if (kind === 'center') surface.classList.add('mini-modal-card');
+    else if (kind === 'bottom') surface.classList.add('mini-modal-sheet');
+    else if (kind === 'side') surface.classList.add('mini-side-panel');
+    removeMiniModalCornerClosers(surface);
+}
+
+function tagMiniModalOverlay(overlay, kind) {
+    if (!overlay) return;
+    overlay.classList.add('mini-modal-overlay');
+    overlay.classList.remove('mini-modal-overlay--center', 'mini-modal-overlay--bottom', 'mini-modal-overlay--side');
+    if (kind === 'center') overlay.classList.add('mini-modal-overlay--center');
+    else if (kind === 'bottom') overlay.classList.add('mini-modal-overlay--bottom');
+    else if (kind === 'side') overlay.classList.add('mini-modal-overlay--side');
+}
+
+function bindMiniModalBackdropClose(overlay, closeFnName) {
+    if (!overlay || !closeFnName || overlay.dataset.miniBackdropBound === '1') return;
+    overlay.dataset.miniBackdropBound = '1';
+    overlay.addEventListener('click', function(e) {
+        if (e.target !== overlay) return;
+        const closeFn = window[closeFnName];
+        if (typeof closeFn === 'function') closeFn();
+    });
+}
+
+function refreshMiniModalChrome() {
+    MINI_MODAL_CONFIGS.forEach(function(config) {
+        const overlay = config.overlayId ? document.getElementById(config.overlayId) : document.getElementById(config.modalId);
+        const surface = resolveMiniModalSurface(config);
+        if (overlay) {
+            tagMiniModalOverlay(overlay, config.kind);
+            bindMiniModalBackdropClose(overlay, config.closeFn);
+        }
+        if (surface) tagMiniModalSurface(surface, config.kind);
+    });
+}
+
+function observeMiniModalChrome() {
+    if (document.body.dataset.miniModalObserver === '1') return;
+    document.body.dataset.miniModalObserver = '1';
+    const observer = new MutationObserver(function(mutations) {
+        for (let i = 0; i < mutations.length; i += 1) {
+            if (mutations[i].type !== 'childList' || !mutations[i].addedNodes.length) continue;
+            refreshMiniModalChrome();
+            break;
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+}
+
+window.refreshMiniModalChrome = refreshMiniModalChrome;
+
 document.addEventListener('contextmenu', function(e) {
     if (!safeClosestFromEventTarget(e.target, '.phone-screen')) return;
     e.preventDefault();
@@ -610,6 +813,8 @@ async function initThemeIcons() {
     }
 }
 window.addEventListener('DOMContentLoaded', async () => {
+        refreshMiniModalChrome();
+        observeMiniModalChrome();
         // 修复电脑端加载时闪烁/延伸：页面加载完成后立即显示手机壳，不等待 DB
         const shell = document.querySelector('.phone-shell');
         if (shell) {
@@ -690,7 +895,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     function setWallpaper(src) {
         const screen = document.querySelector('.phone-screen');
         if (!screen) return;
-        const themeMode = document.documentElement.getAttribute('data-theme') || 'day';
         const hasImage = !!(src && !src.includes('via.placeholder.com'));
         const syncDeviceLockWallpaper = function() {
             if (typeof window.refreshDeviceLockWallpaperPreview === 'function') {
@@ -701,26 +905,8 @@ window.addEventListener('DOMContentLoaded', async () => {
         };
         screen.style.backgroundBlendMode = '';
 
-        if (themeMode === 'night') {
-            if (hasImage) {
-                screen.style.background = `radial-gradient(circle at top, rgba(76,82,92,0.16), transparent 34%), linear-gradient(180deg, rgba(10,11,14,0.14) 0%, rgba(3,3,4,0.32) 100%), url(${src}) center/cover no-repeat`;
-                screen.style.backgroundBlendMode = 'screen, multiply, normal';
-            } else {
-                screen.style.background = 'radial-gradient(circle at top, rgba(88,94,106,0.22), transparent 34%), linear-gradient(180deg, #1a1c21 0%, #0d0e12 58%, #000000 100%)';
-            }
-            syncDeviceLockWallpaper();
-            return;
-        }
-
-        if (themeMode === 'dopamine' && hasImage) {
-            screen.style.background = `linear-gradient(180deg, rgba(255,244,238,0.16) 0%, rgba(255,240,230,0.26) 100%), url(${src}) center/cover no-repeat`;
-            screen.style.backgroundBlendMode = 'normal, normal';
-            syncDeviceLockWallpaper();
-            return;
-        }
-
         if (hasImage) {
-            screen.style.background = `url(${src}) center/cover no-repeat`;
+            screen.style.background = `linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(236,239,239,0.18) 100%), url(${src}) center/cover no-repeat`;
         } else {
             screen.style.background = '';
         }

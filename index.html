@@ -7,11 +7,11 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
     <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dexie@3/dist/dexie.min.js"></script>
-    <link rel="stylesheet" href="css/core/base-and-chat.css?v=20260407-uifix5">
+    <link rel="stylesheet" href="css/core/base-and-chat.css?v=20260407-homefix2">
     <link rel="stylesheet" href="css/wallet/wallet-and-payment.css">
     <link rel="stylesheet" href="css/chat/profile-and-chat-detail.css">
     <link rel="stylesheet" href="css/device/sms-and-check-phone.css">
-    <link rel="stylesheet" href="css/meetlove/meetlove-and-offline.css">
+    <link rel="stylesheet" href="css/meetlove/meetlove-and-offline.css?v=20260407-grayui1">
     <style>
         /* 性能优化：页面加载时手机壳先隐藏，等JS恢复完成后再显示，防止图标/壁纸闪烁 */
         .phone-shell { opacity: 0; transition: opacity 0.25s ease; }
@@ -299,6 +299,7 @@
             </div>
         </div>
     </div>
+    <div class="desktop-pagination swiper-pagination"></div>
     <!-- 底部 Dock 栏 -->
     <div class="dock">
         <div class="dock-icon" id="dock-btn-theme"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="主题"></div>
@@ -440,11 +441,10 @@
             <div class="app-back" onclick="closeThemeApp()">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
             </div>
-            <div class="app-title" data-subtitle="VISUAL LAB">主题</div>
+            <div class="app-title" data-subtitle="THEME">主题</div>
             <div style="width:30px;"></div> 
         </div>
         <div class="app-body" style="padding: 15px 20px;">
-            <div class="theme-tips">注解：主题UI风格固定为灰白极简线条风（统一克制、线条化表达）。</div>
             <div class="theme-accordion-item theme-icon-lock-preview" id="accordion-lock-preview">
                 <div class="theme-section-header" onclick="toggleThemeSection('accordion-lock-preview')">
                     <span>锁屏预览</span>
@@ -765,7 +765,7 @@
             <div class="app-back" onclick="closeSettingsApp()">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
             </div>
-            <div class="app-title" data-subtitle="CONTROL HUB">设置</div>
+            <div class="app-title" data-subtitle="SETTINGS">设置</div>
             <div style="width:30px;"></div>
         </div>
         <div class="app-body" style="align-items: stretch; padding: 15px 20px;">
@@ -938,7 +938,7 @@
             <div class="app-back" onclick="closeRuntimeDebugPanel()">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
             </div>
-            <div class="app-title" data-subtitle="RUNTIME LOG">后台日志</div>
+            <div class="app-title" data-subtitle="BACKGROUND LOG">后台日志</div>
             <div class="wb-action-icon runtime-debug-nav-delete" onclick="clearRuntimeLogViewer()" aria-label="清空日志" title="清空日志">
                 <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
             </div>
@@ -1866,7 +1866,7 @@
                 <div class="cp-passcode-screen" id="cp-passcode-screen" style="display:none;">
                     <div class="cp-passcode-wallpaper" id="cp-passcode-wallpaper"></div>
                     <div class="cp-passcode-blur"></div>
-                    <div class="cp-passcode-content">
+                    <div class="cp-passcode-content" id="cp-passcode-content">
                         <!-- 头像 -->
                         <div class="cp-passcode-avatar" id="cp-passcode-avatar">
                             <img id="cp-passcode-avatar-img" src="" alt="">
@@ -3161,7 +3161,7 @@
             <div class="app-back" onclick="closeChatDetail()">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
             </div>
-            <div class="app-title" data-subtitle="CHAT DETAIL">聊天详情</div>
+            <div class="app-title" data-subtitle="CHAT DETAILS">聊天详情</div>
             <div style="width:36px;"></div>
         </div>
         <div class="app-body" style="padding: 0 0 40px 0; align-items: stretch;">
@@ -3871,16 +3871,17 @@
     </div>
 </div><!-- phone-shell end -->
 <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-<script src="js/core/runtime-log.js"></script>
-<script src="js/core/runtime-shell.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.28.0/dist/index.js"></script>
+<script src="js/core/runtime-log.js?v=20260407-logclear1"></script>
+<script src="js/core/runtime-shell.js?v=20260407-grayui1"></script>
 <script src="js/core/settings.js"></script>
 <script src="js/core/worldbook-and-apps.js"></script>
-<script src="js/core/theme-tools.js"></script>
+<script src="js/core/theme-tools.js?v=20260407-grayui1"></script>
 <script src="js/core/masks-and-emoticons.js"></script>
 <script src="js/core/contacts-and-chatlist.js"></script>
 <script src="js/home/novel-entry.js"></script>
-<script src="js/home/wechat-chat.js?v=20260407-forwarddetail2"></script>
-    <script src="js/home/wechat-moments.js?v=20260407-forwardfix1"></script>
+<script src="js/home/wechat-chat.js?v=20260407-homefix2"></script>
+    <script src="js/home/wechat-moments.js?v=20260407-homefix2"></script>
 <script src="js/home/data-tools.js"></script>
 <script src="js/home/music-app.js"></script>
 <script src="js/wallet/stock-and-assist.js"></script>
@@ -3892,7 +3893,7 @@
 <script src="js/messaging/sms.js"></script>
 <script src="js/messaging/shura.js"></script>
 <script src="js/messaging/background-notify.js"></script>
-<script src="js/device/check-phone.js"></script>
+<script src="js/05-check-phone.js?v=20260407-checkphonefix3"></script>
 <script src="js/meetlove/meetlove.js"></script>
 <script src="js/meetlove/heart-voice.js"></script>
 <script src="js/meetlove/offline.js?v=20260406-fix2"></script>

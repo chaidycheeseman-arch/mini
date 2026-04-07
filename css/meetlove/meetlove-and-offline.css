@@ -979,6 +979,11 @@
 }
 .offline-header-title::after {
     content: attr(data-subtitle);
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
     margin-top: 6px;
     font-size: 11px;
     font-weight: 300;
@@ -2335,4 +2340,564 @@
 .music-dock-btn {
     width: 62px;
     height: 46px;
+}
+
+/* ====== Gray White Minimal Unified Refresh ====== */
+:root {
+    --bg-main: #f4f6f5;
+    --bg-sub: #ecefef;
+    --panel-bg: rgba(255, 255, 255, 0.96);
+    --widget-bg: rgba(255, 255, 255, 0.88);
+    --surface-1: #ffffff;
+    --surface-2: #f7f8f8;
+    --input-bg: #ffffff;
+    --text-main: #1f2523;
+    --text-sub: #7e8784;
+    --accent: #4cd964;
+    --accent-soft: rgba(76, 217, 100, 0.14);
+    --border: rgba(31, 37, 35, 0.10);
+    --shadow: rgba(20, 24, 23, 0.05);
+    --shadow-strong: rgba(20, 24, 23, 0.10);
+    --line-color: rgba(31, 37, 35, 0.05);
+    --control-bg: #ffffff;
+    --control-border: rgba(31, 37, 35, 0.08);
+    --control-shadow: 0 10px 26px rgba(20, 24, 23, 0.08);
+    --control-text: #1f2523;
+    --control-radius: 16px;
+    --user-bubble-bg: #4cd964;
+    --user-bubble-text: #ffffff;
+    --mini-modal-overlay-bg: rgba(233, 237, 236, 0.62);
+}
+
+html,
+html[data-theme],
+html[data-theme="day"],
+html[data-theme="dopamine"],
+html[data-theme="night"] {
+    color-scheme: light !important;
+}
+
+body {
+    background: linear-gradient(180deg, #f1f3f2 0%, #ecefef 100%) !important;
+    color: var(--text-main) !important;
+}
+
+.phone-shell {
+    background: var(--surface-1) !important;
+}
+
+.phone-screen {
+    background-color: var(--bg-main) !important;
+    background-image:
+        linear-gradient(90deg, var(--line-color) 1px, transparent 1px),
+        linear-gradient(var(--line-color) 1px, transparent 1px),
+        linear-gradient(180deg, var(--bg-main) 0%, var(--bg-sub) 100%) !important;
+    background-size: 26px 26px, 26px 26px, 100% 100% !important;
+}
+
+html[data-theme="night"] body,
+html[data-theme="dopamine"] body,
+html[data-theme="night"] .phone-screen,
+html[data-theme="dopamine"] .phone-screen,
+html[data-theme="night"] .full-app-page,
+html[data-theme="dopamine"] .full-app-page,
+html[data-theme="night"] .app-body,
+html[data-theme="dopamine"] .app-body,
+html[data-theme="night"] #chat-list-container,
+html[data-theme="dopamine"] #chat-list-container,
+html[data-theme="night"] .moments-container,
+html[data-theme="dopamine"] .moments-container,
+html[data-theme="night"] .chat-body,
+html[data-theme="dopamine"] .chat-body {
+    background:
+        linear-gradient(90deg, var(--line-color) 1px, transparent 1px),
+        linear-gradient(var(--line-color) 1px, transparent 1px),
+        linear-gradient(180deg, var(--bg-main) 0%, var(--bg-sub) 100%) !important;
+    background-size: 26px 26px, 26px 26px, 100% 100% !important;
+    color: var(--text-main) !important;
+}
+
+.widget-common,
+.theme-accordion-item,
+.theme-section-body,
+.preset-card,
+.wb-card,
+.me-menu-item,
+.wechat-dock,
+.runtime-debug-card,
+.runtime-log-item,
+.runtime-debug-status-item,
+.chat-swipe-item,
+.chat-emoji-item,
+.wechat-forward-contact-item,
+.voice-storage-item,
+.chat-rollback-item,
+.moments-post-card,
+.moments-compose-card,
+.moments-comment-card,
+.music-song-row,
+.music-playlist-item,
+.music-stat-btn,
+.stock-card,
+.stock-total-card,
+.sms-list-item,
+.ml-user-card,
+.ml-search-bar,
+.ml-tag,
+.ml-card-tag,
+.rp-menu-section {
+    background: var(--surface-1) !important;
+    color: var(--text-main) !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: 0 12px 26px var(--shadow) !important;
+}
+
+.theme-section-body,
+.chat-emoji-item span,
+.mini-voice-card,
+.runtime-debug-status-item,
+.runtime-log-item,
+.wb-tabs,
+.wechat-forward-contact-item.is-selected,
+.moments-comment-card,
+.ml-search-bar,
+.ml-tag,
+.ml-card-tag,
+.stock-total-card::before {
+    background: var(--surface-2) !important;
+}
+
+.app-header,
+.offline-header,
+.music-app-header,
+.dock,
+.music-bottom-dock,
+.ml-dock,
+.rp-action-dock,
+#chat-detail-app .app-header,
+#sms-app .app-header,
+#sms-chat-window .app-header {
+    background: rgba(255, 255, 255, 0.78) !important;
+    border-color: var(--border) !important;
+    box-shadow: 0 10px 24px var(--shadow) !important;
+    backdrop-filter: blur(18px) !important;
+    -webkit-backdrop-filter: blur(18px) !important;
+}
+
+.app-title,
+.theme-section-header span,
+.theme-section-title,
+.settings-group label,
+.preset-header,
+.wb-card-title,
+.theme-icon-container span,
+.sms-list-name,
+.me-name,
+.ml-card-name,
+.wechat-forward-title,
+.moments-comment-title {
+    color: var(--text-main) !important;
+}
+
+.theme-tips,
+.wb-card-content,
+.me-sig,
+.theme-section-arrow,
+.sms-list-preview,
+.sms-list-time,
+.notif-time,
+.notif-text,
+.theme-mode-desc,
+.theme-icon-label,
+.music-header-subtitle,
+.wechat-forward-section-title,
+.voice-storage-tip,
+.chat-rollback-tip,
+.chat-timeline-tip {
+    color: var(--text-sub) !important;
+}
+
+textarea,
+input,
+select,
+.settings-input,
+.tf-desc-input,
+.rp-desc-input,
+.tf-amount-input,
+.rp-amount-input,
+.chat-timeline-travel-row input[type="datetime-local"],
+.chat-timeline-travel-scene,
+.wechat-forward-note-input {
+    background: var(--input-bg) !important;
+    color: var(--text-main) !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: none !important;
+}
+
+textarea::placeholder,
+input::placeholder,
+.settings-input::placeholder,
+.tf-desc-input::placeholder,
+.rp-desc-input::placeholder,
+.tf-amount-input::placeholder,
+.rp-amount-input::placeholder,
+.wechat-forward-note-input::placeholder {
+    color: var(--text-sub) !important;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+    accent-color: var(--accent);
+}
+
+.settings-btn,
+.btn-restore,
+.music-header-btn,
+.music-dock-btn,
+.music-bar-btn,
+.music-stat-btn,
+.music-cover-edit-btn,
+.wallet-grid-icon-btn,
+.emoticon-action-btn,
+.multi-action-btn,
+.moments-compose-media-btn,
+.moments-role-chip,
+.voice-storage-item-btn,
+.chat-rollback-item-btn,
+.chat-timeline-travel-btn,
+.chat-timeline-slot-btn,
+.moments-comment-btn,
+.wechat-forward-send-btn,
+#sms-send-btn,
+#add-bank-card-modal [onclick="confirmAddBankCard()"],
+#offline-manage-modal [onclick="offlineNewChat()"],
+#offline-settings-sidebar [onclick="offlineSaveSettings()"],
+#ml-edit-modal [onclick="mlSaveEditProfile()"],
+#stock-trade-confirm-btn {
+    background: var(--surface-1) !important;
+    border: 1px solid var(--control-border) !important;
+    color: var(--text-main) !important;
+    border-radius: var(--control-radius) !important;
+    box-shadow: var(--control-shadow) !important;
+}
+
+.settings-btn:active,
+.btn-restore:active,
+.music-header-btn:active,
+.music-dock-btn:active,
+.music-bar-btn:active,
+.music-stat-btn:active,
+.music-cover-edit-btn:active,
+.wallet-grid-icon-btn:active,
+.emoticon-action-btn:active,
+.multi-action-btn:active,
+.moments-compose-media-btn:active,
+.moments-role-chip:active,
+.voice-storage-item-btn:active,
+.chat-rollback-item-btn:active,
+.chat-timeline-travel-btn:active,
+.chat-timeline-slot-btn:active,
+.moments-comment-btn:active,
+.wechat-forward-send-btn:active,
+#offline-manage-modal [onclick="offlineNewChat()"]:active,
+#offline-settings-sidebar [onclick="offlineSaveSettings()"]:active,
+#ml-edit-modal [onclick="mlSaveEditProfile()"]:active,
+#stock-trade-confirm-btn:active {
+    transform: scale(0.97);
+    opacity: 0.92;
+}
+
+.settings-btn,
+.btn-restore,
+.offline-send-btn,
+.tf-send-btn,
+.rp-send-btn,
+.wallet-action-btn,
+.moments-compose-submit-btn,
+.moments-comment-btn.primary,
+.wechat-forward-send-btn,
+#sms-send-btn,
+#add-bank-card-modal [onclick="confirmAddBankCard()"],
+.chat-timeline-travel-btn.primary,
+.chat-timeline-slot-btn.primary,
+.chat-rollback-item-btn.primary,
+.voice-storage-item-btn.primary,
+#offline-settings-sidebar [onclick="offlineSaveSettings()"],
+#ml-edit-modal [onclick="mlSaveEditProfile()"],
+#stock-trade-confirm-btn,
+.rp-modal-btn-claim,
+.tf-modal-btn-receive {
+    background: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: #ffffff !important;
+    box-shadow: 0 12px 28px rgba(76, 217, 100, 0.24) !important;
+}
+
+.wallet-action-btn svg,
+.moments-compose-submit-btn svg,
+.wechat-forward-send-btn svg,
+.offline-send-btn svg {
+    stroke: currentColor !important;
+}
+
+.app-header-action,
+.wechat-dock-btn.active,
+.music-dock-btn.active,
+.ml-dock-btn.active,
+.theme-mode-option.active::after,
+.wb-action-icon:hover,
+.moments-post-action.like.active,
+.moments-post-action.star.active {
+    color: var(--accent) !important;
+}
+
+.theme-mode-option,
+.custom-theme-panel {
+    background: var(--surface-1) !important;
+    border-color: var(--border) !important;
+    box-shadow: 0 12px 26px var(--shadow) !important;
+}
+
+.theme-mode-option.active {
+    border-color: var(--accent) !important;
+    box-shadow: 0 16px 32px rgba(76, 217, 100, 0.14) !important;
+}
+
+.settings-switch-slider,
+.wb-card-switch-slider,
+#no-pwd-toggle {
+    background: #d8deda !important;
+}
+
+.settings-switch input:checked + .settings-switch-slider,
+.wb-card-switch input:checked + .wb-card-switch-slider {
+    background: var(--accent) !important;
+}
+
+.settings-slider {
+    background: rgba(76, 217, 100, 0.16) !important;
+}
+
+.settings-slider::-webkit-slider-thumb {
+    background: var(--accent) !important;
+    box-shadow: 0 3px 10px rgba(76, 217, 100, 0.22) !important;
+}
+
+.bank-type-btn {
+    background: var(--surface-1) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-sub) !important;
+    box-shadow: none !important;
+}
+
+.bank-type-btn.active {
+    background: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: #ffffff !important;
+    box-shadow: 0 8px 20px rgba(76, 217, 100, 0.20) !important;
+}
+
+.bank-color-dot {
+    box-shadow: 0 0 0 1px var(--border), 0 8px 18px var(--shadow) !important;
+}
+
+.bank-color-dot.active {
+    box-shadow: 0 0 0 2px rgba(76, 217, 100, 0.26), 0 8px 18px var(--shadow) !important;
+}
+
+#ml-settings-modal [style*="width:42px"][style*="height:24px"][style*="border-radius:12px"] {
+    background: var(--accent) !important;
+}
+
+#ml-settings-modal [style*="color:#e91e63"],
+#ml-settings-modal [style*="color:#aaa"],
+#ml-settings-modal [style*="color:#bbb"],
+#ml-settings-modal [style*="font-size:13px"][style*="font-weight:600"] {
+    color: var(--text-sub) !important;
+}
+
+.msg-left .chat-msg-content,
+.wechat-record-detail-row.msg-left .chat-msg-content,
+.sms-role .sms-bubble,
+.sms-typing-bubble,
+.shura-bubble-left,
+.cp-role-reply-bubble {
+    background: var(--surface-1) !important;
+    color: var(--text-main) !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: none !important;
+}
+
+.msg-right .chat-msg-content,
+.wechat-record-detail-row.msg-right .chat-msg-content,
+.sms-me .sms-bubble,
+.shura-bubble-right {
+    background: var(--user-bubble-bg) !important;
+    color: var(--user-bubble-text) !important;
+    box-shadow: 0 8px 16px rgba(76, 217, 100, 0.18) !important;
+}
+
+.sms-msg-checkbox.checked {
+    background: var(--accent) !important;
+    border-color: var(--accent) !important;
+}
+
+.chat-footer,
+.chat-ext-panel,
+.chat-emoji-panel,
+.offline-footer {
+    background: rgba(255, 255, 255, 0.92) !important;
+    border-color: var(--border) !important;
+    box-shadow: 0 12px 26px var(--shadow) !important;
+}
+
+.chat-ext-icon,
+.music-play-btn,
+.wallet-grid-icon-btn,
+.rp-modal-icon,
+.tf-modal-icon {
+    background: var(--surface-2) !important;
+    color: var(--text-main) !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: none !important;
+}
+
+.music-play-btn svg,
+.app-header-action svg,
+.chat-ext-icon svg,
+.wallet-grid-icon-btn svg {
+    stroke: currentColor !important;
+}
+
+.notif-app-chip,
+.notification-banner[data-source="sms"] .notif-app-chip {
+    color: #1f7a36 !important;
+    background: rgba(76, 217, 100, 0.12) !important;
+}
+
+#sms-app .app-back svg,
+#sms-chat-window .app-back svg {
+    stroke: var(--accent) !important;
+}
+
+[onclick="smsListSelectAll()"],
+[onclick="smsSelectAllMsgs()"] {
+    color: var(--accent) !important;
+}
+
+.notification-banner {
+    background: rgba(255, 255, 255, 0.94) !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: 0 14px 32px var(--shadow) !important;
+}
+
+.rp-call-wrap,
+.ml-action-btn,
+.chat-swipe-pin {
+    background: var(--surface-1) !important;
+    color: var(--text-main) !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: var(--control-shadow) !important;
+}
+
+.rp-chat-wrap,
+.chat-pin-tag {
+    background: var(--accent) !important;
+    color: #ffffff !important;
+    border-color: var(--accent) !important;
+    box-shadow: none !important;
+}
+
+.theme-accordion-item,
+.theme-section-header,
+.theme-section-body,
+.preset-card,
+.moments-comment-card,
+.wechat-forward-contact-item,
+.voice-storage-item,
+.chat-rollback-item,
+.chat-timeline-slot-item,
+.chat-timeline-travel-panel,
+.mini-system-dialog-card {
+    border-color: var(--border) !important;
+}
+
+.mini-modal-overlay {
+    background: var(--mini-modal-overlay-bg) !important;
+    backdrop-filter: blur(18px) saturate(115%) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(115%) !important;
+}
+
+.mini-modal-overlay--center {
+    justify-content: center !important;
+    align-items: center !important;
+}
+
+.mini-modal-overlay--bottom {
+    justify-content: center !important;
+    align-items: flex-end !important;
+}
+
+.mini-modal-card,
+.mini-modal-sheet,
+.mini-side-panel,
+.mini-system-dialog-card {
+    background: rgba(255, 255, 255, 0.98) !important;
+    color: var(--text-main) !important;
+    border: 1px solid rgba(31, 37, 35, 0.08) !important;
+    box-shadow: 0 24px 56px rgba(20, 24, 23, 0.12) !important;
+}
+
+.mini-modal-card,
+.mini-system-dialog-card {
+    border-radius: 28px !important;
+}
+
+.mini-modal-sheet {
+    border-radius: 28px 28px 0 0 !important;
+}
+
+.mini-side-panel {
+    border-left: 1px solid rgba(31, 37, 35, 0.08) !important;
+    box-shadow: -18px 0 42px rgba(20, 24, 23, 0.10) !important;
+}
+
+.rp-modal-close,
+.tf-modal-close,
+.rp-sheet-close,
+.tf-sheet-close,
+.preset-close,
+.wechat-forward-close,
+.voice-storage-close,
+.chat-timeline-close,
+.chat-rollback-close {
+    display: none !important;
+}
+
+.mini-system-dialog-title,
+.mini-system-dialog-message {
+    color: var(--text-main) !important;
+}
+
+.mini-system-dialog-input {
+    background: var(--input-bg) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-main) !important;
+}
+
+.mini-system-dialog-btn {
+    border-radius: 14px !important;
+    border: 1px solid var(--control-border) !important;
+    box-shadow: none !important;
+}
+
+.mini-system-dialog-btn.is-primary {
+    background: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: #ffffff !important;
+}
+
+.mini-system-dialog-btn.is-secondary {
+    background: var(--surface-1) !important;
+    color: var(--text-main) !important;
 }

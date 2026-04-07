@@ -200,7 +200,10 @@
         // 设置顶部联系人名
         var displayName = await _getSmsDisplayName(contact, contact.roleName || '角色姓名');
         document.getElementById('sms-chat-name').textContent = displayName;
-        document.getElementById('sms-chat-sub').textContent = 'TEXT MESSAGE';
+        document.getElementById('sms-chat-sub').textContent =
+            (typeof window.getMiniRolePinyinSubtitle === 'function')
+                ? window.getMiniRolePinyinSubtitle(contact.roleName || displayName, 'TEXT MESSAGE')
+                : 'TEXT MESSAGE';
 
         // 渲染历史消息
         var container = document.getElementById('sms-msg-container');

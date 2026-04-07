@@ -169,6 +169,26 @@
         return String(value).trim();
     }
 
+    function _miniPickText() {
+        for (let i = 0; i < arguments.length; i++) {
+            if (arguments[i] === undefined || arguments[i] === null) continue;
+            const text = String(arguments[i]).trim();
+            if (text) return text;
+        }
+        return '';
+    }
+
+    function getMiniProfileNickname(fallback) {
+        const meNameEl = document.getElementById('text-wechat-me-name');
+        const momentsNickEl = document.getElementById('text-wechat-nick');
+        return _miniPickText(
+            meNameEl && meNameEl.textContent,
+            momentsNickEl && momentsNickEl.textContent,
+            fallback,
+            '我'
+        );
+    }
+
     function _miniSafeMoney(value, fallback) {
         const raw = String(value === undefined || value === null ? '' : value).replace(/[^\d.]/g, '');
         const num = parseFloat(raw);
@@ -191,6 +211,21 @@
             .replace(/>/g, '&gt;');
     }
 
+    // 通用文本转义（供聊天详情/卡片详情等作用域外逻辑复用）
+    function _safeTextHtml(raw) {
+        const normalized = String(raw || '')
+            .replace(/\r\n?/g, '\n')
+            .replace(/[ \t]+\n/g, '\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .replace(/([^\n])\n(?=[^\n])/g, '$1 ');
+        return normalized
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/\n/g, '<br>');
+    }
+
     function _miniNormalizeItems(items, fallbackName, fallbackDesc) {
         const arr = Array.isArray(items) ? items : [];
         const normalized = arr.map(function(item, index) {
@@ -211,6 +246,135 @@
             qty: 1,
             price: ''
         }];
+    }
+
+    function _miniNormalizeForwardSender(sender) {
+        const key = _miniSafeText(sender, '').toLowerCase();
+        if (key === 'me' || key === 'user' || key === 'myprofile') return 'me';
+        return 'role';
+    }
+
+    function _miniStripHtmlText(text) {
+        return String(text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    function _miniCompactText(text, maxLen) {
+        const clean = _miniStripHtmlText(text);
+        const limit = Number(maxLen) > 0 ? Number(maxLen) : 40;
+        if (!clean) return '';
+        return clean.length > limit ? (clean.slice(0, limit) + '…') : clean;
+    }
+
+    function _miniLegacyForwardMessageText(rawMsg) {
+        const msg = rawMsg && typeof rawMsg === 'object' ? rawMsg : {};
+        const type = _miniSafeText(msg.type, 'text');
+        const content = msg.content;
+        switch (type) {
+            case 'text':
+            case 'html':
+                return _miniStripHtmlText(typeof content === 'string' ? content : '');
+            case 'voice':
+                return '[语音] ' + _miniSafeText(content && content.text ? content.text : '', '');
+            case 'image':
+            case 'uploaded_image':
+                return '[图片]' + _miniSafeText(msg.isEmoticon ? msg.emoticonName : '', '');
+            case 'picture_description':
+                return '[图片] ' + _miniSafeText(content && content.description ? content.description : '', '');
+            case 'red_packet':
+                return '[红包] ' + _miniSafeText(content && content.blessing ? content.blessing : '', '');
+            case 'transfer':
+                return '[转账] ¥' + _miniSafeMoney(content && content.amount ? content.amount : '', '0.00');
+            case 'music_share':
+                return '[音乐] ' + _miniSafeText(content && content.title ? content.title : '', '');
+            case 'location_share':
+                return '[位置] ' + _miniSafeText(content && content.name ? content.name : '', '');
+            case 'post_share':
+                return '[分享的帖子]';
+            case 'product_share': {
+                const product = content && typeof content === 'object' ? (content.productDetails || {}) : {};
+                return '[分享的商品] ' + _miniSafeText(product.name, '');
+            }
+            default:
+                if (typeof content === 'string') return _miniStripHtmlText(content);
+                if (content && typeof content === 'object') {
+                    if (content.text) return _miniSafeText(content.text, '');
+                    if (content.description) return _miniSafeText(content.description, '');
+                }
+                return '[' + type + ']';
+        }
+    }
+
+    function _miniNormalizeLegacyForwardBundle(raw) {
+        const legacy = raw && raw.content && typeof raw.content === 'object' ? raw.content : raw;
+        if (!legacy || typeof legacy !== 'object') return null;
+        const participants = legacy.participants && typeof legacy.participants === 'object' ? legacy.participants : {};
+        const messages = (Array.isArray(legacy.messages) ? legacy.messages : []).map(function(item) {
+            const base = item && typeof item === 'object' ? item : {};
+            const senderKey = _miniSafeText(base.sender, '');
+            const profile = participants[senderKey] && typeof participants[senderKey] === 'object'
+                ? participants[senderKey]
+                : null;
+            const speaker = _miniSafeText(profile && profile.name ? profile.name : base.senderName, '');
+            return {
+                sender: _miniNormalizeForwardSender(senderKey),
+                speaker: speaker,
+                content: _miniSafeText(_miniLegacyForwardMessageText(base), '[消息]'),
+                timeStr: _miniSafeText(base.timeStr || base.time, '')
+            };
+        }).filter(function(item) {
+            return !!item.content;
+        });
+
+        let sourceUserName = _miniSafeText(raw.sourceUserName || legacy.sourceUserName, '');
+        if (!sourceUserName) {
+            const userCandidateKeys = ['myprofile', 'user', 'me'];
+            for (let i = 0; i < userCandidateKeys.length; i++) {
+                const profile = participants[userCandidateKeys[i]] && typeof participants[userCandidateKeys[i]] === 'object'
+                    ? participants[userCandidateKeys[i]]
+                    : null;
+                sourceUserName = _miniSafeText(profile && profile.name ? profile.name : '', '');
+                if (sourceUserName) break;
+            }
+        }
+
+        let sourceContactName = _miniSafeText(legacy.sourceContactName || raw.sourceContactName, '');
+        if (!sourceContactName) {
+            const candidateKeys = Object.keys(participants).filter(function(key) {
+                const normalizedKey = String(key || '').toLowerCase();
+                return normalizedKey !== 'user'
+                    && normalizedKey !== 'myprofile'
+                    && normalizedKey !== 'me'
+                    && normalizedKey !== 'system'
+                    && normalizedKey !== 'system_separator';
+            });
+            if (candidateKeys.length === 1) {
+                const candidate = participants[candidateKeys[0]];
+                sourceContactName = _miniSafeText(candidate && candidate.name ? candidate.name : '', '');
+            }
+        }
+        if (!sourceContactName) {
+            sourceContactName = _miniSafeText(legacy.sourceChatName || raw.title, '角色');
+        }
+
+        const previewLines = messages.slice(0, 4).map(function(item) {
+            const speaker = item.speaker || (item.sender === 'me' ? (sourceUserName || '我') : sourceContactName || '对方');
+            return _miniCompactText(speaker + '：' + item.content, 40);
+        }).filter(function(line) {
+            return !!line;
+        });
+
+        return {
+            schema: MINI_PROTOCOL_VERSION,
+            type: 'forward_bundle',
+            title: _miniSafeText(raw.title || legacy.sourceChatName || legacy.title, '聊天记录'),
+            note: _miniSafeText(raw.note || legacy.note, ''),
+            sourceUserName: _miniSafeText(raw.sourceUserName || sourceUserName, sourceUserName || ''),
+            sourceContactId: _miniSafeText(raw.sourceContactId || legacy.sourceContactId, ''),
+            sourceContactName: _miniSafeText(raw.sourceContactName || sourceContactName, sourceContactName || '角色'),
+            favoriteRecordId: _miniSafeText(raw.favoriteRecordId || legacy.favoriteRecordId, ''),
+            previewLines: previewLines,
+            messages: messages
+        };
     }
 
     function normalizeMiniStructuredPayload(raw) {
@@ -296,33 +460,45 @@
             }
             case 'forward':
             case 'forward_bundle': {
-                const previewLines = (Array.isArray(raw.previewLines) ? raw.previewLines : []).map(function(line) {
-                    return _miniSafeText(line, '');
-                }).filter(function(line) {
-                    return !!line;
-                }).slice(0, 4);
                 const messages = (Array.isArray(raw.messages) ? raw.messages : []).map(function(item) {
                     const base = item && typeof item === 'object' ? item : {};
                     return {
-                        sender: _miniSafeText(base.sender, 'role'),
+                        sender: _miniNormalizeForwardSender(base.sender),
+                        speaker: _miniSafeText(base.speaker || base.senderName, ''),
                         content: _miniSafeText(base.content, ''),
                         timeStr: _miniSafeText(base.timeStr, '')
                     };
                 }).filter(function(item) {
                     return !!item.content;
                 });
+                const previewLines = (Array.isArray(raw.previewLines) ? raw.previewLines : []).map(function(line) {
+                    return _miniSafeText(line, '');
+                }).filter(function(line) {
+                    return !!line;
+                }).slice(0, 4);
+                const fallbackPreviewLines = messages.slice(0, 4).map(function(item) {
+                    const speaker = item.speaker || (item.sender === 'me'
+                        ? (_miniSafeText(raw.sourceUserName, '') || '我')
+                        : (_miniSafeText(raw.sourceContactName, '') || '对方'));
+                    return _miniCompactText(speaker + '：' + item.content, 40);
+                }).filter(function(line) {
+                    return !!line;
+                });
                 return {
                     schema: MINI_PROTOCOL_VERSION,
                     type: 'forward_bundle',
                     title: _miniSafeText(raw.title, '聊天记录'),
                     note: _miniSafeText(raw.note, ''),
+                    sourceUserName: _miniSafeText(raw.sourceUserName, ''),
                     sourceContactId: _miniSafeText(raw.sourceContactId, ''),
                     sourceContactName: _miniSafeText(raw.sourceContactName, '角色'),
                     favoriteRecordId: _miniSafeText(raw.favoriteRecordId, ''),
-                    previewLines: previewLines,
+                    previewLines: previewLines.length ? previewLines : fallbackPreviewLines,
                     messages: messages
                 };
             }
+            case 'chat_history_share':
+                return _miniNormalizeLegacyForwardBundle(raw);
             default:
                 return null;
         }
@@ -397,6 +573,158 @@
         tempDiv.innerHTML = safeContent;
         return tempDiv.textContent || tempDiv.innerText || safeContent;
     }
+
+    function normalizeWechatRecordDetailMessages(rawMessages, options) {
+        const opt = options && typeof options === 'object' ? options : {};
+        const meName = _miniSafeText(opt.meName, '我');
+        const peerName = _miniSafeText(opt.peerName, '对方');
+        return (Array.isArray(rawMessages) ? rawMessages : []).map(function(msg, index) {
+            const isMe = !!(msg && msg.sender === 'me');
+            const fallbackSpeaker = isMe ? meName : peerName;
+            const speaker = _miniSafeText(msg && msg.speaker ? msg.speaker : '', fallbackSpeaker) || fallbackSpeaker;
+            const contentText = extractMsgPureText(msg && msg.content ? msg.content : '') || '[消息]';
+            return {
+                index: index,
+                isMe: isMe,
+                speaker: speaker,
+                contentText: contentText,
+                timeStr: _miniSafeText(msg && msg.timeStr ? msg.timeStr : '', '')
+            };
+        }).filter(function(item) {
+            return !!item.contentText;
+        });
+    }
+
+    function buildWechatRecordDetailRowsHtml(normalizedMessages, options) {
+        const opt = options && typeof options === 'object' ? options : {};
+        const myAvatar = getSafeAvatarSrc(opt.myAvatar || '');
+        const peerAvatar = getSafeAvatarSrc(opt.peerAvatar || '');
+        return normalizedMessages.map(function(item) {
+            const avatar = item.isMe ? myAvatar : peerAvatar;
+            const rowClass = item.isMe ? 'msg-right' : 'msg-left';
+            const alignClass = item.isMe ? 'msg-right' : 'msg-left';
+            const timeText = item.timeStr || '时间未记录';
+            return '' +
+                '<div class="chat-msg-row ' + rowClass + ' wechat-record-detail-row">' +
+                    '<div class="chat-msg-avatar"><img src="' + _miniEscapeAttr(avatar) + '" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=\'' + _miniEscapeAttr(DEFAULT_AVATAR_DATA_URI) + '\';"></div>' +
+                    '<div class="wechat-record-detail-bubble-wrap ' + alignClass + '">' +
+                        '<div class="wechat-record-detail-speaker">' + _safeTextHtml(item.speaker) + '</div>' +
+                        '<div class="msg-bubble-wrapper" style="margin-top:0; max-width:100%; flex:0 1 auto;">' +
+                            '<div class="chat-msg-content">' + _safeTextHtml(item.contentText) + '</div>' +
+                            '<div class="chat-timestamp">' + _safeTextHtml(timeText) + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+        }).join('');
+    }
+
+    function renderWechatRecordDetailPage(options) {
+        const opt = options && typeof options === 'object' ? options : {};
+        const titleEl = document.getElementById(opt.titleElementId || '');
+        const bodyEl = document.getElementById(opt.bodyElementId || '');
+        if (!bodyEl) return;
+
+        const meName = _miniSafeText(opt.meName, '我');
+        const peerName = _miniSafeText(opt.peerName, '对方');
+        const heading = _miniSafeText(opt.heading, meName + '和' + peerName + '的聊天记录');
+        const sourceLabel = _miniSafeText(opt.sourceLabel, '聊天记录');
+        const currentSceneLabel = _miniSafeText(opt.currentSceneLabel, '');
+        const currentSceneValue = _miniSafeText(opt.currentSceneValue, '');
+        const recordLabel = _miniSafeText(opt.recordLabel, '');
+        const timelineLabel = _miniSafeText(opt.timelineLabel, '原聊天时间线');
+        const timelineNote = _miniSafeText(opt.timelineNote, '以下内容按原始顺序展示，先看清是谁对谁说的话，再判断关系。');
+        const normalizedMessages = normalizeWechatRecordDetailMessages(opt.messages, {
+            meName: meName,
+            peerName: peerName
+        });
+
+        if (titleEl) titleEl.textContent = heading;
+        if (!normalizedMessages.length) {
+            bodyEl.innerHTML = '<div class="wechat-record-detail-empty">暂无消息</div>';
+            return;
+        }
+
+        const metaRows = [];
+        metaRows.push(['记录来源', sourceLabel]);
+        metaRows.push(['原聊天双方', meName + ' ↔ ' + peerName]);
+        if (currentSceneLabel && currentSceneValue) {
+            metaRows.push([currentSceneLabel, currentSceneValue]);
+        }
+        if (recordLabel && recordLabel !== '聊天记录') {
+            metaRows.push(['记录标题', recordLabel]);
+        }
+        metaRows.push(['消息条数', normalizedMessages.length + ' 条']);
+
+        const metaHtml = metaRows.map(function(entry) {
+            return '' +
+                '<div class="wechat-record-detail-grid-label">' + _safeTextHtml(entry[0]) + '</div>' +
+                '<div class="wechat-record-detail-grid-value">' + _safeTextHtml(entry[1]) + '</div>';
+        }).join('');
+
+        bodyEl.innerHTML = '' +
+            '<div class="wechat-record-detail-card">' +
+                '<div class="wechat-record-detail-kicker">聊天关系</div>' +
+                '<div class="wechat-record-detail-headline">' + _safeTextHtml(heading) + '</div>' +
+                '<div class="wechat-record-detail-grid">' + metaHtml + '</div>' +
+            '</div>' +
+            '<div class="wechat-record-detail-card">' +
+                '<div class="wechat-record-detail-kicker">' + _safeTextHtml(timelineLabel) + '</div>' +
+                '<div class="wechat-record-detail-subtitle">' + _safeTextHtml(timelineNote) + '</div>' +
+            '</div>' +
+            buildWechatRecordDetailRowsHtml(normalizedMessages, {
+                myAvatar: opt.myAvatar || '',
+                peerAvatar: opt.peerAvatar || ''
+            });
+    }
+
+    function buildMiniForwardBundlePromptText(structured, options) {
+        if (!structured || structured.type !== 'forward_bundle') return '';
+        const opt = options && typeof options === 'object' ? options : {};
+        const meName = _miniPickText(opt.meName, getMiniProfileNickname(structured.sourceUserName), '我');
+        const currentRoleName = _miniSafeText(opt.currentRoleName, '角色');
+        const currentRoleId = _miniSafeText(opt.currentRoleId, '');
+        const sourceContactId = _miniSafeText(structured.sourceContactId, '');
+        const sourceContactName = _miniSafeText(structured.sourceContactName, '对方');
+        const cardLabel = _miniSafeText(structured.note || structured.title, '');
+        const sameAsCurrentRole = !!(
+            (currentRoleId && sourceContactId && currentRoleId === sourceContactId) ||
+            (currentRoleName && sourceContactName && currentRoleName === sourceContactName)
+        );
+        const normalizedMessages = normalizeWechatRecordDetailMessages(structured.messages, {
+            meName: meName,
+            peerName: sourceContactName
+        });
+        const timelineText = normalizedMessages.length ? normalizedMessages.map(function(item, index) {
+            const timePrefix = item.timeStr ? ('[' + item.timeStr + '] ') : '';
+            return (index + 1) + '. ' + timePrefix + item.speaker + '：' + item.contentText;
+        }).join('\n') : '暂无可读消息';
+        const relationLine = sameAsCurrentRole
+            ? '这张卡片记录的是你和用户此前的聊天片段，可以视为你们已经发生过的事实。'
+            : '这张卡片记录的是用户与「' + sourceContactName + '」之间的聊天，不是你「' + currentRoleName + '」本人说过的话，绝对不要错认身份。';
+        const taskLine = sameAsCurrentRole
+            ? '用户把你们之前的聊天翻出来给你看。你要先看清时间线，再以当前正在聊天的你来继续回应。'
+            : '用户把这份他与别人之间的聊天记录转给你看。你要先看懂双方关系和时间线，再以当前正在聊天的你表达态度、情绪、判断或追问。';
+        return [
+            '【转发聊天记录卡片】',
+            cardLabel ? ('- 卡片标题：' + cardLabel) : '',
+            '- 当前与你聊天的身份：' + currentRoleName,
+            '- 卡片原聊天双方：' + meName + ' ↔ ' + sourceContactName,
+            '- 关系判断：' + relationLine,
+            '【卡片时间线】',
+            timelineText,
+            '【你的回复任务】',
+            taskLine,
+            '- 你只能以当前身份继续聊天，不能把卡片里另一位角色的话当成自己说过的。',
+            '- 如果卡片内容与当前线上、线下、信息或世界书上下文冲突，以当前系统注入的身份与事实为准。'
+        ].filter(function(line) {
+            return !!line;
+        }).join('\n');
+    }
+
+    window.getMiniContactDisplayName = getMiniContactDisplayName;
+    window.getMiniProfileNickname = getMiniProfileNickname;
+    window.renderWechatRecordDetailPage = renderWechatRecordDetailPage;
+    window.buildMiniForwardBundlePromptText = buildMiniForwardBundlePromptText;
 
     function extractTopLevelJsonObjects(rawText) {
         const text = String(rawText || '');
@@ -631,6 +959,58 @@
             console.warn('读取线上跨模式记忆失败', e);
             return '';
         }
+    }
+
+    async function buildSmsCrossModeMemoryText(contact, ctxLimit, providedMessages) {
+        if (!contact) return '';
+        try {
+            var normalizedLimit = (typeof window.normalizeMiniApiContextLimit === 'function')
+                ? window.normalizeMiniApiContextLimit(ctxLimit, 20)
+                : (function(raw) {
+                    var v = parseInt(raw, 10);
+                    if (!isFinite(v) || isNaN(v)) v = 20;
+                    if (v < 10) v = 10;
+                    if (v > 200) v = 200;
+                    return v;
+                })(ctxLimit);
+            var sourceMessages = Array.isArray(providedMessages) ? providedMessages : [];
+            if (!sourceMessages.length && chatListDb && chatListDb.messages) {
+                sourceMessages = await chatListDb.messages.where('contactId').equals(contact.id).toArray();
+            }
+            var orderedMessages = orderMiniChatMessages(sourceMessages).filter(function(m) {
+                return !!(m && m.source === 'sms' && m.sender !== 'system' && !m.isSystemTip && !m.isRecalled);
+            });
+            var recentSmsMsgs = orderedMessages.slice(-normalizedLimit);
+            if (!recentSmsMsgs.length) return '';
+            var roleName = contact.roleName || '角色';
+            return recentSmsMsgs.map(function(m) {
+                var sender = m.sender === 'me' ? '用户' : roleName;
+                var text = typeof extractMsgPureText === 'function'
+                    ? extractMsgPureText(m.content || '')
+                    : String(m.content || '');
+                text = String(text || '').trim();
+                if (!text) return '';
+                return sender + '：' + text;
+            }).filter(function(line) {
+                return !!line;
+            }).join('\n');
+        } catch (e) {
+            console.warn('读取信息跨模式记忆失败', e);
+            return '';
+        }
+    }
+
+    async function getMiniContactDisplayName(contact, fallbackName) {
+        var name = _miniSafeText(fallbackName || (contact && contact.roleName), '角色');
+        if (!contact || contact.id === undefined || contact.id === null) return name;
+        try {
+            var remark = await localforage.getItem('cd_settings_' + contact.id + '_remark');
+            if (remark && remark !== '未设置') {
+                var cleaned = String(remark).trim();
+                if (cleaned) return cleaned;
+            }
+        } catch (e) {}
+        return name;
     }
 
     async function getContactSummaryHistoryText(contactId) {
@@ -1014,7 +1394,9 @@
                 `;
             } else if (structuredMsg.type === 'forward_bundle') {
                 statusHtml = '';
-                const forwardTitle = structuredMsg.note || structuredMsg.title || '聊天记录';
+                const forwardMeName = getMiniProfileNickname(structuredMsg.sourceUserName || '我');
+                const forwardPeerName = _miniSafeText(structuredMsg.sourceContactName, '对方');
+                const forwardTitle = forwardMeName + '和' + forwardPeerName + '的聊天记录';
                 const forwardPreviewLines = (Array.isArray(structuredMsg.previewLines) ? structuredMsg.previewLines : []).slice(0, 4);
                 const previewHtml = (forwardPreviewLines.length ? forwardPreviewLines : ['聊天记录']).map(function(line) {
                     return '<div class="chat-forward-line">' + _safeTextHtml(line) + '</div>';
@@ -1022,7 +1404,7 @@
                 const encodedMsgId = encodeURIComponent(String(msg.id || ''));
                 msgBodyHtml = `
                     <div class="card-wrapper" data-no-bubble="1">
-                        <div class="chat-forward-card" data-forward-msg-id="${encodedMsgId}" onclick="openWechatForwardCardDetail(this.dataset.forwardMsgId)">
+                        <div class="chat-forward-card" data-forward-msg-id="${encodedMsgId}">
                             <div class="chat-forward-title">${_safeTextHtml(forwardTitle)}</div>
                             <div class="chat-forward-preview">${previewHtml}</div>
                             <div class="chat-forward-divider"></div>
@@ -1238,80 +1620,89 @@
     }
 
     async function openWechatForwardCardDetail(encodedMsgId) {
-        const msgIdRaw = decodeURIComponent(String(encodedMsgId || '').trim());
-        if (!msgIdRaw) return;
-        let msg = await chatListDb.messages.get(msgIdRaw);
-        if (!msg) {
-            const msgIdNum = Number(msgIdRaw);
-            if (Number.isFinite(msgIdNum)) {
-                msg = await chatListDb.messages.get(msgIdNum);
-            }
-        }
-        if (!msg) return;
-        const structured = parseMiniStructuredPayload(msg.content);
-        if (!structured || structured.type !== 'forward_bundle') return;
-
-        let sourceContact = null;
-        if (structured.sourceContactId) {
+        try {
+            let msgIdRaw = String(encodedMsgId || '').trim();
             try {
-                sourceContact = await contactDb.contacts.get(structured.sourceContactId);
-            } catch (e) {
-                sourceContact = null;
+                msgIdRaw = decodeURIComponent(msgIdRaw);
+            } catch (e) {}
+            if (!msgIdRaw) {
+                return;
             }
-        }
+            let msg = await chatListDb.messages.get(msgIdRaw);
+            if (!msg) {
+                const msgIdNum = Number(msgIdRaw);
+                if (Number.isFinite(msgIdNum)) {
+                    msg = await chatListDb.messages.get(msgIdNum);
+                }
+            }
+            if (!msg) {
+                return;
+            }
+            const structured = parseMiniStructuredPayload(msg.content);
+            if (!structured) {
+                return;
+            }
+            if (structured.type !== 'forward_bundle') {
+                return;
+            }
 
-        const myNameEl = document.getElementById('text-wechat-me-name');
-        const meName = myNameEl && myNameEl.textContent ? String(myNameEl.textContent).trim() : '我';
-        const sourceContactName = structured.sourceContactName || (sourceContact && sourceContact.roleName) || '对方';
-        const myAvatar = getSafeAvatarSrc(
-            sourceContact && sourceContact.userAvatar
-                ? sourceContact.userAvatar
-                : (activeChatContact && activeChatContact.userAvatar ? activeChatContact.userAvatar : '')
-        );
-        const roleAvatar = getSafeAvatarSrc(
-            sourceContact && sourceContact.roleAvatar
-                ? sourceContact.roleAvatar
-                : (activeChatContact && activeChatContact.roleAvatar ? activeChatContact.roleAvatar : '')
-        );
+            let sourceContact = null;
+            if (structured.sourceContactId) {
+                try {
+                    sourceContact = await contactDb.contacts.get(structured.sourceContactId);
+                } catch (e) {
+                    sourceContact = null;
+                }
+            }
 
-        const titleEl = document.getElementById('wechat-forward-detail-title');
-        if (titleEl) {
-            titleEl.textContent = structured.note || structured.title || '聊天记录';
-        }
+            const recordMeName = getMiniProfileNickname(structured.sourceUserName || '我');
+            const sourceContactBaseName = structured.sourceContactName || (sourceContact && sourceContact.roleName) || '对方';
+            const sourceContactName = await getMiniContactDisplayName(sourceContact, sourceContactBaseName);
+            const myAvatar = getSafeAvatarSrc(
+                sourceContact && sourceContact.userAvatar
+                    ? sourceContact.userAvatar
+                    : (activeChatContact && activeChatContact.userAvatar ? activeChatContact.userAvatar : '')
+            );
+            const roleAvatar = getSafeAvatarSrc(
+                sourceContact && sourceContact.roleAvatar
+                    ? sourceContact.roleAvatar
+                    : (activeChatContact && activeChatContact.roleAvatar ? activeChatContact.roleAvatar : '')
+            );
 
-        const bodyEl = document.getElementById('wechat-forward-detail-body');
-        if (bodyEl) {
             const rows = Array.isArray(structured.messages) ? structured.messages : [];
-            if (!rows.length) {
-                bodyEl.innerHTML = '<div style="margin-top:108px; text-align:center; color:#bbb; font-size:13px;">暂无消息</div>';
-            } else {
-                bodyEl.innerHTML = rows.map(function(item) {
-                    const isMe = item && item.sender === 'me';
-                    const rowClass = isMe ? 'msg-right' : 'msg-left';
-                    const speaker = isMe ? meName : sourceContactName;
-                    const content = _safeTextHtml(extractMsgPureText(item && item.content ? item.content : '') || '[消息]').replace(/\n/g, '<br>');
-                    const avatar = isMe ? myAvatar : roleAvatar;
-                    const timeStr = _safeTextHtml(item && item.timeStr ? item.timeStr : '');
-                    return '' +
-                        '<div class="chat-msg-row ' + rowClass + '" style="margin-bottom:8px;">' +
-                            '<div class="chat-msg-avatar"><img src="' + _miniEscapeAttr(avatar) + '" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=\'' + _miniEscapeAttr(DEFAULT_AVATAR_DATA_URI) + '\';"></div>' +
-                            '<div style="display:flex; flex-direction:column; ' + (isMe ? 'align-items:flex-end;' : 'align-items:flex-start;') + ' flex:0 1 72%; max-width:72%; min-width:0;">' +
-                                '<div style="font-size:11px; line-height:1.2; color:#8f8f8f; margin:' + (isMe ? '0 2px 4px 0' : '0 0 4px 2px') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">' + _safeTextHtml(speaker) + '</div>' +
-                                '<div class="msg-bubble-wrapper" style="margin-top:0; max-width:100%; flex:0 1 auto;">' +
-                                    '<div class="chat-msg-content">' + content + '</div>' +
-                                    '<div class="chat-timestamp">' + timeStr + '</div>' +
-                                '</div>' +
-                            '</div>' +
-                        '</div>';
-                }).join('');
-            }
-        }
+            const currentChatDisplayName = activeChatContact
+                ? await getMiniContactDisplayName(activeChatContact, activeChatContact.roleName || '角色')
+                : '';
+            const isSameChatRecord = !!(
+                activeChatContact
+                && structured.sourceContactId
+                && String(activeChatContact.id) === String(structured.sourceContactId)
+            );
+            renderWechatRecordDetailPage({
+                titleElementId: 'wechat-forward-detail-title',
+                bodyElementId: 'wechat-forward-detail-body',
+                heading: recordMeName + '和' + sourceContactName + '的聊天记录',
+                sourceLabel: '转发聊天记录',
+                currentSceneLabel: '当前所在会话',
+                currentSceneValue: isSameChatRecord ? '当前会话就是这段原聊天' : (currentChatDisplayName ? (recordMeName + ' ↔ ' + currentChatDisplayName) : ''),
+                recordLabel: structured.note || structured.title || '',
+                messages: rows,
+                meName: recordMeName,
+                peerName: sourceContactName,
+                myAvatar: myAvatar,
+                peerAvatar: roleAvatar
+            });
 
-        if (typeof window.syncWechatOverlayStack === 'function') {
-            window.syncWechatOverlayStack(['wechat-app', 'chat-window', 'wechat-forward-detail-page']);
-        } else {
-            const page = document.getElementById('wechat-forward-detail-page');
-            if (page) page.style.display = 'flex';
+            if (typeof window.syncWechatOverlayStack === 'function') {
+                window.syncWechatOverlayStack(['wechat-app', 'wechat-forward-detail-page']);
+            } else {
+                const page = document.getElementById('wechat-forward-detail-page');
+                if (page) page.style.display = 'flex';
+                const chatWin = document.getElementById('chat-window');
+                if (chatWin) chatWin.style.display = 'none';
+            }
+        } catch (e) {
+            console.error('打开转发聊天记录详情失败', e);
         }
     }
 
@@ -1347,7 +1738,13 @@
             const _remark = await localforage.getItem('cd_settings_' + contact.id + '_remark');
             if (_remark && _remark !== '未设置') _chatDisplayName = _remark;
         } catch(e) {}
-        document.getElementById('chat-current-name').textContent = _chatDisplayName;
+        const chatTitleEl = document.getElementById('chat-current-name');
+        if (chatTitleEl) {
+            chatTitleEl.textContent = _chatDisplayName;
+            if (typeof window.setMiniHeaderFixedSubtitle === 'function') {
+                window.setMiniHeaderFixedSubtitle(chatTitleEl, contact.roleName || _chatDisplayName, 'CHAT');
+            }
+        }
         const container = document.getElementById('chat-msg-container');
         container.innerHTML = ''; 
         try {
