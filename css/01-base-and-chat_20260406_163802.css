@@ -573,10 +573,39 @@
 .theme-section-header:active { background: #fafafa; }
 .theme-section-header span { font-size: 14px; font-weight: 600; color: #444; letter-spacing: 0.8px; display: flex; align-items: center; gap: 8px; }
 .theme-section-header span::before { content: ""; width: 4px; height: 14px; background: #ddd; border-radius: 2px; }
+.theme-accordion-item.theme-icon-lock-preview .theme-section-header span::before,
+.theme-accordion-item.theme-icon-wallpaper .theme-section-header span::before,
+.theme-accordion-item.theme-icon-grid .theme-section-header span::before,
+.theme-accordion-item.theme-icon-font .theme-section-header span::before,
+.theme-accordion-item.theme-icon-page .theme-section-header span::before,
+.theme-accordion-item.theme-icon-css .theme-section-header span::before,
+.theme-accordion-item.theme-icon-mode .theme-section-header span::before,
+.theme-accordion-item.settings-icon-api .theme-section-header span::before,
+.theme-accordion-item.settings-icon-security .theme-section-header span::before,
+.theme-accordion-item.settings-icon-voice .theme-section-header span::before,
+.theme-accordion-item.settings-icon-data .theme-section-header span::before,
+.theme-accordion-item.runtime-debug-entry .theme-section-header span::before {
+    width: 20px;
+    height: 20px;
+    background: center / 18px 18px no-repeat var(--theme-section-icon);
+    border-radius: 0;
+}
 .theme-section-arrow { font-size: 16px; color: #ccc; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-family: initial; }
 .theme-section-body { display: none; padding: 20px 15px; flex-direction: column; align-items: center; background: #fff; border-top: 1px solid #fafafa; border-radius: 0 0 22px 22px; overflow: hidden; }
 .theme-accordion-item.active .theme-section-body { display: flex; }
 .theme-accordion-item.active .theme-section-arrow { transform: rotate(90deg); color: #999; }
+.theme-accordion-item.theme-icon-lock-preview { --theme-section-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c6676' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='9' rx='2.6'/%3E%3Cpath d='M8 11V8.6a4 4 0 0 1 8 0V11'/%3E%3C/svg%3E"); }
+.theme-accordion-item.theme-icon-wallpaper { --theme-section-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c6676' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4.5' y='6' width='15' height='12' rx='2.4'/%3E%3Ccircle cx='9' cy='10' r='1.2'/%3E%3Cpath d='M7 16l3.2-3.2a1 1 0 0 1 1.4 0L14 15l2-2a1 1 0 0 1 1.4 0L19 14.6'/%3E%3C/svg%3E"); }
+.theme-accordion-item.theme-icon-grid { --theme-section-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c6676' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='5' width='5.5' height='5.5' rx='1.4'/%3E%3Crect x='13.5' y='5' width='5.5' height='5.5' rx='1.4'/%3E%3Crect x='5' y='13.5' width='5.5' height='5.5' rx='1.4'/%3E%3Crect x='13.5' y='13.5' width='5.5' height='5.5' rx='1.4'/%3E%3C/svg%3E"); }
+.theme-accordion-item.theme-icon-font { --theme-section-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c6676' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 7h12'/%3E%3Cpath d='M12 7v10'/%3E%3Cpath d='M9 17h6'/%3E%3C/svg%3E"); }
+.theme-accordion-item.theme-icon-page { --theme-section-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c6676' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='5.5' width='14' height='13' rx='2.6'/%3E%3Cpath d='M9 9.5h6'/%3E%3Cpath d='M9 12.5h6'/%3E%3Cpath d='M9 15.5h4'/%3E%3C/svg%3E"); }
+.theme-accordion-item.theme-icon-css { --theme-section-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c6676' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 8l-4 4 4 4'/%3E%3Cpath d='M15 8l4 4-4 4'/%3E%3Cpath d='M13 6l-2 12'/%3E%3C/svg%3E"); }
+.theme-accordion-item.theme-icon-mode { --theme-section-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c6676' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15.8 3.8a7.8 7.8 0 1 0 4.4 14.7A8.8 8.8 0 1 1 15.8 3.8z'/%3E%3Cpath d='M17.2 6.2v2'/%3E%3Cpath d='M16.2 7.2h2'/%3E%3C/svg%3E"); }
+.theme-accordion-item.settings-icon-api { --theme-section-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c6676' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 7.5v4.5'/%3E%3Cpath d='M15 7.5v4.5'/%3E%3Cpath d='M7 10h10'/%3E%3Cpath d='M12 10v8'/%3E%3Cpath d='M9.5 18h5'/%3E%3C/svg%3E"); }
+.theme-accordion-item.settings-icon-security { --theme-section-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c6676' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4l7 3v5c0 4.3-2.9 8-7 9-4.1-1-7-4.7-7-9V7l7-3z'/%3E%3Cpath d='M9.4 12.1l1.8 1.8 3.6-3.6'/%3E%3C/svg%3E"); }
+.theme-accordion-item.settings-icon-voice { --theme-section-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c6676' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4.5a2.8 2.8 0 0 1 2.8 2.8v3.9a2.8 2.8 0 1 1-5.6 0V7.3A2.8 2.8 0 0 1 12 4.5z'/%3E%3Cpath d='M7.5 11.5a4.5 4.5 0 0 0 9 0'/%3E%3Cpath d='M12 16v3.5'/%3E%3Cpath d='M9.5 19.5h5'/%3E%3C/svg%3E"); }
+.theme-accordion-item.settings-icon-data { --theme-section-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c6676' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cellipse cx='12' cy='6.8' rx='6.5' ry='2.8'/%3E%3Cpath d='M5.5 6.8v6.5c0 1.6 2.9 2.9 6.5 2.9s6.5-1.3 6.5-2.9V6.8'/%3E%3Cpath d='M5.5 10.2c0 1.6 2.9 2.9 6.5 2.9s6.5-1.3 6.5-2.9'/%3E%3C/svg%3E"); }
+.theme-accordion-item.runtime-debug-entry { --theme-section-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c6676' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4.5' y='5.5' width='15' height='13' rx='2.4'/%3E%3Cpath d='M8 10l3 2.5L8 15'/%3E%3Cpath d='M13 15h3.5'/%3E%3C/svg%3E"); }
 /* ====== 表情包库专属样式 ====== */
 .emoticon-header-actions { display: flex; gap: 12px; align-items: center; }
 .emoticon-action-btn { font-size: 13px; color: #555; font-weight: 500; cursor: pointer; transition: color 0.2s; display: flex; align-items: center; justify-content: center; background: #fff; border-radius: 12px; padding: 6px 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border: 1px solid #f9f9f9; }
@@ -724,16 +753,26 @@
 /* 输入区 */
 .chat-footer {
     position: absolute; bottom: 30px; left: 20px; right: 20px;
-    height: 52px; background: rgba(255, 255, 255, 0.85);
+    min-height: 46px; height: auto; background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
-    border-radius: 26px; display: flex; align-items: center; padding: 0 6px;
+    border-radius: 24px; display: flex; align-items: flex-end; padding: 4px 6px;
     box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1.5px solid rgba(255,255,255,0.7);
     z-index: 130;
+    overflow: hidden;
 }
-.chat-input-container { flex: 1; height: 100%; display: flex; align-items: center; padding: 0 12px; }
+.chat-input-container { flex: 1; height: auto; min-height: 34px; display: flex; align-items: flex-end; padding: 0 10px; }
 .chat-input-field { 
     width: 100%; border: none; outline: none; font-size: 14px; 
     background: transparent; color: #333;
+    box-sizing: border-box;
+    padding: 6px 0 5px;
+    resize: none;
+    line-height: 20px;
+    height: 31px;
+    min-height: 31px;
+    max-height: 112px;
+    overflow-y: hidden;
+    display: block;
 }
 /* 纯线条风按钮 */
 .icon-btn-line {

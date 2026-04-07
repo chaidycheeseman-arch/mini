@@ -123,7 +123,7 @@
   }
 
   window.forgotPayPwd = async function() {
-    if (await window.showMiniConfirm('确认重置支付密码？')) {
+    if (confirm('确认重置支付密码？')) {
       try { await localforage.removeItem(PAY_PWD_KEY); } catch(e) {}
       _payInput = ''; _payFirst = ''; _payStep = 'set';
       document.getElementById('pay-pwd-title').textContent = '设置新支付密码';
@@ -133,7 +133,13 @@
   };
 
   function showToast(msg) {
-    window.showMiniToast(msg, { bottom: 80, duration: 2000 });
+    if (typeof window.showToast === 'function' && window.showToast !== showToast) { window.showToast(msg); return; }
+    var t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:absolute;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.65);color:#fff;padding:8px 18px;border-radius:20px;font-size:13px;z-index:999;pointer-events:none;white-space:nowrap;';
+    var screen = document.querySelector('.phone-screen');
+    if (screen) screen.appendChild(t);
+    setTimeout(function() { t.remove(); }, 2000);
   }
 })();
 

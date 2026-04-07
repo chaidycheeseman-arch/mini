@@ -36,7 +36,7 @@
     // 压缩数据库中的所有图片数据
     async function compressData() {
         const btn = document.getElementById('btn-compress-data');
-        if (!await window.showMiniConfirm('此操作将对数据库中的所有图片（头像、背景、聊天图片等）进行画质压缩，以大幅减小文件体积防止导出卡死。压缩后画质会有所降低，确定要继续吗？')) return;
+        if (!confirm('此操作将对数据库中的所有图片（头像、背景、聊天图片等）进行画质压缩，以大幅减小文件体积防止导出卡死。压缩后画质会有所降低，确定要继续吗？')) return;
         const originalText = btn.innerText;
         btn.innerText = "正在压缩，请勿进行其他操作...";
         btn.style.pointerEvents = "none";
@@ -287,7 +287,7 @@
         reader.onload = async (e) => {
             try {
                 const data = JSON.parse(e.target.result);
-                if (await window.showMiniConfirm('导入数据将覆盖当前对应的本地数据，确定要继续吗？')) {
+                if (confirm('导入数据将覆盖当前对应的本地数据，确定要继续吗？')) {
                     // 恢复 localforage
                     if (data.localforage) {
                         for (let key in data.localforage) {
@@ -323,8 +323,8 @@
         event.target.value = '';
     }
     async function resetAllData() {
-        if (await window.showMiniConfirm('警告：此操作将永久清空所有设置、聊天记录、世界书等全部数据，且不可恢复！\n确定要继续吗？')) {
-            if (await window.showMiniConfirm('最后一次确认，真的要清空所有数据吗？')) {
+        if (confirm('警告：此操作将永久清空所有设置、聊天记录、世界书等全部数据，且不可恢复！\n确定要继续吗？')) {
+            if (confirm('最后一次确认，真的要清空所有数据吗？')) {
                 try {
                     await localforage.clear();
                     await imgDb.delete();

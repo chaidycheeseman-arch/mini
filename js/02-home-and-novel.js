@@ -249,7 +249,7 @@
             const _isCheckedRecalled = selectedMsgIds.has(msg.id) ? 'checked' : '';
             return `<div class="chat-msg-row msg-system-row" data-id="${msg.id}" data-sender="${msg.sender}" onclick="if(multiSelectMode){toggleMsgCheck(${msg.id})}">
                 <div class="msg-checkbox ${_isCheckedRecalled}" onclick="toggleMsgCheck(${msg.id})"></div>
-                <div class="msg-recalled-tip" style="flex:1;">${name} 撤回了一条消息 <span onclick="event.stopPropagation();viewRecalledMsg(${msg.id})">查看</span></div>
+                <div class="msg-recalled-tip" style="flex:1;">"${name}"撤回了一条消息 <span onclick="event.stopPropagation();viewRecalledMsg(${msg.id})">查看</span></div>
             </div>`;
         }
         // 系统提示消息（红包/转账状态提示等）单独渲染，不走气泡逻辑

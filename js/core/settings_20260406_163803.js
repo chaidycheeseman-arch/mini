@@ -99,6 +99,7 @@
     const ST_MM_LANG = 'miffy_minimax_language';
     const ST_MM_SPEED = 'miffy_minimax_speed';
     const ST_MM_PRESETS = 'miffy_minimax_voice_presets';
+    const ST_MM_LIBRARY = 'miffy_minimax_voice_library';
     const ST_DEVICE_LOCK_ENABLED = 'miffy_device_lock_enabled';
     const ST_DEVICE_LOCK_CODE = 'miffy_device_lock_code';
     const ST_DEVICE_LOCK_WALLPAPER = 'miffy_device_lock_wallpaper';
@@ -111,7 +112,10 @@
         zh: '乖宝~语音连接成功，mini 已正常接入。',
         en: 'Hi there, MiniMax voice connection is working.',
         ja: 'こんにちは、MiniMax 音声接続は正常です。',
-        ko: '안녕하세요, MiniMax 음성 연결이 정상입니다.'
+        ko: '안녕하세요, MiniMax 음성 연결이 정상입니다.',
+        yue: '喂，语音连接成功喇，MiniMax 已经接入好。',
+        fr: 'Salut, la connexion vocale MiniMax fonctionne correctement.',
+        th: 'สวัสดี การเชื่อมต่อเสียง MiniMax ใช้งานได้ปกติแล้ว'
     };
 
     let mmCurrentAudio = null;
@@ -123,6 +127,177 @@
     let deviceLockCode = DEFAULT_DEVICE_LOCK_CODE;
     let deviceLockInput = '';
     let deviceLockClockTimer = null;
+
+    function buildMiniMaxVoiceDefaultName(text) {
+        const cleanText = String(text || '').trim();
+        if (!cleanText) return '未命名语音';
+        return cleanText.length > 18 ? (cleanText.slice(0, 18) + '...') : cleanText;
+    }
+
+    function getMiniMaxVoiceConfigSnapshot(config) {
+        const normalized = normalizeMiniMaxConfig(config || {});
+        return {
+            region: normalized.region,
+            groupId: normalized.groupId,
+            voiceId: normalized.voiceId,
+            language: normalized.language,
+            speed: normalizeMiniMaxSpeed(normalized.speed)
+        };
+    }
+
+    function buildMiniMaxVoiceSignature(text, config) {
+        const cleanText = String(text || '').trim();
+        const normalized = getMiniMaxVoiceConfigSnapshot(config);
+        const raw = [
+            normalized.region,
+            normalized.groupId,
+            normalized.voiceId,
+            normalized.language,
+            normalized.speed.toFixed(1),
+            cleanText
+        ].join('||');
+        let hash = 2166136261;
+        for (let i = 0; i < raw.length; i += 1) {
+            hash ^= raw.charCodeAt(i);
+            hash = Math.imul(hash, 16777619);
+        }
+        return 'mmv_' + (hash >>> 0).toString(16);
+    }
+
+    function normalizeMiniMaxVoiceLibraryItem(item, index) {
+        if (!item || typeof item !== 'object') return null;
+        const text = String(item.text || '').trim();
+        const audioHex = String(item.audioHex || '').trim();
+        if (!text || !audioHex) return null;
+        const snapshot = getMiniMaxVoiceConfigSnapshot(item);
+        const createdAt = Number(item.createdAt) || Date.now() - index;
+        const updatedAt = Number(item.updatedAt) || createdAt;
+        return {
+            id: String(item.id || ('voice_' + createdAt + '_' + index)),
+            name: String(item.name || buildMiniMaxVoiceDefaultName(text)).trim() || buildMiniMaxVoiceDefaultName(text),
+            text: text,
+            audioHex: audioHex,
+            source: String(item.source || 'chat'),
+            signature: String(item.signature || buildMiniMaxVoiceSignature(text, snapshot)),
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            lastPlayedAt: Number(item.lastPlayedAt) || 0,
+            region: snapshot.region,
+            groupId: snapshot.groupId,
+            voiceId: snapshot.voiceId,
+            language: snapshot.language,
+            speed: snapshot.speed
+        };
+    }
+
+    async function getMiniMaxVoiceLibrary() {
+        const raw = await localforage.getItem(ST_MM_LIBRARY);
+        if (!Array.isArray(raw)) return [];
+        return raw.map(function(item, index) {
+            return normalizeMiniMaxVoiceLibraryItem(item, index);
+        }).filter(function(item) {
+            return !!item;
+        }).sort(function(a, b) {
+            return (b.updatedAt || 0) - (a.updatedAt || 0);
+        });
+    }
+
+    async function saveMiniMaxVoiceLibrary(list) {
+        const normalized = Array.isArray(list) ? list.map(function(item, index) {
+            return normalizeMiniMaxVoiceLibraryItem(item, index);
+        }).filter(function(item) {
+            return !!item;
+        }) : [];
+        normalized.sort(function(a, b) {
+            return (b.updatedAt || 0) - (a.updatedAt || 0);
+        });
+        await localforage.setItem(ST_MM_LIBRARY, normalized);
+        await updateMiniMaxVoiceLibraryCount();
+    }
+
+    async function updateMiniMaxVoiceLibraryCount() {
+        const btn = document.getElementById('mm-voice-storage-btn');
+        if (!btn) return;
+        const list = await getMiniMaxVoiceLibrary();
+        btn.textContent = '已储存 ' + list.length;
+        btn.title = '已储存 ' + list.length + ' 条 MiniMax 语音';
+    }
+
+    async function findMiniMaxVoiceLibraryEntry(text, config) {
+        const signature = buildMiniMaxVoiceSignature(text, config);
+        const list = await getMiniMaxVoiceLibrary();
+        return list.find(function(item) {
+            return item.signature === signature;
+        }) || null;
+    }
+
+    async function upsertMiniMaxVoiceLibraryEntry(text, audioHex, config, source) {
+        const cleanText = String(text || '').trim();
+        const cleanAudioHex = String(audioHex || '').trim();
+        if (!cleanText || !cleanAudioHex) return null;
+        const list = await getMiniMaxVoiceLibrary();
+        const signature = buildMiniMaxVoiceSignature(cleanText, config);
+        const snapshot = getMiniMaxVoiceConfigSnapshot(config);
+        const now = Date.now();
+        let item = list.find(function(entry) {
+            return entry.signature === signature;
+        });
+        if (item) {
+            item.text = cleanText;
+            item.audioHex = cleanAudioHex;
+            item.updatedAt = now;
+            item.source = source || item.source || 'chat';
+            item.region = snapshot.region;
+            item.groupId = snapshot.groupId;
+            item.voiceId = snapshot.voiceId;
+            item.language = snapshot.language;
+            item.speed = snapshot.speed;
+            if (!item.name) item.name = buildMiniMaxVoiceDefaultName(cleanText);
+        } else {
+            item = {
+                id: 'voice_' + now + '_' + Math.random().toString(16).slice(2, 8),
+                name: buildMiniMaxVoiceDefaultName(cleanText),
+                text: cleanText,
+                audioHex: cleanAudioHex,
+                source: source || 'chat',
+                signature: signature,
+                createdAt: now,
+                updatedAt: now,
+                lastPlayedAt: 0,
+                region: snapshot.region,
+                groupId: snapshot.groupId,
+                voiceId: snapshot.voiceId,
+                language: snapshot.language,
+                speed: snapshot.speed
+            };
+            list.unshift(item);
+        }
+        await saveMiniMaxVoiceLibrary(list);
+        return item;
+    }
+
+    async function touchMiniMaxVoiceLibraryEntry(id) {
+        if (!id) return;
+        const list = await getMiniMaxVoiceLibrary();
+        const item = list.find(function(entry) {
+            return entry.id === id;
+        });
+        if (!item) return;
+        item.lastPlayedAt = Date.now();
+        item.updatedAt = item.lastPlayedAt;
+        await saveMiniMaxVoiceLibrary(list);
+    }
+
+    function formatMiniMaxVoiceLibraryTime(timestamp) {
+        const time = Number(timestamp);
+        if (!time) return '未知时间';
+        const date = new Date(time);
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hour = String(date.getHours()).padStart(2, '0');
+        const minute = String(date.getMinutes()).padStart(2, '0');
+        return month + '-' + day + ' ' + hour + ':' + minute;
+    }
 
     function readLiteStorage(key) {
         try {
@@ -440,9 +615,6 @@
         if (firstAccordion && firstAccordion !== securitySection) {
             settingsBody.insertBefore(securitySection, firstAccordion);
         }
-        if (!settingsBody.querySelector('.theme-accordion-item.active')) {
-            securitySection.classList.add('active');
-        }
     }
 
     async function ensureDeviceLockDefaults() {
@@ -569,9 +741,34 @@
     window.deviceLockCancelPasscode = deviceLockCancelPasscode;
 
     function normalizeMiniMaxLanguage(lang) {
-        const val = (lang || '').toLowerCase();
-        if (val === 'en' || val === 'ja' || val === 'ko') return val;
-        return 'zh';
+        const raw = String(lang || '').trim();
+        const val = raw.toLowerCase();
+        const aliasMap = {
+            zh: 'zh',
+            cn: 'zh',
+            '中': 'zh',
+            en: 'en',
+            english: 'en',
+            '英': 'en',
+            ja: 'ja',
+            jp: 'ja',
+            japanese: 'ja',
+            '日': 'ja',
+            ko: 'ko',
+            kr: 'ko',
+            korean: 'ko',
+            '韩': 'ko',
+            yue: 'yue',
+            cantonese: 'yue',
+            '粤': 'yue',
+            fr: 'fr',
+            french: 'fr',
+            '法': 'fr',
+            th: 'th',
+            thai: 'th',
+            '泰': 'th'
+        };
+        return aliasMap[val] || aliasMap[raw] || 'zh';
     }
 
     function normalizeMiniMaxSpeed(raw) {
@@ -654,6 +851,116 @@
         await localforage.setItem(ST_MM_VOICE, mmConfig.voiceId);
         await localforage.setItem(ST_MM_LANG, mmConfig.language);
         await localforage.setItem(ST_MM_SPEED, mmConfig.speed);
+    }
+
+    async function renderMiniMaxVoiceLibrary() {
+        const listEl = document.getElementById('voice-storage-list');
+        if (!listEl) return;
+        const library = await getMiniMaxVoiceLibrary();
+        listEl.innerHTML = '';
+        if (!library.length) {
+            listEl.innerHTML = '<div class="voice-storage-empty">还没有已生成并保存的语音。</div>';
+            return;
+        }
+        library.forEach(function(item) {
+            const card = document.createElement('div');
+            card.className = 'voice-storage-item';
+
+            const head = document.createElement('div');
+            head.className = 'voice-storage-item-head';
+
+            const title = document.createElement('div');
+            title.className = 'voice-storage-item-title';
+            title.textContent = item.name || buildMiniMaxVoiceDefaultName(item.text);
+
+            const meta = document.createElement('div');
+            meta.className = 'voice-storage-item-meta';
+            meta.textContent = formatMiniMaxVoiceLibraryTime(item.updatedAt || item.createdAt);
+
+            head.appendChild(title);
+            head.appendChild(meta);
+
+            const preview = document.createElement('div');
+            preview.className = 'voice-storage-item-preview';
+            preview.textContent = item.text;
+
+            const extra = document.createElement('div');
+            extra.className = 'voice-storage-item-meta';
+            extra.style.marginTop = '8px';
+            extra.textContent = '音色 ' + (item.voiceId || '未命名') + ' · ' + (item.language || 'zh') + ' · 语速 ' + normalizeMiniMaxSpeed(item.speed).toFixed(1);
+
+            const actions = document.createElement('div');
+            actions.className = 'voice-storage-item-actions';
+
+            const playBtn = document.createElement('button');
+            playBtn.type = 'button';
+            playBtn.className = 'voice-storage-item-btn primary';
+            playBtn.textContent = '播放';
+            playBtn.addEventListener('click', async function() {
+                try {
+                    await playMiniMaxHexAudio(item.audioHex, null);
+                    await touchMiniMaxVoiceLibraryEntry(item.id);
+                    await renderMiniMaxVoiceLibrary();
+                } catch (e) {
+                    alert('播放失败：' + (e && e.message ? e.message : '未知错误'));
+                }
+            });
+
+            const renameBtn = document.createElement('button');
+            renameBtn.type = 'button';
+            renameBtn.className = 'voice-storage-item-btn';
+            renameBtn.textContent = '重命名';
+            renameBtn.addEventListener('click', async function() {
+                const nextName = prompt('请输入新的语音名称：', item.name || buildMiniMaxVoiceDefaultName(item.text));
+                if (!nextName || !nextName.trim()) return;
+                const libraryList = await getMiniMaxVoiceLibrary();
+                const target = libraryList.find(function(entry) {
+                    return entry.id === item.id;
+                });
+                if (!target) return;
+                target.name = nextName.trim();
+                target.updatedAt = Date.now();
+                await saveMiniMaxVoiceLibrary(libraryList);
+                await renderMiniMaxVoiceLibrary();
+            });
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'voice-storage-item-btn danger';
+            deleteBtn.textContent = '删除';
+            deleteBtn.addEventListener('click', async function() {
+                if (!confirm('确定删除这条已保存的语音吗？')) return;
+                const libraryList = await getMiniMaxVoiceLibrary();
+                await saveMiniMaxVoiceLibrary(libraryList.filter(function(entry) {
+                    return entry.id !== item.id;
+                }));
+                await renderMiniMaxVoiceLibrary();
+            });
+
+            actions.appendChild(playBtn);
+            actions.appendChild(renameBtn);
+            actions.appendChild(deleteBtn);
+
+            card.appendChild(head);
+            card.appendChild(preview);
+            card.appendChild(extra);
+            card.appendChild(actions);
+            listEl.appendChild(card);
+        });
+    }
+
+    async function openMiniMaxVoiceLibraryModal() {
+        const modal = document.getElementById('voice-storage-modal');
+        if (!modal) return;
+        await updateMiniMaxVoiceLibraryCount();
+        await renderMiniMaxVoiceLibrary();
+        modal.style.display = 'flex';
+    }
+
+    function closeMiniMaxVoiceLibraryModal() {
+        const modal = document.getElementById('voice-storage-modal');
+        if (modal) modal.style.display = 'none';
+        stopMiniMaxAudioPlayback(false);
     }
 
     async function requestMiniMaxVoiceHex(text, config) {
@@ -768,9 +1075,18 @@
         const config = await getMiniMaxStoredConfig();
         if (!config.apiKey || !config.groupId || !config.voiceId) return;
         try {
+            const cachedEntry = await findMiniMaxVoiceLibraryEntry(cleanText, config);
+            if (cachedEntry && cachedEntry.audioHex) {
+                if (requestId !== mmVoiceRequestSeq) return;
+                if (voiceElement && !voiceElement.classList.contains('expanded')) return;
+                await playMiniMaxHexAudio(cachedEntry.audioHex, voiceElement || null);
+                await touchMiniMaxVoiceLibraryEntry(cachedEntry.id);
+                return;
+            }
             const audioHex = await synthesizeMiniMaxVoice(cleanText, config);
             if (requestId !== mmVoiceRequestSeq) return;
             if (voiceElement && !voiceElement.classList.contains('expanded')) return;
+            await upsertMiniMaxVoiceLibraryEntry(cleanText, audioHex, config, 'chat');
             await playMiniMaxHexAudio(audioHex, voiceElement || null);
         } catch (e) {
             if (voiceElement) {
@@ -794,6 +1110,7 @@
             const config = getMiniMaxInputsConfig();
             const testText = getMiniMaxTestTextByLanguage(config.language);
             const audioHex = await synthesizeMiniMaxVoice(testText, config);
+            await upsertMiniMaxVoiceLibraryEntry(testText, audioHex, config, 'test');
             showMiniMaxTestTip(testText, false);
             await playMiniMaxHexAudio(audioHex, null);
         } catch (e) {
@@ -811,6 +1128,8 @@
     window.stopMiniMaxAudioPlayback = stopMiniMaxAudioPlayback;
     window.playMiniMaxVoiceFromText = playMiniMaxVoiceFromText;
     window.getMiniMaxStoredConfig = getMiniMaxStoredConfig;
+    window.openMiniMaxVoiceLibraryModal = openMiniMaxVoiceLibraryModal;
+    window.closeMiniMaxVoiceLibraryModal = closeMiniMaxVoiceLibraryModal;
 
     const settingsBtn = document.getElementById('dock-btn-settings');
     const settingsApp = document.getElementById('settings-app');
@@ -818,6 +1137,9 @@
         settingsBtn.addEventListener('click', async (e) => {
             e.stopPropagation();
             await loadSettingsToUI();
+            if (typeof window.collapseThemeAccordions === 'function') {
+                window.collapseThemeAccordions();
+            }
             settingsApp.style.display = 'flex';
         });
     }
@@ -857,6 +1179,7 @@
         if (speedEl) speedEl.value = normalizeMiniMaxSpeed(mmConfig.speed).toFixed(1);
         updateMiniMaxSpeedDisplay(mmConfig.speed);
         showMiniMaxTestTip('', false);
+        await updateMiniMaxVoiceLibraryCount();
         await loadDeviceSecuritySettingsUI();
         if (window.miniRuntimeLog && typeof window.miniRuntimeLog.render === 'function') {
             await window.miniRuntimeLog.render();
@@ -1083,6 +1406,9 @@
                 updateMiniMaxSpeedDisplay(this.value);
             });
         }
+        updateMiniMaxVoiceLibraryCount().catch(function(err) {
+            console.error('读取 MiniMax 语音库存数量失败', err);
+        });
         initDeviceLock().catch(function(err) {
             console.error('初始化设备锁屏失败', err);
         });

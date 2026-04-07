@@ -416,7 +416,12 @@ function _renderBills() {
 
     // ---- 简单 Toast ----
     function _showSimpleToast(msg) {
-        window.showMiniToast(msg, { bottom: 90, duration: 2200 });
+        var t = document.createElement('div');
+        t.textContent = msg;
+        t.style.cssText = 'position:absolute;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.65);color:#fff;padding:8px 18px;border-radius:20px;font-size:13px;z-index:9999;pointer-events:none;white-space:nowrap;';
+        var screen = document.querySelector('.phone-screen');
+        if (screen) screen.appendChild(t);
+        setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 2200);
     }
 })();
 
