@@ -23,10 +23,10 @@
                 });
             if (allContacts.length === 0) {
                 listContainer.innerHTML = `
-                    <div style="margin-top: 12px; padding: 24px 20px; width: 100%; background: #fff; border-radius: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.03); text-align: center;">
-                        <div style="font-size: 14px; font-weight: 600; color: #444;">还没有联系人</div>
-                        <div style="margin-top: 8px; font-size: 12px; color: #aaa; line-height: 1.6;">先添加一个角色，WeChat 和信息页才能正常开始聊天。</div>
-                        <div onclick="openContactEditor()" style="margin: 18px auto 0; width: fit-content; min-width: 132px; height: 40px; padding: 0 18px; border-radius: 20px; background: #f5f5f7; color: #555; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                    <div style="margin-top:12px;padding:24px 20px;width:100%;background:var(--surface-1);border:1px solid var(--border);border-radius:20px;box-shadow:0 10px 26px var(--shadow);text-align:center;">
+                        <div style="font-size:14px;font-weight:600;color:var(--text-main);">还没有联系人</div>
+                        <div style="margin-top:8px;font-size:12px;color:var(--text-sub);line-height:1.6;">先添加一个角色，WeChat 和信息页才能正常开始聊天。</div>
+                        <div onclick="openContactEditor()" style="margin:18px auto 0;width:fit-content;min-width:132px;height:40px;padding:0 18px;border-radius:20px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-main);font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer;">
                             + 添加联系人
                         </div>
                     </div>
@@ -35,33 +35,33 @@
             }
             if (contacts.length === 0) {
                 listContainer.innerHTML = `
-                    <div style="margin-top: 12px; padding: 24px 20px; width: 100%; background: #fff; border-radius: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.03); text-align: center;">
-                        <div style="font-size: 14px; font-weight: 600; color: #444;">${activeGroupFilter} 分组暂无联系人</div>
-                        <div style="margin-top: 8px; font-size: 12px; color: #aaa; line-height: 1.6;">切换上方分组，或者给联系人设置为这个分组。</div>
+                    <div style="margin-top:12px;padding:24px 20px;width:100%;background:var(--surface-1);border:1px solid var(--border);border-radius:20px;box-shadow:0 10px 26px var(--shadow);text-align:center;">
+                        <div style="font-size:14px;font-weight:600;color:var(--text-main);">${activeGroupFilter} 分组暂无联系人</div>
+                        <div style="margin-top:8px;font-size:12px;color:var(--text-sub);line-height:1.6;">切换上方分组，或者给联系人设置为这个分组。</div>
                     </div>
                 `;
                 return;
             }
             contacts.forEach(c => {
                 const item = document.createElement('div');
-                item.style.cssText = 'width:100%; min-width:0; box-sizing:border-box; background:#fff; border-radius:16px; padding:14px; box-shadow:0 2px 10px rgba(0,0,0,0.02); display:flex; align-items:center; justify-content:space-between;';
-                let avatarHtml = c.roleAvatar ? `<img src="${c.roleAvatar}" style="width: 100%; height: 100%; object-fit: cover;" loading="lazy" decoding="async">` : `<span style="color: #ccc; font-size: 12px;">无</span>`;
+                item.style.cssText = 'width:100%;min-width:0;box-sizing:border-box;background:var(--surface-1);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 10px 26px var(--shadow);display:flex;align-items:center;justify-content:space-between;';
+                let avatarHtml = c.roleAvatar ? `<img src="${c.roleAvatar}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" decoding="async">` : `<span style="color:var(--text-sub);font-size:12px;">无</span>`;
                 item.innerHTML = `
-                    <div style="display: flex; align-items: center; gap: 12px; flex: 1; overflow: hidden;">
-                        <div style="width: 45px; height: 45px; border-radius: 50%; background: #fdfdfd; border: 1px solid #f0f0f0; overflow: hidden; flex-shrink: 0; display: flex; justify-content: center; align-items: center;">
+                    <div style="display:flex;align-items:center;gap:12px;flex:1;overflow:hidden;">
+                        <div style="width:45px;height:45px;border-radius:50%;background:var(--surface-2);border:1px solid var(--border);overflow:hidden;flex-shrink:0;display:flex;justify-content:center;align-items:center;">
                             ${avatarHtml}
                         </div>
-                        <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 5px;">
-                            <div style="font-size: 15px; font-weight: 600; color: #333; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                        <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:5px;">
+                            <div style="font-size:15px;font-weight:600;color:var(--text-main);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                                 <span>${c.roleName || '未命名'}</span>
-                                <span style="font-size: 10px; color: #777; font-weight: normal; background: #eef2f5; padding: 2px 6px; border-radius: 8px;">${c.roleGender || '男'}</span>
-                                <span style="font-size: 10px; color: #777; font-weight: normal; background: #f5f0ee; padding: 2px 6px; border-radius: 8px;">${c.roleLanguage || '中'}</span>
-                                <span style="font-size: 10px; color: #999; font-weight: normal; background: #f5f5f5; padding: 2px 6px; border-radius: 8px;">${c.roleGroup || 'ALL'}</span>
+                                <span style="font-size:10px;color:var(--text-sub);font-weight:normal;background:var(--surface-2);padding:2px 6px;border-radius:8px;border:1px solid var(--border);">${c.roleGender || '男'}</span>
+                                <span style="font-size:10px;color:var(--text-sub);font-weight:normal;background:var(--surface-2);padding:2px 6px;border-radius:8px;border:1px solid var(--border);">${c.roleLanguage || '中'}</span>
+                                <span style="font-size:10px;color:var(--text-sub);font-weight:normal;background:var(--surface-2);padding:2px 6px;border-radius:8px;border:1px solid var(--border);">${c.roleGroup || 'ALL'}</span>
                             </div>
-                            <div style="font-size: 12px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.roleDetail || '暂无设定'}</div>
+                            <div style="font-size:12px;color:var(--text-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${c.roleDetail || '暂无设定'}</div>
                         </div>
                     </div>
-                    <div style="display: flex; gap: 12px; flex-shrink: 0; margin-left: 10px;">
+                    <div style="display:flex;gap:12px;flex-shrink:0;margin-left:10px;">
                         <div class="wb-action-icon" onclick="openContactEditor('${c.id}')">
                             <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                         </div>
@@ -399,7 +399,7 @@ document.getElementById('contact-edit-id').value = '';
             let chats = await chatListDb.chats.toArray();
             if (renderToken !== chatListRenderToken) return;
             if (chats.length === 0) {
-                container.innerHTML = '<div id="no-msg-tip" style="color:#bbb; font-size:13px; margin-top:100px; text-align:center;">暂无新消息</div>';
+                container.innerHTML = '<div id="no-msg-tip" style="color:var(--text-sub);font-size:13px;margin-top:100px;text-align:center;">暂无新消息</div>';
                 return;
             }
             // 置顶的排前面，其余保持原始顺序（倒序）
@@ -433,7 +433,7 @@ document.getElementById('contact-edit-id').value = '';
                 const isPinned = !!chat.pinned;
                 let avatarHtml = contact.roleAvatar
                     ? `<img src="${contact.roleAvatar}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" decoding="async">`
-                    : `<span style="color:#ccc;font-size:12px;">无</span>`;
+                    : `<span style="color:var(--text-sub);font-size:12px;">无</span>`;
 
                 // 外层滑动容器
                 const wrapper = document.createElement('div');
@@ -451,6 +451,11 @@ document.getElementById('contact-edit-id').value = '';
                     </div>
                     <div class="chat-swipe-btn chat-swipe-delete" onclick="deleteChatItem('${chat.id}', this)"><span>删除</span></div>
                 `;
+                ['mousedown', 'mouseup', 'click', 'touchstart', 'touchend'].forEach(eventName => {
+                    actions.addEventListener(eventName, function(e) {
+                        e.stopPropagation();
+                    });
+                });
 
                 // 主内容区
                 const item = document.createElement('div');
@@ -462,20 +467,20 @@ document.getElementById('contact-edit-id').value = '';
                     const remark = await localforage.getItem('cd_settings_' + contact.id + '_remark');
                     if (remark && remark !== '未设置') displayName = remark;
                 } catch(e) {}
-                const blockedTag = contact.blocked ? '<span style="font-size:10px;color:#e74c3c;font-weight:600;background:#fff0f0;padding:1px 5px;border-radius:6px;margin-left:4px;">[已拉黑]</span>' : '';
+                const blockedTag = contact.blocked ? '<span style="font-size:10px;color:#ff7d7d;font-weight:600;background:rgba(255,125,125,0.12);padding:1px 5px;border-radius:6px;margin-left:4px;border:1px solid rgba(255,125,125,0.18);">[已拉黑]</span>' : '';
                 item.innerHTML = `
-                    <div style="width:45px;height:45px;border-radius:50%;background:#fdfdfd;border:1px solid #f0f0f0;overflow:hidden;flex-shrink:0;display:flex;justify-content:center;align-items:center;">
+                    <div style="width:45px;height:45px;border-radius:50%;background:var(--surface-2);border:1px solid var(--border);overflow:hidden;flex-shrink:0;display:flex;justify-content:center;align-items:center;">
                         ${avatarHtml}
                     </div>
                     <div style="flex:1;margin-left:12px;display:flex;flex-direction:column;justify-content:center;overflow:hidden;">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
                             <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
                                 ${isPinned ? '<span class="chat-pin-tag">置顶</span>' : ''}
-                                <span style="font-size:15px;font-weight:600;color:#333;">${displayName}</span>${blockedTag}
+                                <span style="font-size:15px;font-weight:600;color:var(--text-main);">${displayName}</span>${blockedTag}
                             </div>
-                            <span style="font-size:11px;color:#999;flex-shrink:0;">${chat.lastTime || ''}</span>
+                            <span style="font-size:11px;color:var(--text-sub);flex-shrink:0;">${chat.lastTime || ''}</span>
                         </div>
-                        <span style="font-size:12px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${lastMsgText}</span>
+                        <span style="font-size:12px;color:var(--text-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${lastMsgText}</span>
                     </div>
                 `;
                 item.onclick = () => enterChatWindow(contact.id);
@@ -490,7 +495,7 @@ document.getElementById('contact-edit-id').value = '';
 
             if (renderToken !== chatListRenderToken) return;
             if (!fragment.childNodes.length) {
-                container.innerHTML = '<div id="no-msg-tip" style="color:#bbb;font-size:13px;margin-top:100px;text-align:center;">暂无新消息</div>';
+                container.innerHTML = '<div id="no-msg-tip" style="color:var(--text-sub);font-size:13px;margin-top:100px;text-align:center;">暂无新消息</div>';
                 return;
             }
             container.replaceChildren(fragment);

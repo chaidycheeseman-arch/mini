@@ -155,6 +155,11 @@
 }
 
 /* ====== 查手机：虚拟手机外壳样式 ====== */
+#checkphone-app {
+    padding: 22px 18px;
+    box-sizing: border-box;
+}
+
 .cp-phone-shell {
     width: 90vw;
     max-width: 340px;
@@ -202,6 +207,29 @@
     height: 4px;
     background: rgba(255,255,255,0.3);
     border-radius: 2px;
+}
+
+@media (max-width: 499px) {
+    #checkphone-app {
+        padding: 10px;
+    }
+
+    .cp-phone-shell {
+        width: 100%;
+        max-width: none;
+        height: 100%;
+        max-height: none;
+        border-radius: 40px;
+        padding: 9px;
+    }
+
+    .cp-phone-screen {
+        border-radius: 31px;
+    }
+
+    .cp-home-indicator {
+        bottom: 7px;
+    }
 }
 
 .device-lock-overlay {

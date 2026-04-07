@@ -15,7 +15,6 @@
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 22px 12px;position:sticky;top:20px;background:#fff;z-index:2;border-bottom:1px solid #f5f5f5;">
             <div style="font-size:17px;font-weight:700;color:#222;">编辑资料</div>
-            <div onclick="mlCloseEditModal()" style="color:#bbb;font-size:24px;cursor:pointer;line-height:1;font-weight:300;">×</div>
         </div>
         <div style="padding:16px 22px 24px;display:flex;flex-direction:column;gap:14px;">
             <div>

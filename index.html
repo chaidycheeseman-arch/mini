@@ -7,11 +7,11 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
     <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dexie@3/dist/dexie.min.js"></script>
-    <link rel="stylesheet" href="css/core/base-and-chat.css?v=20260407-homefix2">
+    <link rel="stylesheet" href="css/core/base-and-chat.css?v=20260407-homefix6">
     <link rel="stylesheet" href="css/wallet/wallet-and-payment.css">
     <link rel="stylesheet" href="css/chat/profile-and-chat-detail.css">
-    <link rel="stylesheet" href="css/device/sms-and-check-phone.css">
-    <link rel="stylesheet" href="css/meetlove/meetlove-and-offline.css?v=20260407-grayui1">
+    <link rel="stylesheet" href="css/device/sms-and-check-phone.css?v=20260407-checkphonefix4">
+    <link rel="stylesheet" href="css/meetlove/meetlove-and-offline.css?v=20260407-musictheme2">
     <style>
         /* 性能优化：页面加载时手机壳先隐藏，等JS恢复完成后再显示，防止图标/壁纸闪烁 */
         .phone-shell { opacity: 0; transition: opacity 0.25s ease; }
@@ -35,7 +35,7 @@
                 if (scale) {
                     var val = parseFloat(scale);
                     if (val && val >= 50 && val <= 150) {
-                        document.documentElement.style.zoom = val / 100;
+                        document.documentElement.style.setProperty('--ui-scale', String(val / 100));
                     }
                 }
             } catch(e) {}
@@ -156,12 +156,12 @@
                             <div class="home-hero-avatar editable" id="hero-avatar">
                                 <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async">
                             </div>
-                            <div class="home-hero-name editable-text" id="text-hero-name">兔兔丸</div>
-                            <div class="home-hero-id editable-text" id="text-hero-id">ID: miffy-0206</div>
-                            <div class="home-hero-sign editable-text" id="text-hero-sign">喜欢风、花与温柔慢节奏</div>
-                            <div class="home-hero-loc editable-text" id="text-hero-loc">
+                            <div class="home-hero-name editable-text" id="text-hero-name" data-edit-label="请输入新内容：" data-edit-placeholder="编辑昵称">编辑昵称</div>
+                            <div class="home-hero-id editable-text" id="text-hero-id" data-edit-label="请输入新内容：" data-edit-placeholder="编辑ID">编辑ID</div>
+                            <div class="home-hero-sign editable-text" id="text-hero-sign" data-edit-label="请输入新内容：" data-edit-placeholder="编辑签名">编辑签名</div>
+                            <div class="home-hero-loc editable-text" id="text-hero-loc" data-edit-label="请输入新内容：" data-edit-placeholder="编辑定位" data-edit-text-selector="span">
                                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                                <span>北京·朝阳</span>
+                                <span>编辑定位</span>
                             </div>
                         </div>
                     </div>
@@ -179,7 +179,7 @@
                             </div>
                             <!-- 文字区 -->
                             <div style="display: flex; flex-direction: column; width: 100%; margin-top: 2px;">
-                                <div class="editable-text" id="text-sq-name" style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 2px;">Angélica な</div>
+                                <div class="editable-text" id="text-sq-name" data-edit-label="请输入新内容：" data-edit-placeholder="编辑昵称" style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 2px;">编辑昵称</div>
                                 <div class="editable-text" id="text-sq-deco" style="font-size: 10px; color: #aaa; margin-bottom: 3px; letter-spacing: 1px;">⋆⁺₊⋆ ☾⋆⁺₊⋆ ☁︎</div>
                                 <div class="editable-text" id="text-sq-en" style="font-size: 10px; color: #888; line-height: 1.2;">I miss those days when we were happy</div>
                             </div>
@@ -237,16 +237,16 @@
                 <div class="page-content">
                     <div class="top-music-bar">
                         <div class="music-title-pill editable-text" id="text-music">Baby Song ıılılıl..* ☆ * . .</div>
-                        <div class="music-play-btn">
+                        <button class="music-play-btn" type="button" onclick="musicPlayNextSong()" aria-label="切换下一首">
                             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                        </div>
+                        </button>
                     </div>
                     <div class="profile-card profile-card-large widget-common" style="background: rgba(235, 235, 235, 0.6);">
     <div class="profile-left">
         <div class="miffy-avatar editable" id="avatar-1"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div>
         <div style="flex: 1;">
             <div style="display: flex; align-items: center;">
-                <span class="editable-text" id="text-name" style="font-size:14px; font-weight:bold;">兔兔丸</span>
+                <span class="editable-text" id="text-name" data-edit-label="请输入新内容：" data-edit-placeholder="编辑昵称" style="font-size:14px; font-weight:bold;">编辑昵称</span>
                 <!-- 这里的日期现在包裹在白色大圆角矩形胶囊里 -->
                 <span id="real-date" class="date-pill">26-02-06</span>
                 <div class="weather-week-group">
@@ -256,7 +256,7 @@
                     <span id="real-week">周五</span>
                 </div>
             </div>
-            <div class="editable-text" id="text-motto" style="font-size:10px;">BB啊 其实淡淡的就会顺顺的</div>
+            <div class="editable-text" id="text-motto" data-edit-label="请输入新内容：" data-edit-placeholder="编辑签名" style="font-size:10px;">编辑签名</div>
         </div>
     </div>
     <div class="temp-display" style="font-weight: 600; color: #666;">-1°</div>
@@ -264,7 +264,7 @@
                     <div style="display:flex; gap:18px; margin-top: 0;">
                         <div class="polaroid-container polaroid-no-radius editable" id="pl-1" style="width:160px; height:auto;">
                             <div class="polaroid-img-box"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div>
-                            <p class="editable-text" id="text-polaroid" style="font-size:11px; color:#999; margin-top:10px; text-align:center;">叫我兔兔丸</p>
+                            <p class="editable-text" id="text-polaroid" data-edit-label="请输入新内容：" data-edit-placeholder="编辑签名" style="font-size:11px; color:#999; margin-top:10px; text-align:center;">编辑签名</p>
                         </div>
                         <div class="icon-grid" style="flex:1;">
                             <div class="app-icon"><div class="icon-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></div><span>游戏</span></div>
@@ -299,7 +299,6 @@
             </div>
         </div>
     </div>
-    <div class="desktop-pagination swiper-pagination"></div>
     <!-- 底部 Dock 栏 -->
     <div class="dock">
         <div class="dock-icon" id="dock-btn-theme"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="主题"></div>
@@ -372,11 +371,11 @@
                     </div>
                     <div class="music-profile-card">
                         <div class="music-profile-name-row">
-                            <div class="music-profile-name" id="music-profile-name" onclick="musicEditProfileField('nickname','修改昵称')">兔兔丸</div>
-                            <button class="music-vip-pill" id="music-profile-vip" type="button" onclick="musicEditProfileField('vip','修改 SVIP 标识')">SVIP 9</button>
+                            <div class="music-profile-name" id="music-profile-name" onclick="musicEditProfileField('nickname','请输入新内容：')">编辑昵称</div>
+                            <button class="music-vip-pill" id="music-profile-vip" type="button" onclick="musicEditProfileField('vip','点击修改SVIP标识')">SVIP 9</button>
                         </div>
-                        <div class="music-profile-id" id="music-profile-id" onclick="musicEditProfileField('uid','修改 ID')">ID: 20260405</div>
-                        <div class="music-profile-signature" id="music-profile-signature" onclick="musicEditProfileField('signature','修改个性签名')">把喜欢的旋律都装进今天。</div>
+                        <div class="music-profile-id" id="music-profile-id" onclick="musicEditProfileField('uid','点击修改ID')">@ 20260405</div>
+                        <div class="music-profile-signature" id="music-profile-signature" onclick="musicEditProfileField('signature','请输入新内容：')">编辑签名</div>
                     </div>
                     <div class="music-stat-grid">
                         <button class="music-stat-btn" type="button" onclick="musicEditStat('following','关注')">
@@ -445,6 +444,7 @@
             <div style="width:30px;"></div> 
         </div>
         <div class="app-body" style="padding: 15px 20px;">
+            <div class="theme-tips">注解：主题UI风格固定为灰白极简线条风（统一克制、线条化表达）。</div>
             <div class="theme-accordion-item theme-icon-lock-preview" id="accordion-lock-preview">
                 <div class="theme-section-header" onclick="toggleThemeSection('accordion-lock-preview')">
                     <span>锁屏预览</span>
@@ -1134,7 +1134,7 @@
                     <div class="moments-float-btn moments-float-btn-rules" style="left:20px;" onclick="event.stopPropagation()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg></div>
                     <div class="moments-float-btn" style="right:20px;" onclick="event.stopPropagation();openMomentsComposer(event)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></div>
                     <div class="moments-user-info">
-                        <span class="moments-nickname editable-text" id="text-wechat-nick">兔兔丸</span>
+                        <span class="moments-nickname editable-text" id="text-wechat-nick" data-edit-label="请输入新内容：" data-edit-placeholder="编辑昵称">编辑昵称</span>
                         <div class="moments-avatar-sq editable" id="wechat-avatar-sq"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div>
                     </div>
                 </div>
@@ -1157,8 +1157,8 @@
                 <div class="me-header" style="padding: 24px 0 18px;">
                     <div class="me-avatar-big editable" id="wechat-avatar-big"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div>
                     <div class="me-info">
-                        <div class="me-name editable-text" id="text-wechat-me-name">兔兔丸</div>
-                        <div class="me-sig editable-text" id="text-wechat-sig">微信号：mini_2026</div>
+                        <div class="me-name editable-text" id="text-wechat-me-name" data-edit-label="请输入新内容：" data-edit-placeholder="编辑昵称">编辑昵称</div>
+                        <div class="me-sig editable-text" id="text-wechat-sig" data-edit-label="请输入新内容：" data-edit-placeholder="编辑ID">编辑ID</div>
                     </div>
                 </div>
                 <div class="me-menu-list" style="padding: 0; margin-top: 8px;">
@@ -1306,7 +1306,6 @@
         <div style="width:100%; background:#fff; border-radius:24px 24px 0 0; padding:0 0 env(safe-area-inset-bottom,20px); transform:translateY(100%); transition:transform 0.32s cubic-bezier(0.4,0,0.2,1);" id="add-bank-card-sheet">
             <div style="display:flex; justify-content:space-between; align-items:center; padding:20px 22px 12px;">
                 <div style="font-size:17px; font-weight:700; color:#222;">添加银行卡</div>
-                <div onclick="closeAddBankCardModal()" style="color:#bbb; font-size:24px; cursor:pointer; line-height:1; font-weight:300;">×</div>
             </div>
             <div style="padding:8px 22px 24px; display:flex; flex-direction:column; gap:16px;">
                 <!-- 银行卡名称 -->
@@ -1355,7 +1354,6 @@
             <!-- 顶部标题栏 -->
             <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px 10px;">
                 <div style="font-size:16px;font-weight:600;color:#333;">免密支付</div>
-                <div onclick="closeNoPwdPayModal()" style="color:#aaa;font-size:22px;cursor:pointer;line-height:1;">×</div>
             </div>
             <!-- 说明区 -->
             <div style="padding:6px 20px 20px;">
@@ -1412,7 +1410,6 @@
     <div id="pay-pwd-sheet" style="display:none;position:absolute;bottom:0;left:0;width:100%;background:#fff;border-radius:22px 22px 0 0;z-index:301;padding-bottom:env(safe-area-inset-bottom,0px);transform:translateY(100%);transition:transform 0.32s cubic-bezier(0.4,0,0.2,1);">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px 10px;">
             <div id="pay-pwd-title" style="font-size:16px;font-weight:600;color:#333;">设置支付密码</div>
-            <div onclick="closePayPwd()" style="color:#aaa;font-size:22px;cursor:pointer;line-height:1;">×</div>
         </div>
         <div style="padding:10px 20px 18px;">
             <!-- 6格密码输入框 -->
@@ -1737,7 +1734,7 @@
     </div>
 
     <!-- ====== 修罗场模式：对峙对话面板 ====== -->
-    <div id="shura-confrontation-overlay" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9600;backdrop-filter:blur(10px);justify-content:center;align-items:center;">
+    <div id="shura-confrontation-overlay" onclick="if(event.target===this)closeShuraConfrontation()" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9600;backdrop-filter:blur(10px);justify-content:center;align-items:center;">
         <div style="background:#fff;border-radius:22px;width:88%;max-width:340px;max-height:82%;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,0.25);display:flex;flex-direction:column;">
             <!-- 顶部标题 -->
             <div style="padding:18px 20px 14px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:12px;flex-shrink:0;">
@@ -1746,7 +1743,6 @@
                     <div style="font-size:15px;font-weight:700;color:#1a1a1a;">修罗场</div>
                     <div id="shura-confrontation-subtitle" style="font-size:11px;color:#e74c3c;margin-top:1px;font-weight:500;">正在上演...</div>
                 </div>
-                <div onclick="closeShuraConfrontation()" style="width:28px;height:28px;background:#f5f5f5;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#aaa;font-size:18px;line-height:1;font-weight:300;">×</div>
             </div>
             <!-- 对峙对话内容区 -->
             <div id="shura-confrontation-content" style="flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:12px;">
@@ -1759,7 +1755,6 @@
         <div style="width:100%;background:#f7f7f7;border-radius:24px 24px 0 0;padding:0 0 env(safe-area-inset-bottom,20px);max-height:85vh;display:flex;flex-direction:column;transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.4,0,0.2,1);" id="checkphone-contact-sheet">
             <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px 12px;">
                 <div style="font-size:17px;font-weight:700;color:#222;">选择要查的设备</div>
-                <div onclick="closeCheckphoneContactModal()" style="color:#aaa;font-size:24px;cursor:pointer;line-height:1;font-weight:300;">×</div>
             </div>
             <div style="font-size:12px;color:#bbb;padding:0 20px 14px;letter-spacing:0.3px;">点击联系人头像进入查收页面</div>
             <div id="checkphone-contact-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:18px 10px;padding:10px 20px 30px;overflow-y:auto;"></div>
@@ -1767,14 +1762,7 @@
     </div>
 
     <!-- ====== 查手机：手机检查页面 ====== -->
-    <div id="checkphone-app" class="full-app-page" style="background:#111;z-index:250;display:none;align-items:center;justify-content:center;">
-        <!-- 返回按钮 -->
-        <div onclick="closeCheckphoneApp()" style="position:absolute;top:18px;left:18px;z-index:10;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(8px);">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-        </div>
-        <!-- 角色名 -->
-        <div id="checkphone-role-name" style="position:absolute;top:22px;left:0;right:0;text-align:center;font-size:14px;color:rgba(255,255,255,0.6);letter-spacing:0.5px;pointer-events:none;z-index:5;"></div>
-
+    <div id="checkphone-app" class="full-app-page" onclick="if(event.target===this)closeCheckphoneApp()" style="background:#111;z-index:250;display:none;align-items:center;justify-content:center;">
         <!-- 极致逼真虚拟手机 -->
         <div class="cp-phone-shell" id="cp-phone-shell">
             <!-- 手机侧边按钮 -->
@@ -2042,9 +2030,9 @@
     </div>
 
     <!-- ====== 查手机：应用内页（备忘录/相册/音乐/短视频/资产/购物/浏览器/私密空间） ====== -->
-    <div id="cp-inner-app" style="display:none;position:absolute;inset:0;z-index:20;background:rgba(245,245,250,0.98);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);flex-direction:column;">
+    <div id="cp-inner-app" style="display:none;position:absolute;inset:0;z-index:20;background:#f7f7f7;flex-direction:column;">
         <!-- 顶部导航栏：左侧返回+标题，右侧刷新按钮 -->
-        <div style="height:52px;padding:0 14px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.92);backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px);flex-shrink:0;">
+        <div style="height:52px;padding:0 14px;display:flex;align-items:center;justify-content:space-between;background:rgba(247,247,247,0.96);border-bottom:1px solid rgba(0,0,0,0.05);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);flex-shrink:0;">
             <!-- 左侧：返回箭头 + 标题 -->
             <div style="display:flex;align-items:center;gap:8px;flex:1;overflow:hidden;" onclick="cpCloseInnerApp()">
                 <div style="width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;">
@@ -2058,7 +2046,7 @@
             </div>
         </div>
         <!-- 内容区：由 JS 动态填充 -->
-        <div id="cp-inner-app-body" style="flex:1;overflow-y:auto;padding:16px 14px 30px;display:flex;flex-direction:column;gap:12px;"></div>
+        <div id="cp-inner-app-body" style="flex:1;overflow-y:auto;padding:16px 14px 30px;display:flex;flex-direction:column;gap:12px;background:#f7f7f7;"></div>
     </div>
 
     <!-- ====== 批量导出弹窗 ====== -->
@@ -2488,7 +2476,6 @@
                         <div style="font-size:10px;color:#c8c8c8;letter-spacing:0.5px;margin-top:1px;font-weight:400;">Heart Voice Records</div>
                     </div>
                 </div>
-                <div onclick="closeHeartVoiceHistory()" style="width:30px;height:30px;background:rgba(0,0,0,0.05);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#aaa;font-size:18px;line-height:1;font-weight:300;flex-shrink:0;transition:background 0.2s;">×</div>
             </div>
             <!-- 可滚动历史列表 -->
             <div id="hv-history-list" style="flex:1;overflow-y:auto;padding:16px 18px 22px;display:flex;flex-direction:column;gap:14px;"></div>
@@ -2698,9 +2685,6 @@
                     <div class="rp-sheet-title">发红包</div>
                     <div class="rp-sheet-subtitle">送出你的祝福</div>
                 </div>
-                <button class="rp-sheet-close" onclick="closeRedPacketModal()">
-                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#999" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
             </div>
             <div class="rp-sheet-divider"></div>
             <div class="rp-sheet-body">
@@ -2761,7 +2745,6 @@
         <div id="stock-trade-sheet" style="width:100%; background:#fff; border-radius:24px 24px 0 0; padding:0 0 env(safe-area-inset-bottom,20px); transform:translateY(100%); transition:transform 0.32s cubic-bezier(0.4,0,0.2,1);">
             <div style="display:flex; justify-content:space-between; align-items:center; padding:20px 22px 14px;">
                 <div id="stock-trade-title" style="font-size:17px; font-weight:700; color:#333;">买入</div>
-                <div onclick="closeStockTradeModal()" style="color:#bbb; font-size:24px; cursor:pointer; line-height:1; font-weight:300;">×</div>
             </div>
             <div style="padding:0 22px 24px; display:flex; flex-direction:column; gap:16px;">
                 <!-- 股票信息 -->
@@ -2800,9 +2783,6 @@
     <div id="rp-claim-modal" onclick="if(event.target===this)closeRpClaimModal()">
         <div id="rp-claim-card">
             <div class="rp-modal-top">
-                <button class="rp-modal-close" onclick="closeRpClaimModal()">
-                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="#999" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
                 <div class="rp-modal-icon">
                     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#aaa" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="3" y="4" width="18" height="16" rx="2" ry="2"></rect>
@@ -2823,9 +2803,6 @@
     <div id="tf-action-modal" onclick="if(event.target===this)closeTfActionModal()">
         <div id="tf-action-card">
             <div class="tf-modal-top">
-                <button class="tf-modal-close" onclick="closeTfActionModal()">
-                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="#999" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
                 <div class="tf-modal-icon">
                     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#aaa" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="16 3 21 3 21 8"></polyline>
@@ -2856,9 +2833,6 @@
                 <div>
                     <div style="font-size:17px;font-weight:700;color:#333;letter-spacing:0.3px;">转账</div>
                     <div style="font-size:11px;color:#aaa;margin-top:2px;letter-spacing:0.3px;">安全快捷转账</div>
-                </div>
-                <div onclick="closeTransferModal()" style="width:28px;height:28px;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
-                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#666" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </div>
             </div>
             <!-- 细分割线 -->
@@ -2914,11 +2888,10 @@
         </div>
     </div>
     <!-- ====== 转账支付密码弹出层 ====== -->
-    <div id="tf-pay-pwd-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.45); z-index:400; backdrop-filter:blur(4px);"></div>
+    <div id="tf-pay-pwd-overlay" onclick="if(event.target===this)closeTfPayPwd()" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.45); z-index:400; backdrop-filter:blur(4px);"></div>
     <div id="tf-pay-pwd-sheet" style="display:none; position:absolute; bottom:0; left:0; width:100%; background:#fff; border-radius:22px 22px 0 0; z-index:401; padding-bottom:env(safe-area-inset-bottom,0px); transform:translateY(100%); transition:transform 0.32s cubic-bezier(0.4,0,0.2,1);">
         <div style="display:flex; justify-content:space-between; align-items:center; padding:18px 20px 6px;">
             <div style="font-size:16px; font-weight:600; color:#333;">请输入支付密码</div>
-            <div onclick="closeTfPayPwd()" style="color:#aaa; font-size:22px; cursor:pointer; line-height:1;">×</div>
         </div>
         <div style="text-align:center; font-size:13px; color:#999; padding:4px 20px 14px;" id="tf-pay-amount-hint">转账 ¥0.00</div>
         <div style="padding:0 20px 22px;">
@@ -2949,11 +2922,10 @@
         </div>
     </div>
     <!-- ====== 红包支付密码弹出层 ====== -->
-    <div id="rp-pay-pwd-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.45); z-index:400; backdrop-filter:blur(4px);"></div>
+    <div id="rp-pay-pwd-overlay" onclick="if(event.target===this)closeRpPayPwd()" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.45); z-index:400; backdrop-filter:blur(4px);"></div>
     <div id="rp-pay-pwd-sheet" style="display:none; position:absolute; bottom:0; left:0; width:100%; background:#fff; border-radius:22px 22px 0 0; z-index:401; padding-bottom:env(safe-area-inset-bottom,0px); transform:translateY(100%); transition:transform 0.32s cubic-bezier(0.4,0,0.2,1);">
         <div style="display:flex; justify-content:space-between; align-items:center; padding:18px 20px 6px;">
             <div style="font-size:16px; font-weight:600; color:#333;">请输入支付密码</div>
-            <div onclick="closeRpPayPwd()" style="color:#aaa; font-size:22px; cursor:pointer; line-height:1;">×</div>
         </div>
         <div style="text-align:center; font-size:13px; color:#999; padding:4px 20px 14px;" id="rp-pay-amount-hint">发送红包 ¥0.00</div>
         <div style="padding:0 20px 22px;">
@@ -2995,7 +2967,6 @@
             <!-- 标题栏 -->
             <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 22px 14px;">
                 <div style="font-size:17px; font-weight:700; color:#222;">充值</div>
-                <div onclick="closeRechargeModal()" style="color:#bbb; font-size:24px; cursor:pointer; line-height:1; font-weight:300;">×</div>
             </div>
             <div style="padding:0 22px 24px; display:flex; flex-direction:column; gap:16px;">
                 <!-- 金额输入区 -->
@@ -3030,7 +3001,6 @@
             <!-- 标题栏 -->
             <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 22px 14px;">
                 <div style="font-size:17px; font-weight:700; color:#222;">提现</div>
-                <div onclick="closeWithdrawModal()" style="color:#bbb; font-size:24px; cursor:pointer; line-height:1; font-weight:300;">×</div>
             </div>
             <div style="padding:0 22px 24px; display:flex; flex-direction:column; gap:16px;">
                 <!-- 金额输入区 -->
@@ -3435,7 +3405,6 @@
                 <div class="preset-card" style="width:88%; max-height:80%; overflow-y:auto; padding-bottom:20px;">
                     <div class="preset-header" style="justify-content:space-between;">
                         <span>历史总结</span>
-                        <div onclick="cdCloseSummaryHistory()" style="color:#bbb; font-size:22px; cursor:pointer; line-height:1; font-weight:300;">×</div>
                     </div>
                     <div id="cd-summary-history-list" style="padding:15px 20px; display:flex; flex-direction:column; gap:12px; min-height:80px;">
                         <div style="color:#bbb; font-size:13px; text-align:center; margin-top:20px;">暂无历史总结</div>
@@ -3572,7 +3541,7 @@
                 <!-- 基本信息卡 -->
                 <div class="ml-profile-info-card">
                     <div class="ml-profile-name-row">
-                        <span class="ml-profile-name">兔兔丸</span>
+                        <span class="ml-profile-name">编辑昵称</span>
                         <span class="ml-profile-age-badge">22</span>
                         <span class="ml-profile-gender-badge" style="font-size:13px; color:#888; font-weight:400; letter-spacing:0.5px;">女</span>
                     </div>
@@ -3716,7 +3685,6 @@
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 22px 14px;">
                     <div style="font-size:17px;font-weight:700;color:#222;">线下管理</div>
-                    <div onclick="closeOfflineManage()" style="color:#bbb;font-size:24px;cursor:pointer;line-height:1;font-weight:300;">×</div>
                 </div>
                 <div style="padding:0 22px 28px;display:flex;flex-direction:column;gap:16px;">
                     <!-- 存档区 -->
@@ -3828,17 +3796,16 @@
             </div>
             <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 22px 14px;">
                 <div style="font-size:17px;font-weight:700;color:#222;">大厅设置</div>
-                <div onclick="mlCloseSettings()" style="color:#bbb;font-size:24px;cursor:pointer;line-height:1;font-weight:300;">×</div>
             </div>
             <div style="padding:0 22px 28px;display:flex;flex-direction:column;gap:16px;">
                 <div style="background:#f7f8fa;border-radius:16px;overflow:hidden;">
                     <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #f0f0f0;">
                         <span style="font-size:14px;color:#333;">显示在线状态</span>
-                        <div style="width:42px;height:24px;border-radius:12px;background:#e91e63;position:relative;cursor:pointer;"><div style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:2px;right:2px;box-shadow:0 1px 4px rgba(0,0,0,0.18);"></div></div>
+                        <div style="width:42px;height:24px;border-radius:12px;background:#4cd964;position:relative;cursor:pointer;"><div style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:2px;right:2px;box-shadow:0 1px 4px rgba(0,0,0,0.18);"></div></div>
                     </div>
                     <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #f0f0f0;">
                         <span style="font-size:14px;color:#333;">附近推荐</span>
-                        <div style="width:42px;height:24px;border-radius:12px;background:#e91e63;position:relative;cursor:pointer;"><div style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:2px;right:2px;box-shadow:0 1px 4px rgba(0,0,0,0.18);"></div></div>
+                        <div style="width:42px;height:24px;border-radius:12px;background:#4cd964;position:relative;cursor:pointer;"><div style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:2px;right:2px;box-shadow:0 1px 4px rgba(0,0,0,0.18);"></div></div>
                     </div>
                     <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;">
                         <span style="font-size:14px;color:#333;">消息通知</span>
@@ -3848,11 +3815,11 @@
                 <div style="background:#f7f8fa;border-radius:16px;overflow:hidden;">
                     <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #f0f0f0;">
                         <span style="font-size:14px;color:#333;">年龄范围</span>
-                        <span style="font-size:13px;color:#e91e63;font-weight:600;">18 - 30 岁</span>
+                        <span style="font-size:13px;color:#666;font-weight:600;">18 - 30 岁</span>
                     </div>
                     <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;">
                         <span style="font-size:14px;color:#333;">距离范围</span>
-                        <span style="font-size:13px;color:#e91e63;font-weight:600;">50 km 内</span>
+                        <span style="font-size:13px;color:#666;font-weight:600;">50 km 内</span>
                     </div>
                 </div>
             </div>
@@ -3873,17 +3840,17 @@
 <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.28.0/dist/index.js"></script>
 <script src="js/core/runtime-log.js?v=20260407-logclear1"></script>
-<script src="js/core/runtime-shell.js?v=20260407-grayui1"></script>
+<script src="js/core/runtime-shell.js?v=20260407-homefix5"></script>
 <script src="js/core/settings.js"></script>
 <script src="js/core/worldbook-and-apps.js"></script>
-<script src="js/core/theme-tools.js?v=20260407-grayui1"></script>
+<script src="js/core/theme-tools.js?v=20260407-uiscale2"></script>
 <script src="js/core/masks-and-emoticons.js"></script>
-<script src="js/core/contacts-and-chatlist.js"></script>
+<script src="js/core/contacts-and-chatlist.js?v=20260407-wechattheme1"></script>
 <script src="js/home/novel-entry.js"></script>
 <script src="js/home/wechat-chat.js?v=20260407-homefix2"></script>
     <script src="js/home/wechat-moments.js?v=20260407-homefix2"></script>
 <script src="js/home/data-tools.js"></script>
-<script src="js/home/music-app.js"></script>
+<script src="js/home/music-app.js?v=20260407-musicfix1"></script>
 <script src="js/wallet/stock-and-assist.js"></script>
 <script src="js/wallet/red-packet.js"></script>
 <script src="js/wallet/transfer.js"></script>
@@ -3893,7 +3860,7 @@
 <script src="js/messaging/sms.js"></script>
 <script src="js/messaging/shura.js"></script>
 <script src="js/messaging/background-notify.js"></script>
-<script src="js/05-check-phone.js?v=20260407-checkphonefix3"></script>
+<script src="js/05-check-phone.js?v=20260407-checkphonefix4"></script>
 <script src="js/meetlove/meetlove.js"></script>
 <script src="js/meetlove/heart-voice.js"></script>
 <script src="js/meetlove/offline.js?v=20260406-fix2"></script>

@@ -230,28 +230,61 @@ document.addEventListener('DOMContentLoaded', function() {
         resistanceRatio: 0, // 减少边缘回弹的计算阻力
         observer: true,     // 开启 DOM 变动监听
         observeParents: true,
-        pagination: {
-            el: '.desktop-pagination',
-            clickable: true
-        },
         on: {
             touchStart: function() { menu.style.display = 'none'; },
             slideChange: function() { menu.style.display = 'none'; }
         }
     });
     let currentTargetId = null;
+    function getPointerClientPoint(e) {
+        if (!e) return null;
+        if (typeof e.clientX === 'number' && typeof e.clientY === 'number') {
+            return { x: e.clientX, y: e.clientY };
+        }
+        const touch = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+        if (touch && typeof touch.clientX === 'number' && typeof touch.clientY === 'number') {
+            return { x: touch.clientX, y: touch.clientY };
+        }
+        return null;
+    }
     function openImageMenuAtEvent(e, targetId) {
         const phoneScreen = document.querySelector('.phone-screen');
         currentTargetId = targetId;
         if (!menu || !phoneScreen) return;
         const screenRect = phoneScreen.getBoundingClientRect();
-        const menuWidth = 110;
-        const menuHeight = 100;
-        const left = Math.max(0, Math.min(e.clientX - screenRect.left, screenRect.width - menuWidth));
-        const top = Math.max(0, Math.min(e.clientY - screenRect.top, screenRect.height - menuHeight));
         menu.style.display = 'flex';
+        menu.style.visibility = 'hidden';
+        const anchorEl = (targetId && document.getElementById(targetId)) || safeClosestFromEventTarget(e && e.target, '.editable');
+        const anchorRect = anchorEl && typeof anchorEl.getBoundingClientRect === 'function'
+            ? anchorEl.getBoundingClientRect()
+            : null;
+        const menuWidth = menu.offsetWidth || 112;
+        const menuHeight = menu.offsetHeight || 100;
+        const pointer = getPointerClientPoint(e);
+        let left;
+        let top;
+        const isLargeEditableSurface = anchorRect && (anchorRect.width >= 120 || anchorRect.height >= 88);
+        if (anchorRect && isLargeEditableSurface) {
+            left = anchorRect.left - screenRect.left + 12;
+            top = Math.max(
+                anchorRect.top - screenRect.top + 12,
+                anchorRect.bottom - screenRect.top - menuHeight - 12
+            );
+        } else if (pointer) {
+            left = pointer.x - screenRect.left + 10;
+            top = pointer.y - screenRect.top + 10;
+        } else if (anchorRect) {
+            left = anchorRect.left - screenRect.left;
+            top = anchorRect.bottom - screenRect.top + 10;
+        } else {
+            left = 12;
+            top = 12;
+        }
+        left = Math.max(8, Math.min(left, screenRect.width - menuWidth - 8));
+        top = Math.max(8, Math.min(top, screenRect.height - menuHeight - 8));
         menu.style.left = `${left}px`;
         menu.style.top = `${top}px`;
+        menu.style.visibility = '';
     }
     // 更新时间与日期
     function updateDateTime() {
@@ -526,143 +559,6 @@ window.alert = function(message) {
 };
 window.showToast = window.showMiniToast;
 
-const MINI_MODAL_CONFIGS = [
-    { modalId: 'preset-manager', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'worldbook-editor', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'mask-editor-modal', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'contact-editor-modal', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'chat-type-modal', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'emoticon-add-modal', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'emoticon-move-modal', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'single-chat-select-modal', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'block-request-list-modal', kind: 'center' },
-    { modalId: 'batch-export-modal', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'wechat-forward-modal', panelSelector: '#wechat-forward-sheet', kind: 'center' },
-    { modalId: 'hv-history-modal', panelSelector: '#hv-history-sheet', kind: 'center' },
-    { modalId: 'msg-edit-modal', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'msg-recall-modal', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'chat-timeline-modal', panelSelector: '.chat-timeline-card', kind: 'center' },
-    { modalId: 'chat-rollback-modal', panelSelector: '.chat-rollback-card', kind: 'center' },
-    { modalId: 'camera-modal', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'moments-comment-modal', panelSelector: '.moments-comment-card', kind: 'center' },
-    { modalId: 'voice-modal', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'location-modal', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'gift-modal', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'takeout-modal', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'call-composer-modal', panelSelector: '.preset-card', kind: 'center' },
-    { modalId: 'voice-storage-modal', panelSelector: '.voice-storage-card', kind: 'center' },
-    { modalId: 'rp-claim-modal', panelSelector: '#rp-claim-card', kind: 'center' },
-    { modalId: 'tf-action-modal', panelSelector: '#tf-action-card', kind: 'center' },
-    { modalId: 'add-bank-card-modal', panelSelector: '#add-bank-card-sheet', kind: 'bottom' },
-    { modalId: 'no-pwd-pay-modal', panelSelector: '#no-pwd-pay-sheet', kind: 'bottom' },
-    { modalId: 'checkphone-contact-modal', kind: 'bottom' },
-    { modalId: 'red-packet-modal', panelSelector: '#red-packet-sheet', kind: 'bottom' },
-    { modalId: 'transfer-modal', panelSelector: '#transfer-sheet', kind: 'bottom' },
-    { modalId: 'stock-trade-modal', panelSelector: '#stock-trade-sheet', kind: 'bottom' },
-    { modalId: 'recharge-modal', panelSelector: '#recharge-sheet', kind: 'bottom' },
-    { modalId: 'withdraw-modal', panelSelector: '#withdraw-sheet', kind: 'bottom' },
-    { modalId: 'offline-manage-modal', panelSelector: '#offline-manage-sheet', kind: 'bottom' },
-    { modalId: 'ml-settings-modal', panelSelector: '#ml-settings-sheet', kind: 'bottom' },
-    { modalId: 'ml-edit-modal', panelSelector: '#ml-edit-sheet', kind: 'bottom' },
-    { modalId: 'offline-edit-modal', panelSelector: '#offline-edit-sheet', kind: 'bottom' },
-    { overlayId: 'pay-pwd-overlay', panelId: 'pay-pwd-sheet', kind: 'bottom' },
-    { overlayId: 'tf-pay-pwd-overlay', panelId: 'tf-pay-pwd-sheet', kind: 'bottom', closeFn: 'closeTfPayPwd' },
-    { overlayId: 'rp-pay-pwd-overlay', panelId: 'rp-pay-pwd-sheet', kind: 'bottom', closeFn: 'closeRpPayPwd' },
-    { overlayId: 'offline-settings-overlay', panelId: 'offline-settings-sidebar', kind: 'side', closeFn: 'closeOfflineSettings' }
-];
-const MINI_MODAL_CLOSE_SELECTORS = [
-    '.rp-modal-close',
-    '.tf-modal-close',
-    '.rp-sheet-close',
-    '.tf-sheet-close',
-    '.preset-close',
-    '.wechat-forward-close',
-    '.voice-storage-close',
-    '.chat-timeline-close',
-    '.chat-rollback-close'
-].join(', ');
-
-function removeMiniModalCornerClosers(surface) {
-    if (!surface) return;
-    if (MINI_MODAL_CLOSE_SELECTORS) {
-        surface.querySelectorAll(MINI_MODAL_CLOSE_SELECTORS).forEach(function(node) {
-            node.remove();
-        });
-    }
-    surface.querySelectorAll('[onclick]').forEach(function(node) {
-        const text = (node.textContent || '').replace(/\s+/g, '');
-        const handler = node.getAttribute('onclick') || '';
-        if (!/close|cancel/i.test(handler)) return;
-        if (text === '×' || text.toLowerCase() === 'x') {
-            node.remove();
-        }
-    });
-}
-
-function resolveMiniModalSurface(config) {
-    if (config.panelId) return document.getElementById(config.panelId);
-    if (!config.modalId) return null;
-    const modal = document.getElementById(config.modalId);
-    if (!modal) return null;
-    if (config.panelSelector) return modal.querySelector(config.panelSelector);
-    return modal.firstElementChild;
-}
-
-function tagMiniModalSurface(surface, kind) {
-    if (!surface) return;
-    surface.classList.remove('mini-modal-card', 'mini-modal-sheet', 'mini-side-panel');
-    if (kind === 'center') surface.classList.add('mini-modal-card');
-    else if (kind === 'bottom') surface.classList.add('mini-modal-sheet');
-    else if (kind === 'side') surface.classList.add('mini-side-panel');
-    removeMiniModalCornerClosers(surface);
-}
-
-function tagMiniModalOverlay(overlay, kind) {
-    if (!overlay) return;
-    overlay.classList.add('mini-modal-overlay');
-    overlay.classList.remove('mini-modal-overlay--center', 'mini-modal-overlay--bottom', 'mini-modal-overlay--side');
-    if (kind === 'center') overlay.classList.add('mini-modal-overlay--center');
-    else if (kind === 'bottom') overlay.classList.add('mini-modal-overlay--bottom');
-    else if (kind === 'side') overlay.classList.add('mini-modal-overlay--side');
-}
-
-function bindMiniModalBackdropClose(overlay, closeFnName) {
-    if (!overlay || !closeFnName || overlay.dataset.miniBackdropBound === '1') return;
-    overlay.dataset.miniBackdropBound = '1';
-    overlay.addEventListener('click', function(e) {
-        if (e.target !== overlay) return;
-        const closeFn = window[closeFnName];
-        if (typeof closeFn === 'function') closeFn();
-    });
-}
-
-function refreshMiniModalChrome() {
-    MINI_MODAL_CONFIGS.forEach(function(config) {
-        const overlay = config.overlayId ? document.getElementById(config.overlayId) : document.getElementById(config.modalId);
-        const surface = resolveMiniModalSurface(config);
-        if (overlay) {
-            tagMiniModalOverlay(overlay, config.kind);
-            bindMiniModalBackdropClose(overlay, config.closeFn);
-        }
-        if (surface) tagMiniModalSurface(surface, config.kind);
-    });
-}
-
-function observeMiniModalChrome() {
-    if (document.body.dataset.miniModalObserver === '1') return;
-    document.body.dataset.miniModalObserver = '1';
-    const observer = new MutationObserver(function(mutations) {
-        for (let i = 0; i < mutations.length; i += 1) {
-            if (mutations[i].type !== 'childList' || !mutations[i].addedNodes.length) continue;
-            refreshMiniModalChrome();
-            break;
-        }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-}
-
-window.refreshMiniModalChrome = refreshMiniModalChrome;
-
 document.addEventListener('contextmenu', function(e) {
     if (!safeClosestFromEventTarget(e.target, '.phone-screen')) return;
     e.preventDefault();
@@ -686,13 +582,38 @@ document.addEventListener('dragstart', function(e) {
         }
         return 'miffy_text_' + el.dataset.editKey;
     }
+    function resolveEditableTextNode(el) {
+        if (!el) return null;
+        if (el.dataset.editTextSelector) {
+            const target = el.querySelector(el.dataset.editTextSelector);
+            if (target) return target;
+        }
+        const children = Array.from(el.children || []);
+        if (children.length) {
+            const textSpan = children.find(child => child.tagName === 'SPAN');
+            const onlyDecorativeChildren = children.every(child => child.tagName === 'SPAN' || child.tagName === 'SVG');
+            if (textSpan && onlyDecorativeChildren) return textSpan;
+        }
+        return el;
+    }
+    function getEditableTextValue(el) {
+        const node = resolveEditableTextNode(el);
+        return node ? node.textContent : '';
+    }
+    function setEditableTextValue(el, value) {
+        const node = resolveEditableTextNode(el);
+        if (node) node.textContent = value;
+    }
     // 交互与持久化 (文字)
     document.querySelectorAll('.editable-text').forEach((el, idx) => {
         el.addEventListener('click', async (e) => {
             e.stopPropagation();
-            const newText = await window.showMiniPrompt('请输入新内容：', el.textContent);
+            const promptLabel = el.dataset.editLabel || '请输入新内容：';
+            const promptMessage = el.dataset.editPlaceholder ? '请输入新内容：' : promptLabel;
+            const promptOptions = el.dataset.editPlaceholder ? { placeholder: el.dataset.editPlaceholder } : undefined;
+            const newText = await window.showMiniPrompt(promptMessage, getEditableTextValue(el), promptOptions);
             if(newText !== null && newText.trim() !== "") {
-                el.textContent = newText;
+                setEditableTextValue(el, newText);
                 const textKey = getEditableTextStorageKey(el, idx);
                 if (textKey) await localforage.setItem(textKey, newText);
             }
@@ -813,8 +734,6 @@ async function initThemeIcons() {
     }
 }
 window.addEventListener('DOMContentLoaded', async () => {
-        refreshMiniModalChrome();
-        observeMiniModalChrome();
         // 修复电脑端加载时闪烁/延伸：页面加载完成后立即显示手机壳，不等待 DB
         const shell = document.querySelector('.phone-shell');
         if (shell) {
@@ -828,7 +747,9 @@ window.addEventListener('DOMContentLoaded', async () => {
         const textKeys = textElements.map((el, idx) => getEditableTextStorageKey(el, idx));
         const textValues = await Promise.all(textKeys.map(k => localforage.getItem(k)));
         textElements.forEach((el, i) => {
-            if (textValues[i]) el.textContent = textValues[i];
+            if (textValues[i] !== null && textValues[i] !== undefined && textValues[i] !== '') {
+                setEditableTextValue(el, textValues[i]);
+            }
         });
 
         // 2. 并行读取所有 editable 图片（批量 IndexedDB 查询）
@@ -884,7 +805,8 @@ window.addEventListener('DOMContentLoaded', async () => {
         if (savedUiScale) {
             const scaleVal = parseFloat(savedUiScale);
             if (scaleVal && scaleVal >= 50 && scaleVal <= 150) {
-                document.documentElement.style.zoom = scaleVal / 100;
+                document.documentElement.style.setProperty('--ui-scale', String(scaleVal / 100));
+                document.documentElement.style.zoom = '';
                 const slider = document.getElementById('ui-scale-slider');
                 const display = document.getElementById('ui-scale-val');
                 if (slider) slider.value = scaleVal;
@@ -895,7 +817,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     function setWallpaper(src) {
         const screen = document.querySelector('.phone-screen');
         if (!screen) return;
+        const themeMode = document.documentElement.getAttribute('data-theme') || 'day';
         const hasImage = !!(src && !src.includes('via.placeholder.com'));
+        const fallbackBackground = 'linear-gradient(180deg, var(--bg-main) 0%, var(--bg-sub) 100%)';
         const syncDeviceLockWallpaper = function() {
             if (typeof window.refreshDeviceLockWallpaperPreview === 'function') {
                 window.refreshDeviceLockWallpaperPreview().catch(function(err) {
@@ -905,10 +829,28 @@ window.addEventListener('DOMContentLoaded', async () => {
         };
         screen.style.backgroundBlendMode = '';
 
+        if (themeMode === 'night') {
+            if (hasImage) {
+                screen.style.background = `radial-gradient(circle at top, rgba(76,82,92,0.16), transparent 34%), linear-gradient(180deg, rgba(10,11,14,0.14) 0%, rgba(3,3,4,0.32) 100%), url(${src}) center/cover no-repeat`;
+                screen.style.backgroundBlendMode = 'screen, multiply, normal';
+            } else {
+                screen.style.background = 'radial-gradient(circle at top, rgba(88,94,106,0.22), transparent 34%), linear-gradient(180deg, #1a1c21 0%, #0d0e12 58%, #000000 100%)';
+            }
+            syncDeviceLockWallpaper();
+            return;
+        }
+
+        if (themeMode === 'dopamine' && hasImage) {
+            screen.style.background = `linear-gradient(180deg, rgba(255,244,238,0.16) 0%, rgba(255,240,230,0.26) 100%), url(${src}) center/cover no-repeat`;
+            screen.style.backgroundBlendMode = 'normal, normal';
+            syncDeviceLockWallpaper();
+            return;
+        }
+
         if (hasImage) {
-            screen.style.background = `linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(236,239,239,0.18) 100%), url(${src}) center/cover no-repeat`;
+            screen.style.background = `url(${src}) center/cover no-repeat`;
         } else {
-            screen.style.background = '';
+            screen.style.background = fallbackBackground;
         }
         syncDeviceLockWallpaper();
     }

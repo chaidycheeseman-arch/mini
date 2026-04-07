@@ -21,10 +21,10 @@
             profile: {
                 cover: '',
                 avatar: '',
-                nickname: '兔兔丸',
+                nickname: '编辑昵称',
                 vip: 'SVIP 9',
-                uid: 'ID: 20260405',
-                signature: '把喜欢的旋律都装进今天。',
+                uid: '编辑ID',
+                signature: '编辑签名',
                 following: '0',
                 followers: '9M',
                 likes: '6K',
@@ -395,14 +395,14 @@
         renderAll();
     };
 
-    window.musicPlayNextSong = function() {
+    window.musicPlayNextSong = async function() {
+        await ensureLoaded();
         if (!state.songs.length) return;
         var currentIndex = state.songs.findIndex(function(song) { return song.id === state.currentSongId; });
         var nextIndex = currentIndex >= 0 ? (currentIndex + 1) % state.songs.length : 0;
         state.currentSongId = state.songs[nextIndex].id;
         persistState();
-        renderLibrary();
-        syncHomeMusicTitle();
+        renderAll();
     };
 
     window.musicEditProfileField = async function(field, label) {

@@ -342,7 +342,6 @@
             '<div id="offline-edit-sheet" style="width:100%;background:#fff;border-radius:22px 22px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px;transform:translateY(100%);transition:transform 0.26s cubic-bezier(0.4,0,0.2,1);">' +
                 '<div style="display:flex;justify-content:space-between;align-items:center;">' +
                     '<div style="font-size:16px;font-weight:700;color:#333;">编辑对话</div>' +
-                    '<div id="offline-edit-close-btn" style="font-size:20px;color:#bbb;cursor:pointer;line-height:1;">×</div>' +
                 '</div>' +
                 '<textarea id="offline-edit-textarea" style="width:100%;height:120px;max-height:220px;border:1px solid #eee;border-radius:12px;padding:10px 12px;font-size:14px;line-height:1.6;resize:none;outline:none;font-family:inherit;color:#333;background:#fafafa;"></textarea>' +
                 '<div style="display:flex;gap:10px;">' +
@@ -355,10 +354,8 @@
         });
         app.appendChild(modal);
 
-        var closeBtn = document.getElementById('offline-edit-close-btn');
         var cancelBtn = document.getElementById('offline-edit-cancel-btn');
         var saveBtn = document.getElementById('offline-edit-save-btn');
-        if (closeBtn) closeBtn.addEventListener('click', closeOfflineEditModal);
         if (cancelBtn) cancelBtn.addEventListener('click', closeOfflineEditModal);
         if (saveBtn) saveBtn.addEventListener('click', saveOfflineEditedMessage);
         return modal;

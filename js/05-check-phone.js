@@ -19,6 +19,122 @@
     var _cpTimeTimer = null;
     // 当前联系人显示名（备注优先）
     var _cpDisplayName = '';
+    // 查手机桌面默认图标快照（用于恢复未自定义状态）
+    var _cpDefaultDesktopAssets = null;
+    // 避免异步恢复把旧联系人的桌面状态覆盖到当前联系人
+    var _cpDesktopLoadToken = 0;
+
+    function _cpCaptureDefaultDesktopAssets() {
+        if (_cpDefaultDesktopAssets) return;
+        _cpDefaultDesktopAssets = {
+            desktop: Array.from(document.querySelectorAll('#cp-unlocked-screen .cp-desktop-icon-bg')).map(function(el) {
+                return {
+                    background: el.style.background || '',
+                    innerHTML: el.innerHTML
+                };
+            }),
+            dock: Array.from(document.querySelectorAll('#cp-unlocked-screen .cp-dock-icon-bg')).map(function(el) {
+                return {
+                    background: el.style.background || '',
+                    innerHTML: el.innerHTML
+                };
+            })
+        };
+    }
+
+    function _cpApplyDesktopIcons() {
+        _cpCaptureDefaultDesktopAssets();
+        var desktopEls = Array.from(document.querySelectorAll('#cp-unlocked-screen .cp-desktop-icon-bg'));
+        var dockEls = Array.from(document.querySelectorAll('#cp-unlocked-screen .cp-dock-icon-bg'));
+        desktopEls.forEach(function(el, idx) {
+            var saved = _cpDesktopIconData[idx];
+            var fallback = _cpDefaultDesktopAssets && _cpDefaultDesktopAssets.desktop[idx];
+            if (saved) {
+                el.style.background = 'url(' + saved + ') center/cover no-repeat';
+                el.innerHTML = '';
+            } else if (fallback) {
+                el.style.background = fallback.background;
+                el.innerHTML = fallback.innerHTML;
+            }
+        });
+        dockEls.forEach(function(el, idx) {
+            var saved = _cpDesktopIconData[idx + 8];
+            var fallback = _cpDefaultDesktopAssets && _cpDefaultDesktopAssets.dock[idx];
+            if (saved) {
+                el.style.background = 'url(' + saved + ') center/cover no-repeat';
+                el.innerHTML = '';
+            } else if (fallback) {
+                el.style.background = fallback.background;
+                el.innerHTML = fallback.innerHTML;
+            }
+        });
+    }
+
+    function _cpResetDesktopCustomizationState(contact) {
+        var unlockedWp = document.getElementById('cp-unlocked-wallpaper');
+        if (unlockedWp) unlockedWp.style.background = '';
+        var profileBg = document.getElementById('cp-profile-bg');
+        if (profileBg) {
+            profileBg.style.background = contact && contact.roleAvatar
+                ? 'url(' + contact.roleAvatar + ') center/cover no-repeat'
+                : '';
+        }
+        _cpDesktopIconData = new Array(10).fill('');
+        _cpApplyDesktopIcons();
+    }
+
+    async function _cpLoadDesktopCustomizationState(contact) {
+        _cpCaptureDefaultDesktopAssets();
+        _cpResetDesktopCustomizationState(contact);
+        if (!contact || !contact.id) return;
+
+        var loadToken = ++_cpDesktopLoadToken;
+        var contactId = contact.id;
+        var iconKeys = [];
+        for (var i = 0; i < 10; i++) {
+            iconKeys.push('cp_desktop_icon_' + contactId + '_' + i);
+        }
+
+        try {
+            var results = await Promise.all([
+                localforage.getItem('cp_desktop_wallpaper_' + contactId),
+                localforage.getItem('cp_profile_bg_' + contactId)
+            ].concat(iconKeys.map(function(key) {
+                return localforage.getItem(key);
+            })));
+
+            if (loadToken !== _cpDesktopLoadToken || !_cpContact || String(_cpContact.id) !== String(contactId)) {
+                return;
+            }
+
+            var desktopWallpaper = results[0];
+            var savedProfileBg = results[1];
+            var unlockedWp = document.getElementById('cp-unlocked-wallpaper');
+            if (unlockedWp) {
+                unlockedWp.style.background = desktopWallpaper
+                    ? 'url(' + desktopWallpaper + ') center/cover no-repeat'
+                    : '';
+            }
+
+            var profileBg = document.getElementById('cp-profile-bg');
+            if (profileBg) {
+                profileBg.style.background = savedProfileBg
+                    ? 'url(' + savedProfileBg + ') center/cover no-repeat'
+                    : (contact.roleAvatar ? 'url(' + contact.roleAvatar + ') center/cover no-repeat' : '');
+            }
+
+            _cpDesktopIconData = results.slice(2).map(function(src) {
+                return typeof src === 'string' && src ? src : '';
+            });
+            _cpApplyDesktopIcons();
+            var customPanel = document.getElementById('cp-custom-panel');
+            if (customPanel && customPanel.classList.contains('show')) {
+                _cpInitIconRows();
+            }
+        } catch (e) {
+            console.error('恢复查手机桌面自定义失败', e);
+        }
+    }
 
     async function _cpGetDisplayName(contact) {
         if (!contact) return '未命名';
@@ -42,6 +158,7 @@
     // ---- 绑定"查手机"图标点击事件 ----
     document.addEventListener('DOMContentLoaded', function() {
         _cpEnsureInnerAppInsidePhone();
+        _cpCaptureDefaultDesktopAssets();
         // 找到第二页的"查手机"图标
         var allIcons = document.querySelectorAll('.app-icon');
         allIcons.forEach(function(icon) {
@@ -159,7 +276,7 @@
         if (innerApp) innerApp.style.display = 'none';
     };
 
-    // ---- 刷新应用内页（重绘应用框架）----
+    // ---- 刷新应用内页（重绘当前预览页）----
     window.cpRefreshInnerApp = function() {
         var innerApp = document.getElementById('cp-inner-app');
         if (!innerApp || !_cpContact) return;
@@ -176,34 +293,130 @@
         _cpRenderInnerApp(appName);
     };
 
-    function _cpBuildFrameRows(rows) {
-        return rows.map(function(text) {
-            return '<div style="padding:11px 12px;border-radius:12px;background:#fff;border:1px solid #ededf3;color:#4a4a56;font-size:13px;line-height:1.55;">' +
-                text + '</div>';
+    function _cpEscapeHtml(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
+            return {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[ch];
+        });
+    }
+
+    function _cpGetInnerDisplayName() {
+        return _cpDisplayName || (_cpContact && (_cpContact._displayName || _cpContact.roleName)) || '对方';
+    }
+
+    function _cpBuildSectionRows(rows) {
+        return (rows || []).map(function(row, index) {
+            var item = row && typeof row === 'object' ? row : {};
+            return '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:' + (index === 0 ? '0' : '12px 0 0') + ';margin-top:' + (index === 0 ? '0' : '12px') + ';border-top:' + (index === 0 ? 'none' : '1px solid #f1f1f3') + ';">' +
+                '<div style="min-width:0;">' +
+                    '<div style="font-size:13px;font-weight:600;color:#26262d;line-height:1.3;">' + _cpEscapeHtml(item.title || '') + '</div>' +
+                    '<div style="margin-top:4px;font-size:11px;color:#9393a2;line-height:1.45;">' + _cpEscapeHtml(item.desc || '') + '</div>' +
+                '</div>' +
+                '<div style="font-size:11px;color:#b0b0be;white-space:nowrap;flex-shrink:0;">' + _cpEscapeHtml(item.meta || '') + '</div>' +
+            '</div>';
         }).join('');
     }
 
-    // ---- 渲染应用内容（仅保留应用框架，不生成数据）----
+    function _cpBuildSectionCard(title, subtitle, rows, chipText) {
+        return '<div style="background:#ffffff;border:1px solid #ececf1;border-radius:20px;padding:14px 14px 12px;box-shadow:0 10px 22px rgba(0,0,0,0.04);">' +
+            '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;">' +
+                '<div style="min-width:0;">' +
+                    '<div style="font-size:14px;font-weight:700;color:#23232a;line-height:1.25;">' + _cpEscapeHtml(title) + '</div>' +
+                    '<div style="margin-top:4px;font-size:11px;color:#8f8f9d;line-height:1.5;">' + _cpEscapeHtml(subtitle || '') + '</div>' +
+                '</div>' +
+                '<div style="padding:5px 10px;border-radius:999px;background:#f5f5f7;color:#666;font-size:10px;font-weight:600;letter-spacing:0.2px;white-space:nowrap;flex-shrink:0;">' + _cpEscapeHtml(chipText || '应用内页') + '</div>' +
+            '</div>' +
+            _cpBuildSectionRows(rows) +
+        '</div>';
+    }
+
+    function _cpBuildMiniChatShot() {
+        var displayName = _cpEscapeHtml(_cpGetInnerDisplayName());
+        var avatarStyle = (_cpContact && _cpContact.roleAvatar)
+            ? 'background:url(' + _cpContact.roleAvatar + ') center/cover no-repeat;'
+            : 'background:linear-gradient(135deg,#dfe6ee,#bec9d6);';
+        return '<div style="border-radius:16px;overflow:hidden;border:1px solid #ededf0;background:#fff;">' +
+            '<div style="height:34px;display:flex;align-items:center;justify-content:center;background:#fafafa;border-bottom:1px solid #f0f0f0;font-size:11px;font-weight:600;color:#666;">线上聊天截图</div>' +
+            '<div style="padding:10px;background:#f7f7f7;display:flex;flex-direction:column;gap:8px;">' +
+                '<div style="display:flex;align-items:flex-start;gap:6px;">' +
+                    '<div style="width:22px;height:22px;border-radius:50%;flex-shrink:0;' + avatarStyle + '"></div>' +
+                    '<div style="max-width:78%;padding:6px 9px;border-radius:4px 12px 12px 12px;background:#fff;color:#333;font-size:11px;line-height:1.45;">' + displayName + ' 的聊天页截图</div>' +
+                '</div>' +
+                '<div style="display:flex;justify-content:flex-end;">' +
+                    '<div style="max-width:76%;padding:6px 9px;border-radius:12px 4px 12px 12px;background:#e7e7e7;color:#333;font-size:11px;line-height:1.45;">这次不会再掉成桌面了</div>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+    }
+
+    function _cpBuildAlbumOverview() {
+        return '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">' +
+            '<div style="grid-column:1/-1;">' + _cpBuildMiniChatShot() + '</div>' +
+            '<div style="border-radius:16px;background:linear-gradient(160deg,#fff6ee,#f5ebe3);padding:12px;border:1px solid #f0e6dc;min-height:112px;display:flex;flex-direction:column;justify-content:space-between;">' +
+                '<div style="font-size:11px;color:#9b8d7f;">最近照片</div>' +
+                '<div style="font-size:15px;font-weight:700;color:#3b342d;">12 张新图</div>' +
+                '<div style="font-size:11px;color:#8f8275;line-height:1.45;">聊天页、头像和页面壁纸都归进这里。</div>' +
+            '</div>' +
+            '<div style="border-radius:16px;background:linear-gradient(160deg,#eef5ff,#e5edfb);padding:12px;border:1px solid #dfe7f3;min-height:112px;display:flex;flex-direction:column;justify-content:space-between;">' +
+                '<div style="font-size:11px;color:#8897b5;">回忆精选</div>' +
+                '<div style="font-size:15px;font-weight:700;color:#2d3852;">今天</div>' +
+                '<div style="font-size:11px;color:#7f8eac;line-height:1.45;">不再用桌面占位图替代真正的页面截图。</div>' +
+            '</div>' +
+        '</div>';
+    }
+
+    // ---- 渲染应用内容（删除旧占位框架，改为实页式预览）----
     function _cpRenderInnerApp(appName) {
         var body = document.getElementById('cp-inner-app-body');
         if (!body) return;
-        var frameRowsMap = {
-            '备忘录': ['快速记录区', '待办清单区', '最近编辑区'],
-            '相册': ['最近照片区', '相册分组区', '回忆精选区'],
-            '音乐': ['最近播放区', '收藏歌单区', '推荐歌单区'],
-            '短视频': ['关注更新区', '推荐视频区', '历史记录区'],
-            '资产': ['账户总览区', '收支记录区', '账单分析区'],
-            '购物': ['购物车区', '待收货区', '历史订单区'],
-            '浏览器': ['常用网站区', '历史访问区', '下载管理区'],
-            '私密空间': ['隐私入口区', '私密相册区', '私密文档区']
+        var displayName = _cpGetInnerDisplayName();
+        var appHtmlMap = {
+            '备忘录': _cpBuildSectionCard('备忘录', displayName + ' 今天留下的最近记录', [
+                { title: '临时想法', desc: '把查手机内页恢复成真实页面风格，不再用网格占位。', meta: '刚刚' },
+                { title: '提醒', desc: '回到 WeChat 后补一句“我已经看到了”。', meta: '21:08' },
+                { title: '待办', desc: '把聊天截图、相册、钱包页统一成同一套浅底壁纸。', meta: '3 条' }
+            ], '备忘录'),
+            '相册': _cpBuildSectionCard('相册', '最近保存的页面与截图预览', [], '相册') + _cpBuildAlbumOverview(),
+            '音乐': _cpBuildSectionCard('正在播放', displayName + ' 的音乐页不再走桌面网格', [
+                { title: 'Baby Song', desc: '当前播放 · 轻微旋律保持在页面顶部。', meta: '03:28' },
+                { title: '收藏歌单', desc: '夜间循环 / 安静通勤 / 需要一点陪伴', meta: '3 个' },
+                { title: '最近添加', desc: '把页面做成真正的音乐页，而不是只有框架。', meta: '今天' }
+            ], '音乐'),
+            '短视频': _cpBuildSectionCard('短视频', '推荐流、关注更新和历史观看被还原为实页结构', [
+                { title: '关注更新', desc: displayName + ' 关注的账号刚发了新视频。', meta: '2 条' },
+                { title: '推荐视频', desc: '情绪向、通勤向、故事向三条内容流。', meta: '猜你喜欢' },
+                { title: '观看历史', desc: '不再只显示“推荐视频区”四个字。', meta: '最近' }
+            ], '短视频'),
+            '资产': _cpBuildSectionCard('资产总览', '余额、账单和分析信息统一成轻面板', [
+                { title: '可用余额', desc: '¥ 8,650.00', meta: '稳定' },
+                { title: '最近账单', desc: '转账、红包和充值会按时间线排列。', meta: '6 条' },
+                { title: '本周分析', desc: '支出主要来自购物和外卖。', meta: '更新中' }
+            ], '资产'),
+            '购物': _cpBuildSectionCard('购物', displayName + ' 的购物页采用和 WeChat 一样的浅底壁纸', [
+                { title: '待收货', desc: '耳机保护套 / 香薰 / 贴纸包', meta: '3 件' },
+                { title: '购物车', desc: '把想买的先留着，等有空再结算。', meta: '4 件' },
+                { title: '历史订单', desc: '最近一次下单显示在最上方。', meta: '今天' }
+            ], '购物'),
+            '浏览器': _cpBuildSectionCard('浏览器', '常用站点与浏览记录做成真实列表，不再是假框', [
+                { title: '常用网站', desc: '搜索、社交、云盘、视频', meta: '4 个' },
+                { title: '最近访问', desc: '角色设定、聊天素材、图片站', meta: '今天' },
+                { title: '下载管理', desc: '保存的图片与文档会从这里查看。', meta: '2 个' }
+            ], '浏览器'),
+            '私密空间': _cpBuildSectionCard('私密空间', '入口、相册和文档现在是独立页面，不再和桌面混在一起', [
+                { title: '隐私入口', desc: '面容验证后进入，避免直接暴露内容。', meta: '已锁定' },
+                { title: '私密相册', desc: '单独保存不想出现在普通相册里的内容。', meta: '12 项' },
+                { title: '私密文档', desc: '聊天备份、账号信息、隐藏便签。', meta: '3 份' }
+            ], '私密')
         };
-        var rows = frameRowsMap[appName] || ['主内容区', '辅助内容区', '最近操作区'];
-        body.innerHTML =
-            '<div style="padding:12px;border-radius:14px;background:#ffffff;border:1px solid #ececf2;">' +
-                '<div style="font-size:14px;font-weight:700;color:#2d2d38;letter-spacing:0.2px;">' + appName + ' · 应用框架</div>' +
-                '<div style="margin-top:6px;font-size:12px;color:#8c8ca1;line-height:1.55;">仅保留页面结构，不执行任何查数据生成。</div>' +
-            '</div>' +
-            _cpBuildFrameRows(rows);
+        body.innerHTML = appHtmlMap[appName] || _cpBuildSectionCard(appName, displayName + ' 的应用页', [
+            { title: '主内容', desc: '页面已切换为实页式预览。', meta: '已恢复' },
+            { title: '最近操作', desc: '这里不再展示旧的占位框架。', meta: '刚刚' }
+        ], '应用');
     }
 
     // ---- 打开手机检查页面 ----
@@ -221,11 +434,9 @@
         if (innerApp) innerApp.style.display = 'none';
 
         // 设置角色名
-        var roleNameEl = document.getElementById('checkphone-role-name');
-        if (roleNameEl) roleNameEl.textContent = _cpDisplayName + ' 的手机';
-
         // 重置到锁屏状态
         _cpShowLockScreen();
+        _cpLoadDesktopCustomizationState(contact);
 
         // 设置壁纸（锁屏和密码页使用头像，解锁后保持深色渐变）
         var avatarWallpaperBg = contact.roleAvatar
@@ -273,8 +484,6 @@
         _cpGetDisplayName(contact).then(function(name) {
             if (!_cpContact || String(_cpContact.id) !== String(contact.id)) return;
             _cpDisplayName = name || _cpDisplayName;
-            var roleNameEl2 = document.getElementById('checkphone-role-name');
-            if (roleNameEl2) roleNameEl2.textContent = _cpDisplayName + ' 的手机';
             var passcodeNameEl2 = document.getElementById('cp-passcode-name');
             if (passcodeNameEl2) passcodeNameEl2.textContent = _cpDisplayName;
             var askRoleNameEl2 = document.getElementById('cp-ask-role-name');
@@ -309,6 +518,7 @@
         _cpPasscodeInput = '';
         _cpAsking = false;
         _cpDisplayName = '';
+        _cpDesktopLoadToken++;
         // 重置UI
         _cpHideAllScreens();
         var lockScreen = document.getElementById('cp-lock-screen');
@@ -354,12 +564,19 @@
             if (profileAvatarImg) profileAvatarImg.src = _cpContact.roleAvatar || '';
             // 名字（角色名）
             var profileNameEl = document.getElementById('cp-profile-name');
-            if (profileNameEl) profileNameEl.textContent = _cpDisplayName || _cpContact.roleName || '角色';
-            // 更新应用行标题（角色名/备注 · 应用名）
-            var row1Title = document.getElementById('cp-row1-title');
-            var row2Title = document.getElementById('cp-row2-title');
-            if (row1Title) row1Title.textContent = _cpDisplayName + ' · 备忘录';
-            if (row2Title) row2Title.textContent = _cpDisplayName + ' · 资产';
+            if (profileNameEl) {
+                profileNameEl.textContent = _cpDisplayName || _cpContact.roleName || '角色';
+                profileNameEl.onclick = async function() {
+                    var currentName = profileNameEl.textContent;
+                    var newName = await window.showMiniPrompt('点击编辑昵称', currentName);
+                    if (newName !== null) {
+                        newName = String(newName || '').trim();
+                        if (!newName) return;
+                        profileNameEl.textContent = newName;
+                        _cpDisplayName = newName;
+                    }
+                };
+            }
             // 个性签名：从 localforage 读取，初始显示"暂无个性签名"
             var profileSigEl = document.getElementById('cp-profile-sig');
             if (profileSigEl) {
@@ -372,7 +589,7 @@
                 // 绑定点击可编辑
                 profileSigEl.onclick = async function() {
                     var current = profileSigEl.textContent;
-                    var newSig = await window.showMiniPrompt('输入个性签名：', current === '暂无个性签名' ? '' : current);
+                    var newSig = await window.showMiniPrompt('点击编辑个性签名', current === '暂无个性签名' ? '' : current);
                     if (newSig !== null) {
                         var text = newSig.trim() || '暂无个性签名';
                         profileSigEl.textContent = text;
@@ -380,13 +597,6 @@
                     }
                 };
             }
-            // 背景图（使用头像作为模糊背景，仅用于顶部信息卡片背景，不影响全屏壁纸）
-            var profileBg = document.getElementById('cp-profile-bg');
-            if (profileBg && _cpContact.roleAvatar) {
-                profileBg.style.background = 'url(' + _cpContact.roleAvatar + ') center/cover no-repeat';
-            }
-            // 解锁后壁纸：保持深色渐变，不使用头像（避免头像铺满整个屏幕背景）
-            // cp-unlocked-wallpaper 的 CSS 已定义为深色渐变，此处不做覆盖
         }
     }
 
@@ -857,22 +1067,7 @@
             var base64 = e.target.result;
             // 存储图标数据
             _cpDesktopIconData[idx] = base64;
-            // 更新查手机桌面上对应的图标（cp-desktop-icon-bg，按行列顺序）
-            // idx 0-7: desktop app icons (.cp-desktop-icon-bg), idx 8-9: Dock icons (.cp-dock-icon-bg)
-            if (idx < 8) {
-                var allIconBgs = document.querySelectorAll('#cp-unlocked-screen .cp-desktop-icon-bg');
-                if (allIconBgs[idx]) {
-                    allIconBgs[idx].style.background = 'url(' + base64 + ') center/cover no-repeat';
-                    allIconBgs[idx].innerHTML = '';
-                }
-            } else {
-                var dockIdx = idx - 8;
-                var allDockBgs = document.querySelectorAll('#cp-unlocked-screen .cp-dock-icon-bg');
-                if (allDockBgs[dockIdx]) {
-                    allDockBgs[dockIdx].style.background = 'url(' + base64 + ') center/cover no-repeat';
-                    allDockBgs[dockIdx].innerHTML = '';
-                }
-            }
+            _cpApplyDesktopIcons();
             // 更新面板内图标预览
             _cpInitIconRows();
             // 持久化（按联系人隔离）

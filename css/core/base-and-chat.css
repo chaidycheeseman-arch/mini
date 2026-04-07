@@ -1,4 +1,5 @@
 ﻿        :root {
+            --ui-scale: 1;
             --widget-bg: rgba(255, 255, 255, 0.75);
             --text-main: #333;
             --text-sub: #999;
@@ -292,34 +293,14 @@
         .grid-layout-p1 { display: grid; grid-template-columns: 160px 1fr; gap: 15px; align-items: stretch; }
         .square-widget { width: 160px; height: 160px; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 15px; }
         .home-pair-widget { width: 160px; height: 160px; padding: 12px 6px 14px; display: flex; align-items: center; justify-content: center; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; margin: 0 auto; overflow: visible; }
-        .home-pair-track { width: auto; max-width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px; }
-        .home-pair-item { flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .home-pair-track { width: auto; max-width: 100%; display: flex; align-items: center; justify-content: center; gap: 18px; }
+        .home-pair-item { flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; }
         .home-pair-item.is-left { transform: none; }
         .home-pair-item.is-right { transform: none; }
-        .home-pair-bubble { position: relative; min-height: 0; width: fit-content; max-width: 72px; padding: 5px 9px 6px; border-radius: 999px; background: rgba(255,255,255,0.96); box-shadow: 0 4px 10px rgba(0,0,0,0.06); font-size: 10px; line-height: 1.2; font-weight: 600; color: #474747; text-align: center; display: block; white-space: nowrap; overflow: visible; text-overflow: ellipsis; cursor: pointer; }
+        .home-pair-bubble { position: relative; z-index: 1; min-height: 0; width: fit-content; max-width: 76px; padding: 5px 10px 6px; border-radius: 999px; background: var(--surface-1); border: 1px solid var(--border); box-shadow: 0 10px 20px var(--shadow); font-size: 10px; line-height: 1.2; font-weight: 600; color: var(--text-main); text-align: center; display: block; white-space: nowrap; overflow: visible; text-overflow: ellipsis; cursor: pointer; }
+        .home-pair-bubble::before,
         .home-pair-bubble::after {
-            content: "";
-            position: absolute;
-            left: 18px;
-            bottom: -7px;
-            width: 0;
-            height: 0;
-            transform: none;
-            border-style: solid;
-            border-width: 8px 7px 0 2px;
-            border-color: rgba(255,255,255,0.98) transparent transparent transparent;
-            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.06));
-        }
-        .home-pair-bubble::before {
             content: none;
-        }
-        .home-pair-item.is-right .home-pair-bubble::after,
-        .home-pair-item.is-right .home-pair-bubble::before {
-            left: auto;
-            right: 18px;
-        }
-        .home-pair-item.is-right .home-pair-bubble::after {
-            border-width: 8px 2px 0 7px;
         }
         .home-pair-avatar { width: 50px; height: 50px; border-radius: 50%; overflow: hidden; background: #eee; box-shadow: 0 6px 18px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; }
         .home-pair-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
@@ -657,39 +638,103 @@
         .wb-radio-group { display: flex; gap: 15px; margin-top: 5px; }
         .wb-radio-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #555; cursor: pointer; }
         .wb-radio-label input[type="radio"] { accent-color: #666; width: 14px; height: 14px; }
-        /* ====== WeChat 应用专属样式 (精美重制版 Dock) ====== */
+        /* ====== WeChat 应用专属样式 (贴底一体化导航) ====== */
+        #wechat-app {
+            background: #f7f7f7 !important;
+            background-image: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            overflow: hidden;
+        }
         .wechat-dock {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            width: 290px; height: 68px; background: rgba(255,255,255,0.85);
-            border-radius: 34px; display: flex; justify-content: space-evenly; align-items: center;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.06); z-index: 100;
-            backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.7);
+            position: absolute;
+            left: 14px;
+            right: 14px;
+            bottom: 12px;
+            transform: none;
+            width: auto;
+            height: 72px;
+            padding: 8px 10px calc(env(safe-area-inset-bottom, 0px) + 8px);
+            background: #f3f4f6;
+            border-radius: 24px;
+            display: flex;
+            justify-content: flex-start;
+            align-items: stretch;
+            gap: 8px;
+            box-shadow: 0 14px 28px rgba(15,16,18,0.1);
+            z-index: 100;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            border: 1px solid rgba(17,17,17,0.06);
         }
         .wechat-dock-btn { 
-            width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;
-            color: #b0b0b0; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; border-radius: 16px;
+            flex: 1 1 0;
+            min-width: 0;
+            width: 0;
+            height: 44px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #acacac;
+            transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+            cursor: pointer;
+            border-radius: 14px;
         }
-        .wechat-dock-btn.active { color: #333; transform: translateY(-2px); }
+        .wechat-dock-btn.active {
+            color: #1f1f1f;
+            background: rgba(0,0,0,0.05);
+            transform: none;
+            border-radius: 14px;
+        }
         /* 增加 flex-shrink: 0 防止 SVG 受到 flex 挤压变形 */
-        .wechat-dock-btn svg { width: 24px; height: 24px; stroke-width: 2; transition: all 0.2s; flex-shrink: 0; }
-        .wechat-dock-btn.active svg { transform: scale(1.1); stroke-width: 2.5; }
-        .wechat-tab-page { display: none; width: 100%; height: 100%; flex-direction: column; }
-        .wechat-tab-page.active { display: flex; }
+        .wechat-dock-btn svg {
+            width: 24px;
+            height: 24px;
+            stroke-width: 2;
+            transition: transform 0.2s ease, stroke-width 0.2s ease;
+            flex-shrink: 0;
+        }
+        .wechat-dock-btn.active svg { transform: scale(1.04); stroke-width: 2.35; }
+        .wechat-tab-page {
+            display: none;
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            flex-direction: column;
+            overflow: hidden;
+            background: #f7f7f7;
+        }
+        .wechat-tab-page.active {
+            display: flex;
+            min-height: 0;
+        }
         /* 消息列表区域增加轻微覆盖，避免背景在边缘露出 */
         #wechat-tab-msg .app-body {
             margin-top: -1px;
             min-height: calc(100% + 2px);
-            padding-top: 16px !important;
-            padding-bottom: 42px !important;
+            padding-top: 12px !important;
+            padding-bottom: 108px !important;
             background: #f7f7f7;
+        }
+        #wechat-tab-contacts .app-body,
+        #wechat-tab-me .app-body {
+            padding-bottom: 108px !important;
         }
         #chat-list-container {
             min-height: calc(100% + 2px);
-            padding-bottom: 2px;
+            padding-bottom: 0;
             background: #f7f7f7;
         }
         /* 朋友圈样式 */
-        .moments-container { width: 100%; height: 100%; overflow-y: auto; background: #f6f7f9; position: relative; }
+        .moments-container {
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            background: #f7f7f7;
+            position: relative;
+            padding-bottom: 108px;
+        }
         .moments-cover { width: 100%; height: 45vh; background: #eee; position: relative; overflow: visible; }
         .moments-cover img { width: 100%; height: 100%; object-fit: cover; }
         .moments-float-btn {
@@ -3543,6 +3588,7 @@ html[data-theme]:not([data-theme="day"]) .home-hero-info {
     box-shadow: none !important;
     backdrop-filter: none !important;
     border-color: transparent !important;
+    overflow: visible !important;
 }
 .grid-layout-p1 .home-pair-bubble.editable-text {
     display: block;
@@ -3688,7 +3734,6 @@ html[data-theme] .full-app-page,
 html[data-theme] .app-body,
 html[data-theme] #wechat-tab-msg .app-body,
 html[data-theme] .runtime-debug-body {
-    background: transparent !important;
     color: var(--text-main) !important;
 }
 
@@ -3765,21 +3810,12 @@ html[data-theme]:not([data-theme="day"]) .custom-theme-preset-row .settings-inpu
 
 html[data-theme]:not([data-theme="day"]) .app-header,
 html[data-theme]:not([data-theme="day"]) .offline-header,
-html[data-theme]:not([data-theme="day"]) #wechat-app,
-html[data-theme]:not([data-theme="day"]) #wallet-app,
-html[data-theme]:not([data-theme="day"]) #bank-card-app,
-html[data-theme]:not([data-theme="day"]) #stock-app,
-html[data-theme]:not([data-theme="day"]) #role-profile-app,
-html[data-theme]:not([data-theme="day"]) #chat-detail-app,
-html[data-theme]:not([data-theme="day"]) #meetlove-app,
-html[data-theme]:not([data-theme="day"]) #offline-chat-app,
-html[data-theme]:not([data-theme="day"]) #sms-app,
 html[data-theme]:not([data-theme="day"]) #sms-app .app-header,
 html[data-theme]:not([data-theme="day"]) #sms-chat-window .app-header {
-    background: transparent !important;
+    background: var(--bg-sub) !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-    border-bottom: none !important;
+    border-bottom: 1px solid var(--border) !important;
 }
 
 html[data-theme="custom"] .btn-restore,
@@ -3971,14 +4007,14 @@ html[data-theme="night"] .cd-divider {
     gap: 12px;
     align-items: center;
     margin-top: 0;
-    margin-bottom: -3px;
+    margin-bottom: 5px;
 }
 
 .music-title-pill {
     padding: 8px 16px;
     border: none;
     border-radius: 999px;
-    background: rgba(255,255,255,0.88);
+    background: var(--panel-bg);
     color: var(--text-sub);
     box-shadow: 0 12px 24px var(--shadow);
     font-size: 11px;
@@ -3990,9 +4026,10 @@ html[data-theme="night"] .cd-divider {
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: rgba(232,236,241,0.94);
-    color: #ffffff;
-    box-shadow: 0 10px 18px rgba(120,128,140,0.1);
+    background: var(--surface-1);
+    color: var(--text-main);
+    border: none;
+    box-shadow: 0 12px 24px var(--shadow);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -4000,34 +4037,43 @@ html[data-theme="night"] .cd-divider {
     padding-left: 1.5px;
     flex-shrink: 0;
     line-height: 1;
+    cursor: pointer;
+    transition: transform 0.16s ease, opacity 0.16s ease;
 }
 
-.music-play-btn svg {
-    display: block;
-    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.08));
+.music-play-btn:active {
+    transform: scale(0.94);
+    opacity: 0.9;
+}
+
+.top-music-bar .music-title-pill,
+.top-music-bar .music-play-btn {
+    border: none !important;
+    box-shadow: 0 6px 14px rgba(15,23,42,0.06) !important;
 }
 
 .profile-card-large.widget-common {
-    background: rgba(255,255,255,0.88) !important;
-    border: 1px solid rgba(255,255,255,0.82);
-    box-shadow: 0 16px 32px var(--shadow);
+    background: var(--widget-bg) !important;
+    border: none !important;
+    box-shadow: 0 8px 18px rgba(15,23,42,0.06) !important;
 }
 
 .miffy-avatar {
     background: var(--surface-1);
-    border: 1px solid rgba(255,255,255,0.82);
-    box-shadow: 0 10px 20px var(--shadow);
-}
-
-.date-pill,
-.quote-pill {
-    border: 1px solid rgba(255,255,255,0.82);
-    box-shadow: 0 10px 18px var(--shadow);
+    border: none !important;
+    box-shadow: 0 6px 14px rgba(15,23,42,0.08);
 }
 
 .date-pill {
+    border: none !important;
     color: var(--text-sub);
-    background: rgba(255,255,255,0.94);
+    background: var(--surface-1);
+    box-shadow: 0 6px 12px rgba(15,23,42,0.06);
+}
+
+html[data-theme]:not([data-theme="day"]) .music-play-btn {
+    background: var(--accent-soft);
+    color: var(--accent);
 }
 
 #text-motto {
@@ -4042,6 +4088,8 @@ html[data-theme="night"] .cd-divider {
 }
 
 .quote-pill {
+    border: 1px solid rgba(255,255,255,0.82);
+    box-shadow: 0 10px 18px var(--shadow);
     background: rgba(247,248,251,0.92);
     color: var(--text-sub);
 }
@@ -4094,59 +4142,35 @@ html[data-theme="night"] .cd-divider {
     box-shadow: 0 18px 32px var(--shadow);
 }
 
-.desktop-pagination.swiper-pagination {
-    position: absolute;
-    left: 50%;
-    bottom: 114px;
-    width: auto;
-    transform: translateX(-50%);
-    display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    z-index: 55;
-}
-
-.desktop-pagination.swiper-pagination .swiper-pagination-bullet {
-    width: 8px;
-    height: 8px;
-    margin: 0 !important;
-    display: block !important;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.72);
-    opacity: 1;
-    box-shadow:
-        0 4px 10px rgba(0,0,0,0.08),
-        inset 0 1px 0 rgba(255,255,255,0.78);
-    transition: transform 0.18s ease, background 0.18s ease, width 0.18s ease;
-}
-
-.desktop-pagination.swiper-pagination .swiper-pagination-bullet-active {
-    width: 18px;
-    background: rgba(116,124,136,0.94);
-    transform: translateY(-0.5px);
-}
-
 .polaroid-container {
-    padding: 10px 10px 18px 10px;
-    border-radius: 24px;
-    border: 1px solid var(--border);
-    background: var(--surface-1);
-    box-shadow: 0 14px 24px var(--shadow);
-}
-
-.polaroid-img-box {
-    border-radius: 16px;
-    background: linear-gradient(180deg, #f2f4f7 0%, #ebeef3 100%);
-}
-.polaroid-no-radius,
-.polaroid-mini {
+    background: #fff !important;
     padding: 10px 10px 30px 10px !important;
     border: none !important;
     border-radius: 0 !important;
-    background: white !important;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.07) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+    cursor: pointer;
 }
+
+.polaroid-img-box {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    border-radius: 0 !important;
+    background: #f0f0f0 !important;
+}
+
+.polaroid-no-radius,
+.polaroid-mini {
+    background: #fff !important;
+    padding: 10px 10px 30px 10px !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
 .polaroid-stagger-group {
     display: flex;
     align-items: flex-end;
@@ -4155,27 +4179,31 @@ html[data-theme="night"] .cd-divider {
     margin: 0;
     padding: 0;
 }
+
 .polaroid-mini {
     position: relative;
-    width: auto;
-    padding: 8px 8px 24px 8px !important;
-    box-shadow: 0 8px 16px rgba(0,0,0,0.08) !important;
+    width: 97px;
+    height: auto;
     transform-origin: center center;
 }
+
 .polaroid-no-radius .polaroid-img-box,
 .polaroid-mini .polaroid-img-box {
     border-radius: 0 !important;
     background: #f0f0f0 !important;
 }
 
-/* 第二页中间3个拍立得：核心属性抽离（仅 pl-2 / pl-3 / pl-4） */
+/* 第二页中间 3 个拍立得强制恢复显示 */
 #pl-2,
 #pl-3,
 #pl-4 {
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
     width: 97px;
     height: auto;
-    background: white;
-    padding: 12px 12px 35px 12px !important;
+    background: #fff !important;
+    padding: 10px 10px 30px 10px !important;
     box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
     cursor: pointer;
 }
@@ -4192,14 +4220,16 @@ html[data-theme="night"] .cd-divider {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    display: block !important;
 }
 #pl-2 { transform: translate(-2px, 2px) rotate(-6deg); }
 #pl-3 { transform: translateY(-1px) rotate(4deg); }
 #pl-4 { transform: translate(2px, 1px) rotate(-2deg); }
 
 .full-app-page {
-    background: linear-gradient(180deg, var(--bg-main) 0%, var(--bg-sub) 100%);
-    backdrop-filter: blur(8px);
+    background: #f7f7f7;
+    background-image: none;
+    backdrop-filter: none;
 }
 
 .app-header,
@@ -4733,4 +4763,448 @@ html[data-theme]:not([data-theme="day"]) #accordion-data #btn-compress-data {
 .mini-system-dialog-btn.is-primary {
     background: #1f2328;
     color: #fff;
+}
+
+/* ====== 2026-04-07 UI 灰白统一覆盖 ====== */
+:root {
+    --widget-bg: #ffffff;
+    --text-main: #1f2328;
+    --text-sub: #7a8089;
+    --panel-bg: #f3f4f6;
+    --bg-main: #ffffff;
+    --bg-sub: #f4f5f6;
+    --accent: #1f2328;
+    --border: rgba(31, 35, 40, 0.08);
+    --shadow: rgba(15, 16, 18, 0.06);
+    --surface-1: #ffffff;
+    --surface-2: #f4f5f6;
+    --input-bg: #fbfbfc;
+    --accent-soft: rgba(31, 35, 40, 0.06);
+    --shadow-strong: rgba(15, 16, 18, 0.12);
+    --line-color: rgba(20, 22, 26, 0.04);
+    --control-bg: #ffffff;
+    --control-border: rgba(31, 35, 40, 0.08);
+    --control-shadow: 0 10px 26px rgba(15, 16, 18, 0.08);
+    --control-text: #1f2328;
+    --timeline-overlay: rgba(22, 24, 28, 0.18);
+    --timeline-bg: #ffffff;
+    --timeline-panel: #f4f5f6;
+    --timeline-card-bg: linear-gradient(180deg, #ffffff 0%, #f3f4f5 100%);
+    --timeline-border: #e6e8eb;
+    --timeline-text: #1f2328;
+    --timeline-sub: #7a8089;
+    --timeline-soft: #eff1f3;
+    --timeline-primary: #eceef1;
+    --timeline-primary-text: #1f2328;
+    --timeline-shadow: 0 18px 42px rgba(15, 16, 18, 0.1);
+    --modal-overlay-bg: rgba(15, 16, 18, 0.18);
+    --modal-surface: #ffffff;
+    --modal-surface-soft: #f4f5f6;
+    --modal-border: rgba(20, 22, 26, 0.08);
+    --modal-shadow: 0 22px 54px rgba(15, 16, 18, 0.12);
+    --button-fill: #f1f2f4;
+    --button-fill-strong: #eceef1;
+    --button-text: #1f2328;
+    --button-muted: #7d838c;
+    --switch-on: #4cd964;
+    --switch-off: #d8dade;
+    --user-bubble-bg: #efefef;
+}
+
+body,
+html,
+.phone-screen {
+    background-color: var(--bg-main) !important;
+}
+
+body > .phone-shell > .phone-screen {
+    width: calc(100% / var(--ui-scale, 1));
+    height: calc(100% / var(--ui-scale, 1));
+    transform: scale(var(--ui-scale, 1));
+    transform-origin: top left;
+    will-change: transform;
+}
+
+.full-app-page,
+#sms-chat-window,
+#meetlove-app,
+#stock-app {
+    background-image: none !important;
+}
+
+.full-app-page:not(#music-app):not(#offline-chat-app) {
+    background: var(--bg-sub) !important;
+    background-image: none !important;
+}
+
+.full-app-page:not(#music-app):not(#offline-chat-app) .app-body,
+#sms-app,
+#sms-tab-list,
+#sms-chat-window,
+#sms-list-container {
+    background: var(--bg-sub) !important;
+    background-image: none !important;
+}
+
+#wechat-app,
+#wechat-app .wechat-tab-page,
+#wechat-tab-msg .app-body,
+#chat-list-container,
+#wechat-tab-contacts,
+#wechat-tab-me,
+#wechat-tab-moments,
+#wechat-app .moments-container {
+    background: var(--bg-sub) !important;
+    background-image: none !important;
+}
+
+#wechat-app .wechat-dock {
+    left: 18px !important;
+    right: 18px !important;
+    bottom: 10px !important;
+    height: 58px !important;
+    padding: 6px 12px calc(env(safe-area-inset-bottom, 0px) + 6px) !important;
+    background: var(--surface-1) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 999px !important;
+    box-shadow: 0 10px 22px var(--shadow-strong) !important;
+    gap: 0 !important;
+    align-items: center !important;
+}
+
+#wechat-app .wechat-dock-btn {
+    position: relative;
+    flex: 1 1 0 !important;
+    width: auto !important;
+    height: 40px !important;
+    color: var(--text-sub) !important;
+    border-radius: 999px !important;
+    background: transparent !important;
+    overflow: visible !important;
+}
+
+#wechat-app .wechat-dock-btn::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: transparent;
+    transform: translate(-50%, -50%) scale(0.76);
+    transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+#wechat-app .wechat-dock-btn.active {
+    color: var(--text-main) !important;
+    background: transparent !important;
+    border-radius: 999px !important;
+}
+
+#wechat-app .wechat-dock-btn.active::before {
+    background: var(--accent-soft) !important;
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 8px 18px var(--shadow);
+}
+
+#wechat-app .wechat-dock-btn svg {
+    position: relative;
+    z-index: 1;
+    width: 22px !important;
+    height: 22px !important;
+}
+
+#wechat-app .wechat-dock-btn.active svg {
+    transform: none !important;
+    stroke-width: 2.25;
+}
+
+#chat-window,
+#chat-window .chat-body {
+    background: linear-gradient(180deg, var(--surface-1) 0%, var(--surface-2) 100%) !important;
+    background-image: none !important;
+}
+
+.widget-common,
+.theme-accordion-item,
+.preset-card,
+.theme-mode-option,
+.custom-theme-panel,
+.theme-lock-preview-card,
+.runtime-debug-card,
+.notification-banner,
+.stock-total-card,
+.ml-search-bar,
+.ml-user-card,
+.ml-profile-info-card,
+.ml-profile-stats-card,
+.ml-profile-detail-card,
+.ml-profile-album-card {
+    background: var(--surface-1) !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: 0 10px 26px var(--shadow) !important;
+}
+
+.settings-input,
+textarea.settings-input,
+select.settings-input,
+.pay-pwd-box {
+    background: var(--surface-2) !important;
+    border-color: var(--control-border) !important;
+    color: var(--text-main) !important;
+}
+
+.chat-body,
+#sms-msg-container {
+    background: linear-gradient(180deg, var(--surface-1) 0%, var(--surface-2) 100%) !important;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+    accent-color: var(--switch-on);
+}
+
+.settings-switch-slider,
+.wb-card-switch-slider,
+.cd-toggle,
+#no-pwd-toggle {
+    background: var(--switch-off) !important;
+}
+
+.settings-switch input:checked + .settings-switch-slider,
+.wb-card-switch input:checked + .wb-card-switch-slider,
+.cd-toggle.on {
+    background: var(--switch-on) !important;
+}
+
+.chat-msg-row.msg-left .chat-msg-content:not(:has([data-no-bubble="1"])):not(:has(.card-wrapper)),
+.chat-msg-row.msg-right .chat-msg-content:not(:has([data-no-bubble="1"])):not(:has(.card-wrapper)),
+.wechat-record-detail-row .chat-msg-content,
+.sms-bubble,
+.sms-typing-bubble {
+    border: none !important;
+    outline: none !important;
+}
+
+.chat-msg-row.msg-left .chat-msg-content:not(:has([data-no-bubble="1"])):not(:has(.card-wrapper)),
+.msg-left .chat-msg-content.chat-typing-content,
+.wechat-record-detail-row.msg-left .chat-msg-content,
+.sms-role .sms-bubble,
+.sms-typing-bubble {
+    background: var(--surface-1) !important;
+    color: var(--text-main) !important;
+}
+
+.chat-msg-row.msg-right .chat-msg-content:not(:has([data-no-bubble="1"])):not(:has(.card-wrapper)),
+.wechat-record-detail-row.msg-right .chat-msg-content,
+.sms-me .sms-bubble {
+    background: var(--accent-soft) !important;
+    color: var(--text-main) !important;
+}
+
+#add-bank-card-modal,
+#no-pwd-pay-modal,
+#mask-editor-modal,
+#contact-editor-modal,
+#chat-type-modal,
+#emoticon-add-modal,
+#emoticon-move-modal,
+#single-chat-select-modal,
+#block-request-list-modal,
+#wechat-login-hijack-overlay,
+#shura-confrontation-overlay,
+#checkphone-contact-modal,
+#batch-export-modal,
+#sms-new-chat-modal,
+#wechat-forward-modal,
+#hv-history-modal,
+#msg-edit-modal,
+#msg-recall-modal,
+#chat-timeline-modal,
+#chat-rollback-modal,
+#camera-modal,
+#moments-comment-modal,
+#voice-modal,
+#location-modal,
+#gift-modal,
+#takeout-modal,
+#call-composer-modal,
+#red-packet-modal,
+#stock-trade-modal,
+#rp-claim-modal,
+#tf-action-modal,
+#transfer-modal,
+#recharge-modal,
+#withdraw-modal,
+#offline-manage-modal,
+#ml-settings-modal,
+#voice-storage-modal,
+#pay-pwd-overlay,
+#tf-pay-pwd-overlay,
+#rp-pay-pwd-overlay {
+    background: var(--modal-overlay-bg) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+}
+
+#add-bank-card-sheet,
+#no-pwd-pay-sheet,
+#checkphone-contact-sheet,
+#wechat-forward-sheet,
+#red-packet-sheet,
+#stock-trade-sheet,
+#transfer-sheet,
+#recharge-sheet,
+#withdraw-sheet,
+#offline-manage-sheet,
+#ml-settings-sheet,
+#pay-pwd-sheet,
+#tf-pay-pwd-sheet,
+#rp-pay-pwd-sheet,
+#offline-edit-sheet,
+#ml-edit-sheet {
+    background: var(--modal-surface) !important;
+    border-radius: 28px 28px 0 0 !important;
+    border: none !important;
+    box-shadow: 0 -18px 48px rgba(15, 16, 18, 0.12) !important;
+}
+
+#rp-claim-card,
+#tf-action-card,
+#hv-history-sheet,
+#wechat-login-hijack-card,
+#shura-confrontation-overlay > div,
+.mini-system-dialog-card {
+    background: var(--modal-surface) !important;
+    border: none !important;
+    border-radius: 28px !important;
+    box-shadow: var(--modal-shadow) !important;
+}
+
+.rp-sheet-divider,
+.rp-modal-divider,
+.tf-modal-divider,
+.tf-modal-btn-sep,
+.ml-stat-divider {
+    background: var(--border) !important;
+}
+
+.preset-header,
+.theme-section-body {
+    border-color: var(--border) !important;
+}
+
+.settings-btn,
+.btn-restore,
+.rp-send-btn,
+.rp-modal-btn,
+.tf-modal-btn,
+.mini-system-dialog-btn,
+#stock-trade-confirm-btn,
+#add-bank-card-sheet [onclick="confirmAddBankCard()"],
+#transfer-sheet [onclick="submitTransfer()"],
+#recharge-sheet [onclick="confirmRecharge()"],
+#withdraw-sheet [onclick="confirmWithdraw()"],
+#offline-manage-sheet [onclick="offlineNewChat()"],
+#offline-settings-sidebar [onclick="offlineApplyCss()"],
+#offline-settings-sidebar [onclick="offlineResetCss()"],
+#offline-settings-sidebar [onclick="offlineExtractCssTemplate()"],
+#offline-settings-sidebar [onclick="offlineSaveSettings()"],
+#offline-settings-sidebar [onclick="document.getElementById('offline-bg-file-input').click()"],
+#offline-settings-sidebar [onclick="offlineResetBg()"],
+#ml-edit-sheet [onclick="mlSaveEditProfile()"],
+#offline-edit-cancel-btn,
+#offline-edit-save-btn,
+#wechat-login-hijack-card [onclick="wechatHijackTrustDevice()"],
+#wechat-login-hijack-card [onclick="wechatHijackChangePwd()"],
+#chat-timeline-modal .chat-timeline-close,
+#chat-rollback-modal .chat-rollback-close {
+    background: var(--button-fill) !important;
+    color: var(--button-text) !important;
+    border: 1px solid var(--modal-border) !important;
+    box-shadow: none !important;
+}
+
+.action-buttons .btn-restore:first-child,
+.rp-send-btn,
+.rp-modal-btn-claim,
+.tf-modal-btn-receive,
+#stock-trade-confirm-btn,
+#add-bank-card-sheet [onclick="confirmAddBankCard()"],
+#transfer-sheet [onclick="submitTransfer()"],
+#recharge-sheet [onclick="confirmRecharge()"],
+#withdraw-sheet [onclick="confirmWithdraw()"],
+#offline-settings-sidebar [onclick="offlineApplyCss()"],
+#offline-settings-sidebar [onclick="offlineSaveSettings()"],
+#ml-edit-sheet [onclick="mlSaveEditProfile()"],
+#offline-edit-save-btn {
+    background: var(--button-fill-strong) !important;
+}
+
+.tf-modal-btn-refund,
+#offline-edit-cancel-btn,
+#wechat-login-hijack-card [onclick="wechatHijackChangePwd()"] {
+    color: var(--button-muted) !important;
+}
+
+.mini-system-dialog-btn.is-primary,
+.mini-system-dialog-btn.is-secondary {
+    color: var(--button-text) !important;
+}
+
+#meetlove-app .ml-dock {
+    background: rgba(255, 255, 255, 0.96) !important;
+    border-top: 1px solid var(--border) !important;
+}
+
+#meetlove-app .ml-tag.active,
+#meetlove-app .ml-action-like,
+#meetlove-app .ml-action-super {
+    background: var(--button-fill-strong) !important;
+    color: var(--button-text) !important;
+    border: 1px solid var(--modal-border) !important;
+    box-shadow: none !important;
+}
+
+#meetlove-app .ml-action-skip,
+#meetlove-app .ml-profile-verified,
+#meetlove-app .ml-interest-tag {
+    background: var(--button-fill) !important;
+    color: var(--button-text) !important;
+    border: 1px solid var(--modal-border) !important;
+}
+
+#meetlove-app .ml-stat-num {
+    color: var(--text-main) !important;
+}
+
+#meetlove-app .ml-profile-online-badge,
+#meetlove-app .ml-card-online-dot {
+    background: var(--switch-on) !important;
+    box-shadow: 0 0 0 2px #fff, 0 0 8px rgba(76, 217, 100, 0.18) !important;
+}
+
+#sms-app .app-back svg,
+#sms-chat-window .app-back svg {
+    stroke: var(--text-main) !important;
+}
+
+#sms-app [onclick="smsListSelectAll()"],
+#sms-chat-window [onclick="smsSelectAllMsgs()"] {
+    color: var(--text-main) !important;
+}
+
+#sms-send-btn {
+    background: var(--button-fill-strong) !important;
+    color: var(--button-text) !important;
+}
+
+#sms-send-btn svg {
+    fill: currentColor !important;
+}
+
+.sms-msg-checkbox.checked {
+    background: var(--button-fill-strong) !important;
+    border-color: var(--button-fill-strong) !important;
 }

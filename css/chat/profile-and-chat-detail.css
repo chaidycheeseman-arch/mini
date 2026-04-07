@@ -328,12 +328,14 @@
     /* 关键：overflow:hidden + border-radius 一起裁剪，彻底消除露底 */
     overflow: hidden;
     border-radius: 16px;
-    background: #fff;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    box-shadow: 0 10px 26px var(--shadow);
     /* 用 margin 代替 gap 控制间距，避免 overflow:hidden 被 gap 撑开露底 */
     margin-bottom: 12px;
 }
 .chat-swipe-wrapper.chat-item-pinned-wrap {
-    background: #fffbf0;
+    background: linear-gradient(180deg, var(--surface-1) 0%, var(--surface-2) 100%);
 }
 .chat-swipe-wrapper:last-child {
     margin-bottom: 0;
@@ -342,7 +344,7 @@
 /* 操作按钮区（绝对定位贴右，高度 100% 跟随 wrapper） */
 .chat-swipe-actions {
     position: absolute;
-    right: -144px;
+    right: 0;
     top: 0;
     bottom: 0;
     width: 144px;
@@ -350,6 +352,7 @@
     align-items: stretch;
     overflow: hidden;
     border-radius: 0;
+    z-index: 1;
 }
 
 .chat-swipe-btn {
@@ -389,6 +392,9 @@
 .chat-swipe-btn span {
     color: #fff !important;
 }
+.chat-swipe-btn + .chat-swipe-btn {
+    box-shadow: inset 1px 0 rgba(255,255,255,0.16);
+}
 
 /* 主内容区（可滑动的那层，z-index 盖住 actions） */
 .chat-swipe-item {
@@ -397,9 +403,9 @@
     display: flex;
     align-items: center;
     padding: 14px;
-    background: #fff;
+    background: transparent;
     /* 不设 border-radius，wrapper 已经裁剪 */
-    box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+    box-shadow: none;
     cursor: pointer;
     will-change: transform;
     /* 确保宽度撑满 wrapper */
@@ -413,16 +419,16 @@
 
 /* 置顶状态背景色 */
 .chat-swipe-item.chat-item-pinned {
-    background: #fffbf0;
+    background: linear-gradient(180deg, var(--surface-1) 0%, var(--surface-2) 100%);
 }
 
 /* 置顶小标签 */
 .chat-pin-tag {
     font-size: 9px;
     font-weight: 600;
-    color: #f5a623;
-    background: #fff8ec;
-    border: 1px solid #fde8b8;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
     border-radius: 6px;
     padding: 1px 5px;
     letter-spacing: 0.3px;
@@ -514,7 +520,7 @@
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     box-sizing: border-box;
-    background: #f7f7f7;
+    background: linear-gradient(180deg, var(--bg-main) 0%, var(--bg-sub) 100%);
 }
 #chat-detail-app .app-body > * {
     flex-shrink: 0;

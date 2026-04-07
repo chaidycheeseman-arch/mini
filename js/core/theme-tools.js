@@ -21,88 +21,73 @@
     const CUSTOM_THEME_KEY = 'miffy_custom_theme';
     const CUSTOM_THEME_PRESETS_KEY = 'miffy_custom_theme_presets';
     const DEFAULT_CUSTOM_THEME = Object.freeze({
-        bgMain: '#f4f6f5',
-        bgSub: '#ecefef',
-        textMain: '#1f2523',
-        textSub: '#7e8784',
-        accent: '#4cd964',
-        border: '#d8dddb',
+        bgMain: '#f5f1eb',
+        bgSub: '#ebe5dc',
+        textMain: '#26221e',
+        textSub: '#8d8479',
+        accent: '#1f1d1a',
+        border: '#d8d0c4',
         surface: '#ffffff',
-        widget: '#f7f8f8',
+        widget: '#f7f3ed',
         wallpaper: '',
         primaryButtonImage: '',
         secondaryButtonImage: '',
         iconButtonImage: '',
         dockImage: '',
         buttonStyle: 'soft',
-        buttonRadius: 18
+        buttonRadius: 22
     });
     const BUILTIN_THEME_TOKENS = Object.freeze({
         day: {
-            bgMain: '#f4f6f5',
-            bgSub: '#ecefef',
-            panelBg: 'rgba(255, 255, 255, 0.96)',
-            widgetBg: 'rgba(255, 255, 255, 0.88)',
+            bgMain: '#f5f1eb',
+            bgSub: '#ebe5dc',
+            panelBg: 'rgba(250, 248, 244, 0.94)',
+            widgetBg: 'rgba(255, 255, 255, 0.76)',
             surface1: '#ffffff',
-            surface2: '#f7f8f8',
-            inputBg: '#ffffff',
-            textMain: '#1f2523',
-            textSub: '#7e8784',
-            accent: '#4cd964',
-            accentSoft: 'rgba(76, 217, 100, 0.14)',
-            border: 'rgba(31, 37, 35, 0.10)',
-            shadow: 'rgba(20, 24, 23, 0.05)',
-            shadowStrong: 'rgba(20, 24, 23, 0.10)',
-            lineColor: 'rgba(31, 37, 35, 0.05)',
-            controlBg: '#ffffff',
-            controlBorder: 'rgba(31, 37, 35, 0.08)',
-            controlShadow: '0 10px 26px rgba(20, 24, 23, 0.08)',
-            controlText: '#1f2523',
-            controlRadius: '16px'
+            surface2: '#f7f3ed',
+            inputBg: '#fcfaf7',
+            textMain: '#26221e',
+            textSub: '#8d8479',
+            accent: '#1f1d1a',
+            accentSoft: 'rgba(31, 29, 26, 0.08)',
+            border: 'rgba(45, 39, 33, 0.08)',
+            shadow: 'rgba(45, 39, 33, 0.06)',
+            shadowStrong: 'rgba(45, 39, 33, 0.12)',
+            lineColor: 'rgba(205, 196, 184, 0.18)'
         },
         dopamine: {
-            bgMain: '#f6f7f7',
-            bgSub: '#eef1f0',
-            panelBg: 'rgba(255, 255, 255, 0.96)',
-            widgetBg: 'rgba(255, 255, 255, 0.90)',
-            surface1: '#ffffff',
-            surface2: '#f8f9f9',
-            inputBg: '#ffffff',
-            textMain: '#202624',
-            textSub: '#838b88',
-            accent: '#4cd964',
-            accentSoft: 'rgba(76, 217, 100, 0.14)',
-            border: 'rgba(32, 38, 36, 0.09)',
-            shadow: 'rgba(20, 24, 23, 0.05)',
-            shadowStrong: 'rgba(20, 24, 23, 0.10)',
-            lineColor: 'rgba(32, 38, 36, 0.045)',
-            controlBg: '#ffffff',
-            controlBorder: 'rgba(32, 38, 36, 0.08)',
-            controlShadow: '0 10px 24px rgba(20, 24, 23, 0.07)',
-            controlText: '#202624',
-            controlRadius: '16px'
+            bgMain: '#fffaf6',
+            bgSub: '#fff4ee',
+            panelBg: 'rgba(255, 247, 241, 0.94)',
+            widgetBg: 'rgba(255, 243, 235, 0.82)',
+            surface1: '#fffdfb',
+            surface2: '#fff0e6',
+            inputBg: '#fffaf7',
+            textMain: '#564a52',
+            textSub: '#9d8d94',
+            accent: '#ff9c7b',
+            accentSoft: 'rgba(255, 156, 123, 0.18)',
+            border: 'rgba(255, 156, 123, 0.18)',
+            shadow: 'rgba(244, 157, 129, 0.12)',
+            shadowStrong: 'rgba(244, 157, 129, 0.18)',
+            lineColor: 'rgba(86, 74, 82, 0.07)'
         },
         night: {
-            bgMain: '#f1f3f2',
-            bgSub: '#eaedec',
-            panelBg: 'rgba(255, 255, 255, 0.97)',
-            widgetBg: 'rgba(255, 255, 255, 0.90)',
-            surface1: '#ffffff',
-            surface2: '#f6f7f7',
-            inputBg: '#ffffff',
-            textMain: '#1e2422',
-            textSub: '#7a8380',
-            accent: '#4cd964',
-            accentSoft: 'rgba(76, 217, 100, 0.14)',
-            border: 'rgba(30, 36, 34, 0.10)',
-            shadow: 'rgba(18, 22, 21, 0.05)',
-            shadowStrong: 'rgba(18, 22, 21, 0.10)',
-            lineColor: 'rgba(30, 36, 34, 0.05)',
-            controlBg: '#ffffff',
-            controlBorder: 'rgba(30, 36, 34, 0.08)',
-            controlShadow: '0 10px 26px rgba(18, 22, 21, 0.08)',
-            controlText: '#1e2422',
-            controlRadius: '16px'
+            bgMain: '#080b12',
+            bgSub: '#101726',
+            panelBg: 'rgba(11, 16, 26, 0.94)',
+            widgetBg: 'rgba(18, 25, 39, 0.88)',
+            surface1: '#141c2b',
+            surface2: '#0d131e',
+            inputBg: '#192233',
+            textMain: '#eef4ff',
+            textSub: '#8e9cb4',
+            accent: '#7bb7ff',
+            accentSoft: 'rgba(123, 183, 255, 0.18)',
+            border: 'rgba(143, 170, 214, 0.16)',
+            shadow: 'rgba(0, 0, 0, 0.34)',
+            shadowStrong: 'rgba(0, 0, 0, 0.5)',
+            lineColor: 'rgba(210, 224, 247, 0.06)'
         }
     });
 
@@ -219,10 +204,13 @@
     function updateThemeMeta(mode, tokens, customTheme) {
         const metaTheme = document.querySelector('meta[name="theme-color"]');
         const appleStatusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-        const themeBase = mode === 'custom'
-            ? normalizeCustomTheme(customTheme || DEFAULT_CUSTOM_THEME).bgMain
-            : (tokens && tokens.bgMain) || DEFAULT_CUSTOM_THEME.bgMain;
-        const isDark = getHexLuminance(themeBase) < 0.36;
+        if (mode === 'day') {
+            if (metaTheme) metaTheme.setAttribute('content', '#ffffff');
+            if (appleStatusBar) appleStatusBar.setAttribute('content', 'default');
+            document.documentElement.style.colorScheme = 'light';
+            return;
+        }
+        const isDark = mode === 'night' || (mode === 'custom' && getHexLuminance((customTheme || DEFAULT_CUSTOM_THEME).bgMain) < 0.42);
         if (metaTheme) metaTheme.setAttribute('content', tokens.bgMain || '#ffffff');
         if (appleStatusBar) appleStatusBar.setAttribute('content', isDark ? 'black-translucent' : 'default');
         document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
@@ -458,7 +446,10 @@
     }
 
     async function setThemeMode(mode) {
-        await applyThemeMode(mode === 'night' ? 'night' : 'day');
+        const normalizedMode = mode === 'dopamine' || mode === 'night' || mode === 'custom' ? mode : 'day';
+        await applyThemeMode(normalizedMode, normalizedMode === 'custom'
+            ? { customTheme: currentCustomTheme }
+            : undefined);
     }
 
     function previewCustomThemeFromInputs() {
@@ -640,7 +631,10 @@
         });
 
         const storedMode = await localforage.getItem(THEME_MODE_KEY);
-        await applyThemeMode(storedMode === 'night' ? 'night' : 'day', {
+        const normalizedStoredMode = storedMode === 'dopamine' || storedMode === 'night' || storedMode === 'custom'
+            ? storedMode
+            : 'day';
+        await applyThemeMode(normalizedStoredMode, {
             persist: false,
             customTheme: currentCustomTheme
         });
@@ -854,14 +848,17 @@
 
     // UI缩放
     function updateUiScale(val) {
-        document.documentElement.style.zoom = (val / 100);
+        const numericVal = Math.max(50, Math.min(150, parseFloat(val) || 100));
+        document.documentElement.style.setProperty('--ui-scale', String(numericVal / 100));
+        document.documentElement.style.zoom = '';
         const display = document.getElementById('ui-scale-val');
-        if (display) display.textContent = val + '%';
-        localforage.setItem('miffy_ui_scale', val);
+        if (display) display.textContent = numericVal + '%';
+        localforage.setItem('miffy_ui_scale', numericVal);
     }
     function restoreDefaultUiScale() {
         const defaultVal = 100;
-        document.documentElement.style.zoom = 1;
+        document.documentElement.style.setProperty('--ui-scale', '1');
+        document.documentElement.style.zoom = '';
         const slider = document.getElementById('ui-scale-slider');
         if (slider) slider.value = defaultVal;
         const display = document.getElementById('ui-scale-val');
