@@ -129,7 +129,7 @@
         }
     }
     async function deleteMaskPreset(id) {
-        if (confirm('确定要永久删除这个面具设定吗？')) {
+        if (await window.showMiniConfirm('确定要永久删除这个面具设定吗？')) {
             try {
                 await maskDb.presets.delete(id);
                 renderMaskPresets();
@@ -186,8 +186,8 @@
             if (g.id !== 'default') {
                 let timer;
                 tab.addEventListener('touchstart', () => {
-                    timer = setTimeout(() => {
-                        if (confirm(`确定要删除分组【${g.name}】及其下所有表情包吗？`)) {
+                    timer = setTimeout(async () => {
+                        if (await window.showMiniConfirm(`确定要删除分组【${g.name}】及其下所有表情包吗？`)) {
                             deleteEmoGroup(g.id);
                         }
                     }, 800);
@@ -209,7 +209,7 @@
         addBtn.className = 'emo-group-add';
         addBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>';
         addBtn.onclick = async () => {
-            const name = prompt('请输入新分组名称:');
+            const name = await window.showMiniPrompt('请输入新分组名称：', '');
             if (name && name.trim()) {
                 const id = 'group_' + Date.now();
                 await emoDb.groups.add({ id, name: name.trim() });
@@ -285,7 +285,7 @@
 
     async function deleteSelectedEmoticons() {
         if (selectedEmoIds.size === 0) return;
-        if (confirm(`确定删除选中的 ${selectedEmoIds.size} 个表情包吗？`)) {
+        if (await window.showMiniConfirm(`确定删除选中的 ${selectedEmoIds.size} 个表情包吗？`)) {
             await emoDb.emoticons.bulkDelete(Array.from(selectedEmoIds));
             selectedEmoIds.clear();
             renderEmoticons();

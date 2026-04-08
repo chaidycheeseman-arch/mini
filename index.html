@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
     <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dexie@3/dist/dexie.min.js"></script>
-    <link rel="stylesheet" href="css/core/base-and-chat.css">
+    <link rel="stylesheet" href="css/core/base-and-chat.css?v=20260407-homefix2">
     <link rel="stylesheet" href="css/wallet/wallet-and-payment.css">
     <link rel="stylesheet" href="css/chat/profile-and-chat-detail.css">
     <link rel="stylesheet" href="css/device/sms-and-check-phone.css">
@@ -216,13 +216,13 @@
                         <div class="widget-common home-pair-widget">
                             <div class="home-pair-track">
                                 <div class="home-pair-item is-left">
-                                    <div class="home-pair-bubble">你在左边</div>
+                                    <div class="home-pair-bubble editable-text" id="text-home-pair-left">你在左边</div>
                                     <div class="editable home-pair-avatar" id="avatar-right-bottom-left">
                                         <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async">
                                     </div>
                                 </div>
                                 <div class="home-pair-item is-right">
-                                    <div class="home-pair-bubble">我紧靠u</div>
+                                    <div class="home-pair-bubble editable-text" id="text-home-pair-right">我紧靠u</div>
                                     <div class="editable home-pair-avatar" id="avatar-right-bottom">
                                         <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async">
                                     </div>
@@ -262,7 +262,7 @@
     <div class="temp-display" style="font-weight: 600; color: #666;">-1°</div>
 </div>
                     <div style="display:flex; gap:18px; margin-top: 0;">
-                        <div class="polaroid-container editable" id="pl-1" style="width:160px; height:auto;">
+                        <div class="polaroid-container polaroid-no-radius editable" id="pl-1" style="width:160px; height:auto;">
                             <div class="polaroid-img-box"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div>
                             <p class="editable-text" id="text-polaroid" style="font-size:11px; color:#999; margin-top:10px; text-align:center;">叫我兔兔丸</p>
                         </div>
@@ -273,10 +273,16 @@
                             <div class="app-icon"><div class="icon-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></div><span>情侣空间</span></div>
                         </div>
                     </div>
-                    <div style="display:flex; justify-content:space-around; padding: 0;">
-                        <div class="polaroid-container editable" id="pl-2" style="width:100px; height:auto; transform:rotate(-6deg);"><div class="polaroid-img-box"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div></div>
-                        <div class="polaroid-container editable" id="pl-3" style="width:100px; height:auto; transform:rotate(4deg);"><div class="polaroid-img-box"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div></div>
-                        <div class="polaroid-container editable" id="pl-4" style="width:100px; height:auto; transform:rotate(-2deg);"><div class="polaroid-img-box"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div></div>
+                    <div class="polaroid-stagger-group">
+                        <div class="polaroid-container polaroid-mini editable" id="pl-2">
+                            <div class="polaroid-img-box"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div>
+                        </div>
+                        <div class="polaroid-container polaroid-mini editable" id="pl-3">
+                            <div class="polaroid-img-box"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div>
+                        </div>
+                        <div class="polaroid-container polaroid-mini editable" id="pl-4">
+                            <div class="polaroid-img-box"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div>
+                        </div>
                     </div>
                     <div style="display:flex; gap:18px; align-items:flex-end; margin-top: 0;">
                         <div class="icon-grid" style="flex:1;">
@@ -285,7 +291,7 @@
                             <div class="app-icon"><div class="icon-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></div><span>梦境</span></div>
                             <div class="app-icon"><div class="icon-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></div><span>21st Closet</span></div>
                         </div>
-                        <div class="polaroid-container editable" id="pl-5" style="width:160px; height:auto; transform:rotate(2deg);">
+                        <div class="polaroid-container polaroid-no-radius editable" id="pl-5" style="width:160px; height:auto; transform:rotate(2deg);">
                              <div class="polaroid-img-box"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div>
                         </div>
                     </div>
@@ -295,8 +301,8 @@
     </div>
     <!-- 底部 Dock 栏 -->
     <div class="dock">
-        <div class="dock-icon" id="dock-btn-theme"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></div>
-        <div class="dock-icon" id="dock-btn-settings"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></div>
+        <div class="dock-icon" id="dock-btn-theme"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="主题"></div>
+        <div class="dock-icon" id="dock-btn-settings"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="设置"></div>
     </div>
     <!-- ====== 音乐应用页面 ====== -->
     <div id="music-app" class="full-app-page music-app-shell" style="padding-top:0; display:none;">
@@ -304,7 +310,10 @@
             <button class="music-header-back" type="button" onclick="closeMusicApp()" aria-label="返回音乐页面">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
             </button>
-            <div class="music-header-title" id="music-header-title">音乐</div>
+            <div class="music-header-brand">
+                <div class="music-header-title" id="music-header-title">音乐</div>
+                <div class="music-header-subtitle" id="music-header-subtitle">收藏与播放</div>
+            </div>
             <div class="music-header-actions music-header-actions-active" id="music-library-actions">
                 <button class="music-header-btn" type="button" onclick="musicAddSong()" aria-label="添加歌曲">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -414,9 +423,11 @@
         <div class="music-bottom-dock">
             <button class="music-dock-btn active" id="music-dock-library" type="button" onclick="musicSwitchTab('library')" aria-label="音乐">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                <span>音乐</span>
             </button>
             <button class="music-dock-btn" id="music-dock-profile" type="button" onclick="musicSwitchTab('profile')" aria-label="个人">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0"></path><circle cx="12" cy="8" r="4"></circle></svg>
+                <span>个人</span>
             </button>
         </div>
         <input type="file" id="music-cover-input" accept="image/*" style="display:none" onchange="musicHandleImageChange('cover', event)">
@@ -429,11 +440,12 @@
             <div class="app-back" onclick="closeThemeApp()">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
             </div>
-            <div class="app-title">主题</div>
+            <div class="app-title" data-subtitle="THEME">主题</div>
             <div style="width:30px;"></div> 
         </div>
         <div class="app-body" style="padding: 15px 20px;">
-            <div class="theme-accordion-item active" id="accordion-lock-preview">
+            <div class="theme-tips">注解：主题UI风格固定为灰白极简线条风（统一克制、线条化表达）。</div>
+            <div class="theme-accordion-item theme-icon-lock-preview" id="accordion-lock-preview">
                 <div class="theme-section-header" onclick="toggleThemeSection('accordion-lock-preview')">
                     <span>锁屏预览</span>
                     <div class="theme-section-arrow">›</div>
@@ -483,7 +495,7 @@
                 </div>
             </div>
             <!-- 壁纸折叠项 -->
-            <div class="theme-accordion-item" id="accordion-wallpaper">
+            <div class="theme-accordion-item theme-icon-wallpaper" id="accordion-wallpaper">
                 <div class="theme-section-header" onclick="toggleThemeSection('accordion-wallpaper')">
                     <span>壁纸设置</span>
                     <div class="theme-section-arrow">›</div>
@@ -500,7 +512,7 @@
                 </div>
             </div>
             <!-- 图标设置折叠项 -->
-            <div class="theme-accordion-item" id="accordion-icon">
+            <div class="theme-accordion-item theme-icon-grid" id="accordion-icon">
                 <div class="theme-section-header" onclick="toggleThemeSection('accordion-icon')">
                     <span>图标设置</span>
                     <div class="theme-section-arrow">›</div>
@@ -511,7 +523,7 @@
                 </div>
             </div>
             <!-- 字体折叠项 -->
-            <div class="theme-accordion-item" id="accordion-font">
+            <div class="theme-accordion-item theme-icon-font" id="accordion-font">
                 <div class="theme-section-header" onclick="toggleThemeSection('accordion-font')">
                     <span>全局字体</span>
                     <div class="theme-section-arrow">›</div>
@@ -549,7 +561,7 @@
                 </div>
             </div>
             <!-- 页面设置折叠项 -->
-            <div class="theme-accordion-item" id="accordion-page">
+            <div class="theme-accordion-item theme-icon-page" id="accordion-page">
                 <div class="theme-section-header" onclick="toggleThemeSection('accordion-page')">
                     <span>页面设置</span>
                     <div class="theme-section-arrow">›</div>
@@ -571,7 +583,7 @@
                 </div>
             </div>
             <!-- 全局样式折叠项 -->
-            <div class="theme-accordion-item" id="accordion-css">
+            <div class="theme-accordion-item theme-icon-css" id="accordion-css">
                 <div class="theme-section-header" onclick="toggleThemeSection('accordion-css')">
                     <span>全局样式</span>
                     <div class="theme-section-arrow">›</div>
@@ -605,7 +617,7 @@
                 </div>
             </div>
             <!-- 主题模式折叠项 -->
-            <div class="theme-accordion-item" id="accordion-theme-mode">
+            <div class="theme-accordion-item theme-icon-mode" id="accordion-theme-mode">
                 <div class="theme-section-header" onclick="toggleThemeSection('accordion-theme-mode')">
                     <span>主题模式</span>
                     <div class="theme-section-arrow">›</div>
@@ -615,22 +627,12 @@
                         <div class="theme-mode-option" data-theme="day" onclick="setThemeMode('day')">
                             <div class="theme-mode-preview day-preview"></div>
                             <div class="theme-mode-name">日间模式</div>
-                            <div class="theme-mode-desc">浅底高对比，清晰易读</div>
-                        </div>
-                        <div class="theme-mode-option" data-theme="dopamine" onclick="setThemeMode('dopamine')">
-                            <div class="theme-mode-preview dopamine-preview"></div>
-                            <div class="theme-mode-name">多巴胺风</div>
-                            <div class="theme-mode-desc">马卡龙色系，元气感</div>
+                            <div class="theme-mode-desc">浅灰白一体，统一、安静、耐看。</div>
                         </div>
                         <div class="theme-mode-option" data-theme="night" onclick="setThemeMode('night')">
                             <div class="theme-mode-preview night-preview"></div>
                             <div class="theme-mode-name">夜间模式</div>
-                            <div class="theme-mode-desc">纯黑底高对比，护眼</div>
-                        </div>
-                        <div class="theme-mode-option" data-theme="custom" onclick="setThemeMode('custom')">
-                            <div class="theme-mode-preview custom-preview"></div>
-                            <div class="theme-mode-name">个性主题</div>
-                            <div class="theme-mode-desc">自定义全维度个性化</div>
+                            <div class="theme-mode-desc">深墨夜景保留层次，但不再花哨割裂。</div>
                         </div>
                     </div>
                     <div id="custom-theme-editor" style="display:none; margin-top:15px; width:100%;">
@@ -645,27 +647,27 @@
                             <div class="custom-theme-vars">
                                 <div class="var-row">
                                     <label>主背景</label>
-                                    <input type="color" id="custom-bg-main" value="#ffffff">
+                                    <input type="color" id="custom-bg-main" value="#f5f1eb">
                                 </div>
                                 <div class="var-row">
                                     <label>层级背景</label>
-                                    <input type="color" id="custom-bg-sub" value="#f7f8fa">
+                                    <input type="color" id="custom-bg-sub" value="#ebe5dc">
                                 </div>
                                 <div class="var-row">
                                     <label>主文字</label>
-                                    <input type="color" id="custom-text-main" value="#333333">
+                                    <input type="color" id="custom-text-main" value="#26221e">
                                 </div>
                                 <div class="var-row">
                                     <label>辅助文字</label>
-                                    <input type="color" id="custom-text-sub" value="#8f96a3">
+                                    <input type="color" id="custom-text-sub" value="#8d8479">
                                 </div>
                                 <div class="var-row">
                                     <label>强调色</label>
-                                    <input type="color" id="custom-accent" value="#5b8def">
+                                    <input type="color" id="custom-accent" value="#1f1d1a">
                                 </div>
                                 <div class="var-row">
                                     <label>边框</label>
-                                    <input type="color" id="custom-border" value="#d9dfeb">
+                                    <input type="color" id="custom-border" value="#d8d0c4">
                                 </div>
                                 <div class="var-row">
                                     <label>卡片底色</label>
@@ -673,7 +675,7 @@
                                 </div>
                                 <div class="var-row">
                                     <label>控件底色</label>
-                                    <input type="color" id="custom-widget" value="#f4f7fb">
+                                    <input type="color" id="custom-widget" value="#f7f3ed">
                                 </div>
                             </div>
                             <div class="custom-theme-assets">
@@ -763,12 +765,12 @@
             <div class="app-back" onclick="closeSettingsApp()">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
             </div>
-            <div class="app-title">设置</div>
+            <div class="app-title" data-subtitle="SETTINGS">设置</div>
             <div style="width:30px;"></div>
         </div>
         <div class="app-body" style="align-items: stretch; padding: 15px 20px;">
             <!-- API 设置折叠项 -->
-            <div class="theme-accordion-item" id="accordion-api">
+            <div class="theme-accordion-item settings-icon-api" id="accordion-api">
                 <div class="theme-section-header" onclick="toggleThemeSection('accordion-api')">
                     <span>API 设置</span>
                     <div class="theme-section-arrow">›</div>
@@ -780,7 +782,15 @@
                     </div>
                     <div class="settings-group">
                         <label>API 密钥</label>
-                        <input type="password" id="api-key" class="settings-input" placeholder="sk-...">
+                        <div class="settings-password-wrap">
+                            <input type="password" id="api-key" class="settings-input" placeholder="sk-...">
+                            <button type="button" id="api-key-toggle" class="settings-password-toggle" onclick="toggleApiKeyVisibility()" aria-label="显示或隐藏 API 密钥">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     <div class="settings-group">
                         <label>模型选择</label>
@@ -798,8 +808,8 @@
                         </div>
                     </div>
                     <div class="settings-group">
-                        <label>每次回复携带上文数量（0=不限制）</label>
-                        <input type="number" id="api-ctx" class="settings-input" min="0" step="1" value="10" placeholder="0 表示携带全部上下文">
+                        <label>每次回复携带上文数量（默认20，范围10-200）</label>
+                        <input type="number" id="api-ctx" class="settings-input" min="10" max="200" step="1" value="20" placeholder="范围 10-200，默认 20">
                     </div>
                     <div class="action-buttons" style="flex-wrap: wrap; margin-top: 10px;">
                         <div class="btn-restore" onclick="saveSettings()">保存</div>
@@ -808,7 +818,7 @@
                     </div>
                 </div>
             </div>
-            <div class="theme-accordion-item" id="accordion-security">
+            <div class="theme-accordion-item settings-icon-security" id="accordion-security">
                 <div class="theme-section-header" onclick="toggleThemeSection('accordion-security')">
                     <span>安全设置</span>
                     <div class="theme-section-arrow">›</div>
@@ -840,7 +850,7 @@
                     </div>
                 </div>
             </div>
-            <div class="theme-accordion-item" id="accordion-api-voice">
+            <div class="theme-accordion-item settings-icon-voice" id="accordion-api-voice">
                 <div class="theme-section-header" onclick="toggleThemeSection('accordion-api-voice')">
                     <span>API 语音</span>
                     <div class="theme-section-arrow">›</div>
@@ -879,6 +889,8 @@
                                     <option value="ja">日本語</option>
                                     <option value="ko">한국어</option>
                                     <option value="yue">粤语</option>
+                                    <option value="fr">Français</option>
+                                    <option value="th">ไทย</option>
                                 </select>
                             </div>
                             <div class="settings-group" style="margin-bottom: 0;">
@@ -892,6 +904,7 @@
                         <div class="btn-restore" onclick="saveVoiceSettings()">保存</div>
                         <div class="btn-restore" onclick="saveAsVoicePreset()">存为预设</div>
                         <div class="btn-restore" onclick="openVoicePresetManager()">管理预设</div>
+                        <div class="btn-restore" id="mm-voice-storage-btn" onclick="openMiniMaxVoiceLibraryModal()">已储存 0</div>
                     </div>
                 </div>
             </div>
@@ -902,7 +915,7 @@
                 </div>
             </div>
             <!-- 数据管理折叠项 -->
-            <div class="theme-accordion-item" id="accordion-data">
+            <div class="theme-accordion-item settings-icon-data" id="accordion-data">
                 <div class="theme-section-header" onclick="toggleThemeSection('accordion-data')">
                     <span>数据管理</span>
                     <div class="theme-section-arrow">›</div>
@@ -925,7 +938,7 @@
             <div class="app-back" onclick="closeRuntimeDebugPanel()">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
             </div>
-            <div class="app-title" data-subtitle="RUNTIME LOG">后台日志</div>
+            <div class="app-title" data-subtitle="BACKGROUND LOG">后台日志</div>
             <div class="wb-action-icon runtime-debug-nav-delete" onclick="clearRuntimeLogViewer()" aria-label="清空日志" title="清空日志">
                 <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
             </div>
@@ -978,7 +991,7 @@
     </div>
     <!-- ====== 世界书编辑器弹窗 ====== -->
     <div id="worldbook-editor" onclick="if(event.target === this) closeWorldbookEditor()" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 200; backdrop-filter: blur(5px); justify-content: center; align-items: center;">
-        <div class="preset-card" style="width: 85%; max-height: 85%; overflow-y: auto; padding-bottom: 20px;">
+        <div class="preset-card" style="width: 92%; max-width: 360px; max-height: 85%; overflow-y: auto; padding-bottom: 20px;">
             <div class="preset-header" style="justify-content: center;">
                 <span id="wb-editor-title">新建世界书</span>
             </div>
@@ -1014,9 +1027,17 @@
                         <option value="low">低</option>
                     </select>
                 </div>
+                <div class="settings-group" style="margin-bottom: 5px;">
+                    <label>注入位置</label>
+                    <select id="wb-inject-position" class="settings-input">
+                        <option value="before">前</option>
+                        <option value="middle" selected>中</option>
+                        <option value="after">后</option>
+                    </select>
+                </div>
                 <div class="settings-group" style="margin-bottom: 15px;">
-                    <label>详细设定内容</label>
-                    <textarea id="wb-content" class="settings-input" style="height: 120px;" placeholder="在此输入世界观、角色设定或背景故事..."></textarea>
+                    <label>设定内容</label>
+                    <textarea id="wb-content" class="settings-input" placeholder="在此输入世界观、角色设定或背景故事..."></textarea>
                 </div>
                 <div class="action-buttons" style="margin-top: 5px;">
                     <div class="btn-restore" onclick="saveWorldbook()">保存</div>
@@ -1087,9 +1108,9 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </div>
             </div>
-            <div class="app-body" style="padding: 0; align-items: flex-start;">
+            <div class="app-body" style="padding: 16px 20px 42px; align-items: stretch; background: #f7f7f7;">
                 <!-- 上方：直接复用“我”页面的样式，完美统一 -->
-                <div class="me-menu-list" style="margin-top: 15px; margin-bottom: 25px;">
+                <div class="me-menu-list" style="padding: 0; margin: 0 0 16px;">
                     <div class="me-menu-item" onclick="openBlockRequestList()">
                         <span>新朋友</span>
                         <div style="display:flex;align-items:center;gap:6px;">
@@ -1099,9 +1120,9 @@
                     </div>
                     <div class="me-menu-item"><span>群管理</span><span class="me-menu-arrow">›</span></div>
                 </div>
-                <div id="contact-group-container" style="width: 100%; padding: 0 20px; display: flex; flex-wrap: wrap; gap: 10px;">
+                <div id="contact-group-container" style="width: 100%; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;">
                 </div>
-                <div id="contact-list-container" style="width: 100%; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+                <div id="contact-list-container" style="width: 100%; padding: 0; display: flex; flex-direction: column; gap: 12px;">
                 </div>
             </div>
         </div>
@@ -1132,23 +1153,66 @@
                 <div class="app-title">个人中心</div>
                 <div style="width:30px;"></div>
             </div>
-            <div class="app-body" style="padding: 10px 0;">
-                <div class="me-header">
+            <div class="app-body" style="padding: 16px 20px 42px; align-items: stretch; background: #f7f7f7;">
+                <div class="me-header" style="padding: 24px 0 18px;">
                     <div class="me-avatar-big editable" id="wechat-avatar-big"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async"></div>
                     <div class="me-info">
                         <div class="me-name editable-text" id="text-wechat-me-name">兔兔丸</div>
                         <div class="me-sig editable-text" id="text-wechat-sig">微信号：mini_2026</div>
                     </div>
                 </div>
-                <div class="me-menu-list">
+                <div class="me-menu-list" style="padding: 0; margin-top: 8px;">
                     <div class="me-menu-item" onclick="openWalletApp()"><span>资产钱包</span><span class="me-menu-arrow">›</span></div>
                     <div class="me-menu-item" onclick="openMaskPresets()"><span>面具预设</span><span class="me-menu-arrow">›</span></div>
-                    <div class="me-menu-item"><span>收藏记录</span><span class="me-menu-arrow">›</span></div>
+                    <div class="me-menu-item" onclick="openWechatFavoritePage()"><span>收藏记录</span><span class="me-menu-arrow">›</span></div>
                     <div class="me-menu-item" onclick="openEmoticonApp()"><span>表情包库</span><span class="me-menu-arrow">›</span></div>
                     <div class="me-menu-item"><span>聊天美化</span><span class="me-menu-arrow">›</span></div>
                 </div>
             </div>
         </div>
+    </div>
+    <div id="wechat-favorite-page" class="full-app-page" style="display:none; background:#f7f7f7;">
+        <div class="app-header">
+            <div class="app-back" onclick="closeWechatFavoritePage()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </div>
+            <div class="app-title">收藏记录</div>
+            <div id="wechat-favorite-header-actions" style="display:flex; align-items:center; gap:6px;">
+                <div id="wechat-favorite-multi-btn" title="多选" onclick="toggleWechatFavoriteMultiSelect()" style="width:28px; height:28px; border-radius:14px; border:1px solid #dadada; background:#fff; color:#444; cursor:pointer; display:flex; align-items:center; justify-content:center; box-sizing:border-box;">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                </div>
+                <div id="wechat-favorite-select-all-btn" title="全选" onclick="toggleSelectAllWechatFavorites()" style="display:none; width:28px; height:28px; border-radius:14px; border:1px solid #dadada; background:#fff; color:#444; cursor:pointer; align-items:center; justify-content:center; box-sizing:border-box;">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"></rect><path d="M8 12l3 3 5-6"></path></svg>
+                </div>
+                <div id="wechat-favorite-delete-btn" title="删除" onclick="deleteSelectedWechatFavorites()" style="display:none; width:28px; height:28px; border-radius:14px; border:1px solid #dadada; background:#fff; color:#444; cursor:pointer; align-items:center; justify-content:center; box-sizing:border-box;">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </div>
+            </div>
+        </div>
+        <div class="app-body" style="padding:14px 16px 24px; align-items:stretch; background:#f7f7f7;">
+            <div id="wechat-favorite-empty" style="display:none; color:#b8b8b8; font-size:13px; text-align:center; margin-top:112px;">还没有收藏消息</div>
+            <div id="wechat-favorite-list" style="width:100%; display:flex; flex-direction:column; gap:10px;"></div>
+        </div>
+    </div>
+    <div id="wechat-favorite-detail-page" class="full-app-page" style="display:none; background:#f7f7f7;">
+        <div class="app-header">
+            <div class="app-back" onclick="closeWechatFavoriteDetailPage()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </div>
+            <div class="app-title" id="wechat-favorite-detail-title" style="font-size:15px;">聊天记录</div>
+            <div style="width:30px;"></div>
+        </div>
+        <div class="app-body" id="wechat-favorite-detail-body" style="padding:14px 16px 24px; align-items:stretch; background:#f7f7f7; overflow-y:auto; gap:10px;"></div>
+    </div>
+    <div id="wechat-forward-detail-page" class="full-app-page" style="display:none; background:#f7f7f7;">
+        <div class="app-header">
+            <div class="app-back" onclick="closeWechatForwardDetailPage()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </div>
+            <div class="app-title" id="wechat-forward-detail-title" style="font-size:15px;">聊天记录</div>
+            <div style="width:30px;"></div>
+        </div>
+        <div class="app-body" id="wechat-forward-detail-body" style="padding:14px 16px 24px; align-items:stretch; background:#f7f7f7; overflow-y:auto; gap:10px;"></div>
     </div>
 <!-- ====== 资产钱包页面 (纯净高级极简版) ====== -->
     <div id="wallet-app" class="full-app-page" style="background: #f4f5f7;">
@@ -1802,7 +1866,7 @@
                 <div class="cp-passcode-screen" id="cp-passcode-screen" style="display:none;">
                     <div class="cp-passcode-wallpaper" id="cp-passcode-wallpaper"></div>
                     <div class="cp-passcode-blur"></div>
-                    <div class="cp-passcode-content">
+                    <div class="cp-passcode-content" id="cp-passcode-content">
                         <!-- 头像 -->
                         <div class="cp-passcode-avatar" id="cp-passcode-avatar">
                             <img id="cp-passcode-avatar-img" src="" alt="">
@@ -2205,9 +2269,19 @@
                     <span class="chat-ext-text">线下</span>
                 </div>
                 <!-- 12. 时间轴 -->
-                <div class="chat-ext-item">
+                <div class="chat-ext-item" onclick="openChatTimelineModal()">
                     <div class="chat-ext-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div>
                     <span class="chat-ext-text">时间轴</span>
+                </div>
+                <!-- 13. HTML小剧场 -->
+                <div class="chat-ext-item" onclick="openChatHtmlStageFeature()">
+                    <div class="chat-ext-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3.5" y="5" width="17" height="12.5" rx="2.5"></rect><path d="M8 10l-2.5 2 2.5 2"></path><path d="m13 9-2 6"></path><path d="m16 10 2.5 2-2.5 2"></path><path d="M8.5 20h7"></path></svg></div>
+                    <span class="chat-ext-text">HTML小剧场</span>
+                </div>
+                <!-- 14. 超能力 -->
+                <div class="chat-ext-item" onclick="openChatSuperpowerFeature()">
+                    <div class="chat-ext-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m12 4.5 1.9 4.6 4.6 1.9-4.6 1.9L12 17.5l-1.9-4.6-4.6-1.9 4.6-1.9L12 4.5z"></path><path d="M18.5 4.5v3"></path><path d="M17 6h3"></path><path d="M6 15.5v3"></path><path d="M4.5 17h3"></path></svg></div>
+                    <span class="chat-ext-text">超能力</span>
                 </div>
             </div>
         </div>
@@ -2248,19 +2322,6 @@
                     <circle cx="15" cy="9" r="0.5" fill="currentColor"></circle>
                 </svg>
             </div>
-            <!-- 线条风猫爪：缩小爱心比例，增强圆润感 -->
-            <button class="paw-send-line" onclick="performSendMessage()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                    <!-- 4个极简小圆点 -->
-                    <circle cx="7" cy="8" r="1.2" fill="none"></circle>
-                    <circle cx="10.5" cy="5" r="1.2" fill="none"></circle>
-                    <circle cx="14.5" cy="5" r="1.2" fill="none"></circle>
-                    <circle cx="18" cy="8" r="1.2" fill="none"></circle>
-                    <!-- 比例完美的倒置线条爱心 (Base Pad) -->
-                    <path d="M12.5 14.5 C12.5 14.5 17 11.5 17 9.5 C17 8.5 16.2 7.8 15.3 7.8 C14.6 7.8 14 8.2 12.5 9 C11 8.2 10.4 7.8 9.7 7.8 C8.8 7.8 8 8.5 8 9.5 C8 11.5 12.5 14.5 12.5 14.5 Z" 
-                          transform="rotate(180, 12.5, 11)" />
-                </svg>
-            </button>
         </div>
         <!-- 多选底部操作栏 -->
         <div id="multi-select-bar">
@@ -2268,17 +2329,45 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
                 <span id="multi-select-all-text">全选</span>
             </div>
+            <div class="multi-action-btn" onclick="favoriteSelectedMsgs()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+                收藏
+            </div>
+            <div class="multi-action-btn" onclick="openWechatForwardModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="15 10 20 15 15 20"></polyline><path d="M4 4v7a4 4 0 0 0 4 4h12"></path></svg>
+                转发
+            </div>
             <div class="multi-action-btn" onclick="deleteSelectedMsgs()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                 删除
             </div>
-            <div class="multi-action-btn" onclick="alert('转发功能暂未实装')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="15 10 20 15 15 20"></polyline><path d="M4 4v7a4 4 0 0 0 4 4h12"></path></svg>
-                转发
-            </div>
             <div class="multi-action-btn" onclick="exitMultiSelectMode()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 取消
+            </div>
+        </div>
+        <div id="wechat-forward-modal" style="display:none;" onclick="if(event.target===this){closeWechatForwardModal()}">
+            <div id="wechat-forward-sheet">
+                <div class="wechat-forward-header">
+                    <div class="wechat-forward-title">转发给</div>
+                    <div class="wechat-forward-close" onclick="closeWechatForwardModal()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </div>
+                </div>
+                <div class="wechat-forward-section-title">发送给谁</div>
+                <div id="wechat-forward-contact-list"></div>
+                <div class="wechat-forward-section-title">留言（选填）</div>
+                <textarea id="wechat-forward-note-input" class="wechat-forward-note-input" rows="2" placeholder="说点什么..."></textarea>
+                <button type="button" class="wechat-forward-send-btn" onclick="submitWechatForwardSelection()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="7" cy="8" r="1.2"></circle>
+                        <circle cx="10.5" cy="5" r="1.2"></circle>
+                        <circle cx="14.5" cy="5" r="1.2"></circle>
+                        <circle cx="18" cy="8" r="1.2"></circle>
+                        <path d="M12.5 14.5 C12.5 14.5 17 11.5 17 9.5 C17 8.5 16.2 7.8 15.3 7.8 C14.6 7.8 14 8.2 12.5 9 C11 8.2 10.4 7.8 9.7 7.8 C8.8 7.8 8 8.5 8 9.5 C8 11.5 12.5 14.5 12.5 14.5 Z" transform="rotate(180, 12.5, 11)"></path>
+                    </svg>
+                    发送
+                </button>
             </div>
         </div>
     </div>
@@ -2286,11 +2375,13 @@
     <div id="msg-action-panel">
         <div class="msg-action-grid">
             <div class="msg-action-item" onclick="handleMsgAction('copy')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>复制</div>
+            <div class="msg-action-item" onclick="handleMsgAction('favorite')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>收藏</div>
             <div class="msg-action-item" onclick="handleMsgAction('edit')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>编辑</div>
             <div class="msg-action-item" onclick="handleMsgAction('quote')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="15 10 20 15 15 20"></polyline><path d="M4 4v7a4 4 0 0 0 4 4h12"></path></svg>引用</div>
             <div class="msg-action-item" onclick="handleMsgAction('multi')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>多选</div>
             <div class="msg-action-item" id="msg-action-recall-del" onclick="handleMsgAction('recall_del')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>撤回</div>
-            <div class="msg-action-item" onclick="handleMsgAction('rollback')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></svg>回溯</div>
+            <div class="msg-action-item" id="msg-action-rollback" onclick="handleMsgAction('rollback')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 1 0 3-6.7"></path><polyline points="3 4 3 10 9 10"></polyline></svg>回溯</div>
+            <div class="msg-action-item" id="msg-action-rewind" onclick="handleMsgAction('rewind')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path><path d="M8 9h8"></path><path d="M8 13h5"></path></svg>重回</div>
         </div>
     </div>
     <!-- ====== 心声面板 ====== -->
@@ -2421,6 +2512,26 @@
         <div class="preset-card" style="width: 85%;">
             <div class="preset-header" style="justify-content: center;"><span>撤回的消息</span></div>
             <div style="padding: 20px; font-size: 14px; color: #444; line-height: 1.5; word-wrap: break-word;" id="msg-recall-content"></div>
+        </div>
+    </div>
+    <div id="chat-timeline-modal" onclick="if(event.target === this) closeChatTimelineModal()" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:var(--timeline-overlay, rgba(0,0,0,0.46));z-index:344;backdrop-filter:blur(8px);justify-content:center;align-items:center;">
+        <div class="preset-card chat-timeline-card">
+            <div class="preset-header" style="justify-content:space-between;">
+                <span>聊天时间轴</span>
+                <div class="settings-btn chat-timeline-close" onclick="closeChatTimelineModal()">关闭</div>
+            </div>
+            <div class="chat-timeline-tip">可将当前聊天锚点拨回过去或推进到未来，并输入情景过渡。下方提供 3 个时间轴存档位。</div>
+            <div id="chat-timeline-travel-panel" class="chat-timeline-travel-panel"></div>
+        </div>
+    </div>
+    <div id="chat-rollback-modal" onclick="if(event.target === this) closeChatRollbackModal()" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.46);z-index:345;backdrop-filter:blur(8px);justify-content:center;align-items:center;">
+        <div class="preset-card chat-rollback-card">
+            <div class="preset-header" style="justify-content:space-between;">
+                <span>聊天回溯</span>
+                <div class="settings-btn chat-rollback-close" onclick="closeChatRollbackModal()">关闭</div>
+            </div>
+            <div class="chat-rollback-tip">选择要保留的角色回复轮次，回溯后只会删除这一轮之后的线上对话，不会动前面的内容。</div>
+            <div id="chat-rollback-list" class="chat-rollback-list"></div>
         </div>
     </div>
     <!-- 相机拍摄弹窗 -->
@@ -3025,13 +3136,32 @@
             </div>
         </div>
     </div>
+    <div id="role-moments-app" class="full-app-page" style="background: #f6f7f9; z-index: 135; padding-top: 0;">
+        <div class="moments-container role-moments-container">
+            <div class="moments-cover role-moments-cover editable" id="role-moments-cover">
+                <div class="role-moments-back-btn" onclick="event.stopPropagation();closeRoleMoments()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                </div>
+                <div class="moments-user-info role-moments-user-info" onclick="event.stopPropagation()">
+                    <span class="moments-nickname" id="role-moments-name">角色</span>
+                    <div class="moments-avatar-sq" id="role-moments-avatar">
+                        <img id="role-moments-avatar-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" loading="lazy" decoding="async" alt="">
+                    </div>
+                </div>
+            </div>
+            <div class="moments-feed role-moments-feed" id="role-moments-feed">
+                <div id="role-moments-empty-tip">———— 暂无朋友圈内容 ————</div>
+                <div id="role-moments-post-list" class="moments-post-list role-moments-post-list"></div>
+            </div>
+        </div>
+    </div>
     <!-- ====== 聊天详情页面 ====== -->
     <div id="chat-detail-app" class="full-app-page" style="background: #f4f5f7; z-index: 140;">
         <div class="app-header">
             <div class="app-back" onclick="closeChatDetail()">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
             </div>
-            <div class="app-title">聊天详情</div>
+            <div class="app-title" data-subtitle="CHAT DETAILS">聊天详情</div>
             <div style="width:36px;"></div>
         </div>
         <div class="app-body" style="padding: 0 0 40px 0; align-items: stretch;">
@@ -3109,28 +3239,28 @@
                 <div class="cd-section-item" style="align-items:flex-start; cursor:default;">
                     <div class="cd-item-label-group" style="padding-top:2px;">
                         <span class="cd-item-label">特殊消息概率</span>
-                        <span class="cd-item-desc">独占型消息合计需 ≤ 100%，Mini 会严格按这里触发</span>
+                        <span class="cd-item-desc">动作型消息现在是独立判定，可超过 100%；若同轮命中多项，Mini 会按权重择一触发</span>
                     </div>
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
-                        <div id="cd-prob-exclusive-total" style="font-size:11px; color:#999;">独占型合计 0%</div>
+                        <div id="cd-prob-exclusive-total" style="font-size:11px; color:#999;">动作型参考合计 0%</div>
                         <div onclick="cdResetSpecialProbabilities()" style="font-size:11px; color:#666; background:#f5f5f7; border-radius:999px; padding:4px 10px; cursor:pointer; user-select:none;">恢复默认</div>
                     </div>
                 </div>
                 <div style="padding:0 16px 16px;">
                     <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px 10px;">
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">相片</span><input id="cd-prob-camera" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.1" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">定位</span><input id="cd-prob-location" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.1" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">外卖</span><input id="cd-prob-takeaway" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.1" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">礼物</span><input id="cd-prob-gift" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.1" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">电话</span><input id="cd-prob-call" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.1" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">视频</span><input id="cd-prob-video-call" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.1" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">红包</span><input id="cd-prob-red-packet" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="3" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">转账</span><input id="cd-prob-transfer" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="3" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">语音</span><input id="cd-prob-voice-message" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="15" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">表情包</span><input id="cd-prob-emoticon" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="15" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">引用</span><input id="cd-prob-reply" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="15" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">撤回</span><input id="cd-prob-recall" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="5" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">时间感知</span><input id="cd-prob-time-aware" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="20" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">相片</span><input id="cd-prob-camera" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="3.5" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">定位</span><input id="cd-prob-location" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="2.8" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">外卖</span><input id="cd-prob-takeaway" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.8" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">礼物</span><input id="cd-prob-gift" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.8" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">电话</span><input id="cd-prob-call" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="1.2" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">视频</span><input id="cd-prob-video-call" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.6" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">红包</span><input id="cd-prob-red-packet" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.5" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">转账</span><input id="cd-prob-transfer" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="0.3" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">语音</span><input id="cd-prob-voice-message" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="10" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">表情包</span><input id="cd-prob-emoticon" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="12" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">引用</span><input id="cd-prob-reply" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="16" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">撤回</span><input id="cd-prob-recall" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="4" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span style="font-size:12px; color:#666;">时间感知</span><input id="cd-prob-time-aware" class="cd-count-input" type="number" min="0" max="100" step="0.1" value="18" oninput="cdRefreshSpecialProbabilitySummary()" onchange="cdSaveSpecialProbabilities()" style="width:58px;"><span style="font-size:11px; color:#aaa;">%</span></div>
                     </div>
                 </div>
             </div>
@@ -3726,21 +3856,32 @@
                     </div>
                 </div>
             </div>
+            </div>
         </div>
     </div>
-</div>
+    <div id="voice-storage-modal" onclick="if(event.target===this) closeMiniMaxVoiceLibraryModal()" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.46);z-index:360;backdrop-filter:blur(8px);justify-content:center;align-items:center;">
+        <div class="preset-card voice-storage-card">
+            <div class="preset-header" style="justify-content:space-between;">
+                <span>API 语音库存</span>
+                <div class="settings-btn voice-storage-close" onclick="closeMiniMaxVoiceLibraryModal()">关闭</div>
+            </div>
+            <div class="voice-storage-tip">这里保存的是已生成过的 MiniMax 语音，可直接播放、重命名或删除。</div>
+            <div id="voice-storage-list" class="voice-storage-list"></div>
+        </div>
+    </div>
 </div><!-- phone-shell end -->
 <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-<script src="js/core/runtime-log.js"></script>
-<script src="js/core/runtime-shell.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.28.0/dist/index.js"></script>
+<script src="js/core/runtime-log.js?v=20260407-logclear1"></script>
+<script src="js/core/runtime-shell.js?v=20260407-homefix2"></script>
 <script src="js/core/settings.js"></script>
 <script src="js/core/worldbook-and-apps.js"></script>
 <script src="js/core/theme-tools.js"></script>
 <script src="js/core/masks-and-emoticons.js"></script>
 <script src="js/core/contacts-and-chatlist.js"></script>
 <script src="js/home/novel-entry.js"></script>
-<script src="js/home/wechat-chat.js"></script>
-<script src="js/home/wechat-moments.js"></script>
+<script src="js/home/wechat-chat.js?v=20260407-homefix2"></script>
+    <script src="js/home/wechat-moments.js?v=20260407-homefix2"></script>
 <script src="js/home/data-tools.js"></script>
 <script src="js/home/music-app.js"></script>
 <script src="js/wallet/stock-and-assist.js"></script>
@@ -3752,10 +3893,10 @@
 <script src="js/messaging/sms.js"></script>
 <script src="js/messaging/shura.js"></script>
 <script src="js/messaging/background-notify.js"></script>
-<script src="js/device/check-phone.js"></script>
+<script src="js/05-check-phone.js?v=20260407-checkphonefix3"></script>
 <script src="js/meetlove/meetlove.js"></script>
 <script src="js/meetlove/heart-voice.js"></script>
-<script src="js/meetlove/offline.js"></script>
+<script src="js/meetlove/offline.js?v=20260406-fix2"></script>
 
 <!-- 注册 Service Worker，满足 PWA 安装与后台通知条件 -->
 <script>

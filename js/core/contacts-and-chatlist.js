@@ -12,8 +12,16 @@
         if (!listContainer) return;
         listContainer.innerHTML = '';
         try {
-            const contacts = await contactDb.contacts.toArray();
-            if (contacts.length === 0) {
+            const allContacts = await contactDb.contacts.toArray();
+            const activeGroupFilter = typeof window.getActiveContactGroupFilter === 'function'
+                ? window.getActiveContactGroupFilter()
+                : 'ALL';
+            const contacts = activeGroupFilter === 'ALL'
+                ? allContacts
+                : allContacts.filter(function(contact) {
+                    return (contact.roleGroup || '') === activeGroupFilter;
+                });
+            if (allContacts.length === 0) {
                 listContainer.innerHTML = `
                     <div style="margin-top: 12px; padding: 24px 20px; width: 100%; background: #fff; border-radius: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.03); text-align: center;">
                         <div style="font-size: 14px; font-weight: 600; color: #444;">还没有联系人</div>
@@ -25,9 +33,18 @@
                 `;
                 return;
             }
+            if (contacts.length === 0) {
+                listContainer.innerHTML = `
+                    <div style="margin-top: 12px; padding: 24px 20px; width: 100%; background: #fff; border-radius: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.03); text-align: center;">
+                        <div style="font-size: 14px; font-weight: 600; color: #444;">${activeGroupFilter} 分组暂无联系人</div>
+                        <div style="margin-top: 8px; font-size: 12px; color: #aaa; line-height: 1.6;">切换上方分组，或者给联系人设置为这个分组。</div>
+                    </div>
+                `;
+                return;
+            }
             contacts.forEach(c => {
                 const item = document.createElement('div');
-                item.style.cssText = 'background: #fff; border-radius: 16px; padding: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); display: flex; align-items: center; justify-content: space-between;';
+                item.style.cssText = 'width:100%; min-width:0; box-sizing:border-box; background:#fff; border-radius:16px; padding:14px; box-shadow:0 2px 10px rgba(0,0,0,0.02); display:flex; align-items:center; justify-content:space-between;';
                 let avatarHtml = c.roleAvatar ? `<img src="${c.roleAvatar}" style="width: 100%; height: 100%; object-fit: cover;" loading="lazy" decoding="async">` : `<span style="color: #ccc; font-size: 12px;">无</span>`;
                 item.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 12px; flex: 1; overflow: hidden;">
@@ -282,7 +299,7 @@ document.getElementById('contact-edit-id').value = '';
         }
     }
     async function deleteContact(id) {
-        if (confirm('确定要删除这个联系人吗？')) {
+        if (await window.showMiniConfirm('确定要删除这个联系人吗？')) {
             try {
                 await contactDb.contacts.delete(id);
                 renderContacts();
@@ -430,9 +447,9 @@ document.getElementById('contact-edit-id').value = '';
                 actions.className = 'chat-swipe-actions';
                 actions.innerHTML = `
                     <div class="chat-swipe-btn chat-swipe-pin${isPinned ? ' pinned' : ''}" onclick="togglePinChat('${chat.id}', this)">
-                        ${isPinned ? '取消置顶' : '置顶'}
+                        <span>${isPinned ? '取消置顶' : '置顶'}</span>
                     </div>
-                    <div class="chat-swipe-btn chat-swipe-delete" onclick="deleteChatItem('${chat.id}', this)">删除</div>
+                    <div class="chat-swipe-btn chat-swipe-delete" onclick="deleteChatItem('${chat.id}', this)"><span>删除</span></div>
                 `;
 
                 // 主内容区
@@ -486,7 +503,7 @@ document.getElementById('contact-edit-id').value = '';
     function bindSwipeGesture(wrapper, item) {
         let startX = 0, startY = 0, currentX = 0;
         let dragging = false, isHorizontal = null;
-        const ACTION_WIDTH = 130;
+        const ACTION_WIDTH = 144;
 
         function closeOtherSwipes(except) {
             document.querySelectorAll('.chat-swipe-item.swiped').forEach(el => {
@@ -612,6 +629,10 @@ document.getElementById('contact-edit-id').value = '';
             console.error("删除聊天失败", e);
         }
     }
+
+    // 显式挂到 window，避免某些环境下内联 onclick 无法找到函数
+    window.togglePinChat = togglePinChat;
+    window.deleteChatItem = deleteChatItem;
 
     // 初始化渲染联系人列表与聊天列表，并恢复钱包数据
     document.addEventListener('DOMContentLoaded', () => {

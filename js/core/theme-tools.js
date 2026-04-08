@@ -1,27 +1,34 @@
 ﻿// Auto-split from js/core/bootstrap.js (1411-1696)
 
 // 切换主题页折叠项
+    function collapseThemeAccordions() {
+        document.querySelectorAll('.theme-accordion-item').forEach(function(el) {
+            el.classList.remove('active');
+        });
+    }
+
     function toggleThemeSection(id) {
         const item = document.getElementById(id);
+        if (!item) return;
         const isActive = item.classList.contains('active');
-        // 可选：关闭其他已展开的项
-        document.querySelectorAll('.theme-accordion-item').forEach(el => el.classList.remove('active'));
-        // 切换当前项
+        collapseThemeAccordions();
         if (!isActive) item.classList.add('active');
     }
+
+    window.collapseThemeAccordions = collapseThemeAccordions;
 
     const THEME_MODE_KEY = 'miffy_theme_mode';
     const CUSTOM_THEME_KEY = 'miffy_custom_theme';
     const CUSTOM_THEME_PRESETS_KEY = 'miffy_custom_theme_presets';
     const DEFAULT_CUSTOM_THEME = Object.freeze({
-        bgMain: '#ffffff',
-        bgSub: '#f5f7fb',
-        textMain: '#222831',
-        textSub: '#8f96a3',
-        accent: '#5b8def',
-        border: '#d9dfeb',
+        bgMain: '#f5f1eb',
+        bgSub: '#ebe5dc',
+        textMain: '#26221e',
+        textSub: '#8d8479',
+        accent: '#1f1d1a',
+        border: '#d8d0c4',
         surface: '#ffffff',
-        widget: '#f4f7fb',
+        widget: '#f7f3ed',
         wallpaper: '',
         primaryButtonImage: '',
         secondaryButtonImage: '',
@@ -32,21 +39,21 @@
     });
     const BUILTIN_THEME_TOKENS = Object.freeze({
         day: {
-            bgMain: '#ffffff',
-            bgSub: '#f5f7fb',
-            panelBg: 'rgba(255, 255, 255, 0.94)',
-            widgetBg: 'rgba(255, 255, 255, 0.78)',
+            bgMain: '#f5f1eb',
+            bgSub: '#ebe5dc',
+            panelBg: 'rgba(250, 248, 244, 0.94)',
+            widgetBg: 'rgba(255, 255, 255, 0.76)',
             surface1: '#ffffff',
-            surface2: '#f4f7fb',
-            inputBg: '#ffffff',
-            textMain: '#222831',
-            textSub: '#8f96a3',
-            accent: '#5b8def',
-            accentSoft: 'rgba(91, 141, 239, 0.14)',
-            border: 'rgba(25, 33, 52, 0.08)',
-            shadow: 'rgba(31, 41, 55, 0.08)',
-            shadowStrong: 'rgba(31, 41, 55, 0.14)',
-            lineColor: 'rgba(34, 40, 49, 0.06)'
+            surface2: '#f7f3ed',
+            inputBg: '#fcfaf7',
+            textMain: '#26221e',
+            textSub: '#8d8479',
+            accent: '#1f1d1a',
+            accentSoft: 'rgba(31, 29, 26, 0.08)',
+            border: 'rgba(45, 39, 33, 0.08)',
+            shadow: 'rgba(45, 39, 33, 0.06)',
+            shadowStrong: 'rgba(45, 39, 33, 0.12)',
+            lineColor: 'rgba(205, 196, 184, 0.18)'
         },
         dopamine: {
             bgMain: '#fffaf6',
@@ -66,21 +73,21 @@
             lineColor: 'rgba(86, 74, 82, 0.07)'
         },
         night: {
-            bgMain: '#000000',
-            bgSub: '#060606',
-            panelBg: 'rgba(10, 10, 10, 0.96)',
-            widgetBg: 'rgba(18, 18, 18, 0.92)',
-            surface1: '#101010',
-            surface2: '#171717',
-            inputBg: '#121212',
-            textMain: '#f5f5f5',
-            textSub: '#9b9b9b',
-            accent: '#4da3ff',
-            accentSoft: 'rgba(77, 163, 255, 0.2)',
-            border: 'rgba(255, 255, 255, 0.1)',
-            shadow: 'rgba(0, 0, 0, 0.3)',
-            shadowStrong: 'rgba(0, 0, 0, 0.45)',
-            lineColor: 'rgba(255, 255, 255, 0.08)'
+            bgMain: '#080b12',
+            bgSub: '#101726',
+            panelBg: 'rgba(11, 16, 26, 0.94)',
+            widgetBg: 'rgba(18, 25, 39, 0.88)',
+            surface1: '#141c2b',
+            surface2: '#0d131e',
+            inputBg: '#192233',
+            textMain: '#eef4ff',
+            textSub: '#8e9cb4',
+            accent: '#7bb7ff',
+            accentSoft: 'rgba(123, 183, 255, 0.18)',
+            border: 'rgba(143, 170, 214, 0.16)',
+            shadow: 'rgba(0, 0, 0, 0.34)',
+            shadowStrong: 'rgba(0, 0, 0, 0.5)',
+            lineColor: 'rgba(210, 224, 247, 0.06)'
         }
     });
 
@@ -439,13 +446,7 @@
     }
 
     async function setThemeMode(mode) {
-        if (mode === 'custom') {
-            const savedCustomTheme = await localforage.getItem(CUSTOM_THEME_KEY);
-            currentCustomTheme = normalizeCustomTheme(savedCustomTheme || currentCustomTheme);
-            await applyThemeMode('custom', { customTheme: currentCustomTheme });
-            return;
-        }
-        await applyThemeMode(mode);
+        await applyThemeMode(mode === 'night' ? 'night' : 'day');
     }
 
     function previewCustomThemeFromInputs() {
@@ -542,7 +543,7 @@
             alert('未找到对应的主题预设');
             return;
         }
-        if (!confirm(`确定删除主题预设【${preset.name}】吗？`)) return;
+        if (!await window.showMiniConfirm(`确定删除主题预设【${preset.name}】吗？`)) return;
         const nextPresets = presets.filter(function(item) { return item.id !== preset.id; });
         await saveCustomThemePresetsToStore(nextPresets);
         const nextId = nextPresets.length ? nextPresets[0].id : '';
@@ -627,7 +628,7 @@
         });
 
         const storedMode = await localforage.getItem(THEME_MODE_KEY);
-        await applyThemeMode(storedMode || 'day', {
+        await applyThemeMode(storedMode === 'night' ? 'night' : 'day', {
             persist: false,
             customTheme: currentCustomTheme
         });
@@ -855,8 +856,47 @@
         if (display) display.textContent = defaultVal + '%';
         localforage.setItem('miffy_ui_scale', defaultVal);
     }
-    // 联系人分组增删逻辑
+    // 联系人分组增删与筛选逻辑
     let contactGroups = [];
+    let activeContactGroupFilter = 'ALL';
+
+    function getActiveContactGroupFilter() {
+        if (activeContactGroupFilter === 'ALL') return 'ALL';
+        return contactGroups.includes(activeContactGroupFilter) ? activeContactGroupFilter : 'ALL';
+    }
+
+    function createContactGroupTag(label, isActive) {
+        const tag = document.createElement('button');
+        tag.type = 'button';
+        tag.style.cssText = [
+            'appearance:none',
+            'border:none',
+            'outline:none',
+            'cursor:pointer',
+            'display:flex',
+            'align-items:center',
+            'gap:6px',
+            'padding:4px 12px',
+            'border-radius:16px',
+            'font-size:11px',
+            'letter-spacing:0.5px',
+            'transition:all 0.18s ease',
+            isActive
+                ? 'background:#1f1f1f;color:#fff;box-shadow:0 10px 18px rgba(0,0,0,0.08);border:1px solid #1f1f1f'
+                : 'background:#fff;color:#555;box-shadow:0 1px 6px rgba(0,0,0,0.03);border:1px solid #f0f0f0'
+        ].join(';');
+        tag.textContent = label;
+        return tag;
+    }
+
+    async function syncContactGroupFilterAndList() {
+        activeContactGroupFilter = getActiveContactGroupFilter();
+        renderContactGroups();
+        if (typeof renderContacts === 'function') {
+            await renderContacts();
+        }
+    }
+
     async function initContactGroups() {
         const savedGroups = await localforage.getItem('miffy_contact_groups');
         if (savedGroups && Array.isArray(savedGroups)) {
@@ -865,52 +905,89 @@
             contactGroups = ['Lover', 'Friend', 'Family'];
             await localforage.setItem('miffy_contact_groups', contactGroups);
         }
+        activeContactGroupFilter = getActiveContactGroupFilter();
         renderContactGroups();
     }
     function renderContactGroups() {
         const container = document.getElementById('contact-group-container');
         if (!container) return;
+        const currentFilter = getActiveContactGroupFilter();
         container.innerHTML = '';
-        // 渲染固定的 ALL 标签 (极小尺寸、大圆角)
-        const allTag = document.createElement('div');
-        allTag.style.cssText = 'background: #fff; padding: 4px 12px; border-radius: 16px; font-size: 11px; color: #555; box-shadow: 0 1px 6px rgba(0,0,0,0.03); border: 1px solid #f0f0f0; display: flex; align-items: center; letter-spacing: 0.5px;';
-        allTag.textContent = 'ALL';
+        const allTag = createContactGroupTag('ALL', currentFilter === 'ALL');
+        allTag.onclick = function() {
+            setActiveContactGroup('ALL');
+        };
         container.appendChild(allTag);
-        // 渲染动态分组标签
         contactGroups.forEach((group, index) => {
-            const tag = document.createElement('div');
-            tag.style.cssText = 'background: #fff; padding: 4px 8px 4px 12px; border-radius: 16px; font-size: 11px; color: #555; box-shadow: 0 1px 6px rgba(0,0,0,0.03); border: 1px solid #f0f0f0; display: flex; align-items: center; gap: 5px; letter-spacing: 0.5px;';
-            tag.innerHTML = `
-                ${group} 
-                <span style="color: #ccc; font-size: 13px; cursor: pointer; padding-bottom: 2px; font-family: Arial, sans-serif; transition: color 0.2s;" 
-                      onmouseover="this.style.color='#ff4d4f'" 
-                      onmouseout="this.style.color='#ccc'"
-                      onclick="deleteContactGroup(${index})">×</span>
-            `;
+            const tag = createContactGroupTag(group, currentFilter === group);
+            tag.style.paddingRight = '8px';
+            tag.onclick = function() {
+                setActiveContactGroup(group);
+            };
+            const deleteBtn = document.createElement('span');
+            deleteBtn.textContent = '×';
+            deleteBtn.style.cssText = [
+                'color:' + (currentFilter === group ? 'rgba(255,255,255,0.7)' : '#ccc'),
+                'font-size:13px',
+                'cursor:pointer',
+                'padding-bottom:2px',
+                'font-family:Arial,sans-serif',
+                'transition:color 0.2s'
+            ].join(';');
+            deleteBtn.onmouseover = function() {
+                this.style.color = currentFilter === group ? '#fff' : '#ff4d4f';
+            };
+            deleteBtn.onmouseout = function() {
+                this.style.color = currentFilter === group ? 'rgba(255,255,255,0.7)' : '#ccc';
+            };
+            deleteBtn.onclick = function(evt) {
+                evt.stopPropagation();
+                deleteContactGroup(index);
+            };
+            tag.appendChild(deleteBtn);
             container.appendChild(tag);
         });
-        // 渲染添加「+」按钮
-        const addTag = document.createElement('div');
-        addTag.style.cssText = 'background: #fafafa; padding: 4px 14px; border-radius: 16px; font-size: 12px; color: #999; border: 1px dashed #ddd; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s;';
+        const addTag = document.createElement('button');
+        addTag.type = 'button';
+        addTag.style.cssText = 'appearance:none; outline:none; background:#fafafa; padding:4px 14px; border-radius:16px; font-size:12px; color:#999; border:1px dashed #ddd; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.2s;';
         addTag.innerHTML = '+';
         addTag.onmouseover = () => addTag.style.background = '#f0f0f0';
         addTag.onmouseout = () => addTag.style.background = '#fafafa';
         addTag.onclick = addContactGroup;
         container.appendChild(addTag);
     }
+    async function setActiveContactGroup(group) {
+        activeContactGroupFilter = group && group !== 'ALL' && contactGroups.includes(group) ? group : 'ALL';
+        await syncContactGroupFilterAndList();
+    }
     async function deleteContactGroup(index) {
+        const deletedGroup = contactGroups[index];
+        if (deletedGroup === undefined) return;
         contactGroups.splice(index, 1);
         await localforage.setItem('miffy_contact_groups', contactGroups);
-        renderContactGroups();
+        if (activeContactGroupFilter === deletedGroup) {
+            activeContactGroupFilter = 'ALL';
+        }
+        await syncContactGroupFilterAndList();
     }
     async function addContactGroup() {
-        const newGroup = prompt('请输入新分组名称:');
+        const newGroup = await window.showMiniPrompt('请输入新分组名称：', '');
         if (newGroup && newGroup.trim() !== '') {
-            contactGroups.push(newGroup.trim());
-            await localforage.setItem('miffy_contact_groups', contactGroups);
-            renderContactGroups();
+            const normalizedName = newGroup.trim();
+            const existingGroup = contactGroups.find(function(group) {
+                return String(group).toLowerCase() === normalizedName.toLowerCase();
+            });
+            if (existingGroup) {
+                activeContactGroupFilter = existingGroup;
+            } else {
+                contactGroups.push(normalizedName);
+                activeContactGroupFilter = normalizedName;
+                await localforage.setItem('miffy_contact_groups', contactGroups);
+            }
+            await syncContactGroupFilterAndList();
         }
     }
+    window.getActiveContactGroupFilter = getActiveContactGroupFilter;
     // 初始渲染分组
     initContactGroups();
     // ====== 面具预设功能逻辑 (核心持久化: Dexie.js + IndexedDB) ======

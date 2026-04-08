@@ -153,22 +153,3 @@
     }
 })();
 
-// ====== 转账卡片状态切换 ======
-function toggleTransferStatus(cardEl) {
-    var statusEl = cardEl.querySelector('.tf-card-status');
-    if (!statusEl) return;
-    var cur = statusEl.textContent;
-    if (cur === '待收款') {
-        statusEl.textContent = '已收款';
-        statusEl.style.color = '#27ae60';
-    } else if (cur === '已收款') {
-        statusEl.textContent = '已退回';
-        statusEl.style.color = '#bbb';
-        cardEl.style.opacity = '0.72';
-    } else {
-        statusEl.textContent = '待收款';
-        statusEl.style.color = '#1a6fb5';
-        cardEl.style.opacity = '1';
-    }
-}
-

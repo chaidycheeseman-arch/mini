@@ -591,6 +591,40 @@ img {
     font-weight: 400;
     letter-spacing: 0.3px;
 }
+.wallet-status-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 16px 20px 18px;
+    text-align: center;
+}
+.wallet-status-heading {
+    font-size: 11px;
+    color: #bbb;
+    letter-spacing: 1px;
+}
+.wallet-status-value {
+    font-size: 18px;
+    line-height: 1.2;
+    font-weight: 600;
+    color: #555;
+}
+.wallet-status-value.is-pending {
+    color: #7d7d7d;
+}
+.wallet-status-value.is-success {
+    color: #2c7a59;
+}
+.wallet-status-value.is-muted {
+    color: #aaa;
+}
+.wallet-status-detail {
+    max-width: 188px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #9a9a9a;
+}
 
 /* ====== 转账发送弹窗（纯白阴影·底部滑出版） ====== */
 #transfer-modal {

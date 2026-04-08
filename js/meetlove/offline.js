@@ -7,7 +7,61 @@
 
     var activeOfflineContact = null;
     var activeOfflineBubbleMsgId = null;
+    var activeOfflineEditMsgId = null;
     var offlineReplying = false;
+    var activeOfflineTriggerKey = '';
+    var queuedOfflineTriggerPayload = null;
+    var lastOfflineTriggerKey = '';
+    var lastOfflineTriggerAt = 0;
+    var OFFLINE_TRIGGER_DEDUPE_MS = 1600;
+
+    function getOfflineSettingsKey(contact) {
+        var target = contact || activeOfflineContact;
+        return target ? ('offline_settings_' + target.id) : '';
+    }
+
+    function applyOfflineMessageBackground(src) {
+        var msgBody = document.getElementById('offline-msg-container');
+        if (!msgBody) return;
+        if (src) {
+            msgBody.style.background = 'url(' + src + ') center/cover no-repeat';
+        } else {
+            msgBody.style.background = '#f0ede8';
+        }
+    }
+
+    function syncOfflineBackgroundPreview(src) {
+        var previewImg = document.getElementById('offline-bg-preview-img');
+        if (!previewImg) return;
+        if (src) {
+            previewImg.src = src;
+            previewImg.style.display = 'block';
+        } else {
+            previewImg.src = '';
+            previewImg.style.display = 'none';
+        }
+    }
+
+    async function applyOfflineContactVisuals(contact) {
+        var target = contact || activeOfflineContact;
+        if (!target) {
+            applyOfflineMessageBackground('');
+            syncOfflineBackgroundPreview('');
+            _applyOfflineCss('');
+            return {};
+        }
+        var settings = {};
+        try {
+            settings = await localforage.getItem(getOfflineSettingsKey(target)) || {};
+        } catch (e) {
+            settings = {};
+        }
+        var bgImage = (typeof settings.bgImage === 'string' && settings.bgImage) ? settings.bgImage : '';
+        applyOfflineMessageBackground(bgImage);
+        syncOfflineBackgroundPreview(bgImage);
+        _applyOfflineCss(typeof settings.customCss === 'string' ? settings.customCss : '');
+        return settings;
+    }
 
     function normalizeOfflineText(text) {
         return String(text || '').replace(/\r\n?/g, '\n');
@@ -31,8 +85,36 @@
         return cleaned.trim();
     }
 
+    function dedupeOfflineContentLines(text) {
+        var normalized = normalizeOfflineText(text);
+        if (!normalized) return '';
+        var lines = normalized.split('\n').map(function(line) {
+            return line.trim();
+        }).filter(function(line) {
+            return !!line;
+        });
+        if (!lines.length) return '';
+        var compact = [];
+        var prevLine = '';
+        lines.forEach(function(line) {
+            if (line === prevLine) return;
+            compact.push(line);
+            prevLine = line;
+        });
+        return compact.join('\n').trim();
+    }
+
+    function buildOfflineTriggerKey(contact, userText, sourceType, sourceMsgId) {
+        var contactId = contact && contact.id ? String(contact.id) : '';
+        var textSig = sanitizeOfflineMessageContent(userText || '').slice(0, 180);
+        return [contactId, String(sourceType || 'send'), String(sourceMsgId || ''), textSig].join('|');
+    }
+
     function createOfflineTextParagraph(line) {
-        var narrationMatch = line.match(/^\*([\s\S]+)\*$/);
+        var normalizedLine = String(line || '').trim();
+        if (!normalizedLine) return null;
+
+        var narrationMatch = normalizedLine.match(/^\*([\s\S]+)\*$/);
         if (narrationMatch) {
             var em = document.createElement('em');
             em.className = 'offline-narration';
@@ -42,28 +124,34 @@
 
         var paragraph = document.createElement('div');
         paragraph.className = 'offline-paragraph';
-        var pattern = /"[^"]*"|“[^”]*”/g;
+        var pattern = /\*[^*]+\*|"[^"]*"|“[^”]*”/g;
         var lastIndex = 0;
         var match;
 
-        while ((match = pattern.exec(line)) !== null) {
-            var start = match.index;
-            if (start > lastIndex) {
-                paragraph.appendChild(document.createTextNode(line.slice(lastIndex, start)));
+        while ((match = pattern.exec(normalizedLine)) !== null) {
+            if (match.index > lastIndex) {
+                paragraph.appendChild(document.createTextNode(normalizedLine.slice(lastIndex, match.index)));
             }
-            var span = document.createElement('span');
-            span.className = 'offline-dialogue';
-            span.textContent = match[0];
-            paragraph.appendChild(span);
-            lastIndex = start + match[0].length;
+            if (match[0].charAt(0) === '*') {
+                var narrationInline = document.createElement('em');
+                narrationInline.className = 'offline-narration offline-narration-inline';
+                narrationInline.textContent = match[0].slice(1, -1).trim();
+                paragraph.appendChild(narrationInline);
+            } else {
+                var dialogue = document.createElement('span');
+                dialogue.className = 'offline-dialogue';
+                dialogue.textContent = match[0];
+                paragraph.appendChild(dialogue);
+            }
+            lastIndex = match.index + match[0].length;
         }
 
-        if (lastIndex < line.length) {
-            paragraph.appendChild(document.createTextNode(line.slice(lastIndex)));
+        if (lastIndex < normalizedLine.length) {
+            paragraph.appendChild(document.createTextNode(normalizedLine.slice(lastIndex)));
         }
 
         if (!paragraph.childNodes.length) {
-            paragraph.textContent = line;
+            paragraph.textContent = normalizedLine;
         }
 
         return paragraph;
@@ -80,7 +168,7 @@
 
         cleaned.split('\n').forEach(function(line) {
             var paragraph = createOfflineTextParagraph(line);
-            container.appendChild(paragraph);
+            if (paragraph) container.appendChild(paragraph);
         });
     }
 
@@ -94,7 +182,7 @@
         return y + '\u5e74' + mo + '\u6708' + day + '\u65e5 ' + h + ':' + min;
     }
 
-    window.openOfflineChat = function() {
+    window.openOfflineChat = async function() {
         if (!activeChatContact) return;
         activeOfflineContact = activeChatContact;
         hideChatExtPanel();
@@ -102,13 +190,20 @@
         if (titleEl) {
             var displayName = activeOfflineContact.roleName || '\u7ebf\u4e0b';
             titleEl.textContent = displayName;
+            if (typeof window.setMiniHeaderFixedSubtitle === 'function') {
+                window.setMiniHeaderFixedSubtitle(titleEl, activeOfflineContact.roleName || displayName, 'OFFLINE');
+            }
             localforage.getItem('cd_settings_' + activeOfflineContact.id + '_remark').then(function(remark) {
                 if (remark && remark !== '\u672a\u8bbe\u7f6e') titleEl.textContent = remark;
+                if (typeof window.setMiniHeaderFixedSubtitle === 'function') {
+                    window.setMiniHeaderFixedSubtitle(titleEl, activeOfflineContact.roleName || remark || displayName, 'OFFLINE');
+                }
             }).catch(function() {});
         }
         var app = document.getElementById('offline-chat-app');
         if (app) app.style.display = 'flex';
-        loadOfflineMessages();
+        await applyOfflineContactVisuals(activeOfflineContact);
+        await loadOfflineMessages();
         var input = document.getElementById('offline-input-field');
         if (input) {
             input.value = '';
@@ -156,6 +251,60 @@
         if (!menu) return;
         menu.style.display = 'none';
         activeOfflineBubbleMsgId = null;
+    }
+
+    function removeOfflineTypingIndicator() {
+        var indicator = document.getElementById('offline-typing-indicator');
+        if (indicator && indicator.parentNode) indicator.parentNode.removeChild(indicator);
+    }
+
+    function showOfflineTypingIndicator() {
+        var container = document.getElementById('offline-msg-container');
+        if (!container || !activeOfflineContact) return;
+        removeOfflineTypingIndicator();
+        var row = buildOfflineBubble({
+            sender: 'role',
+            content: '',
+            timestamp: Date.now(),
+            _typing: true
+        });
+        row.id = 'offline-typing-indicator';
+        row.classList.add('offline-typing-row');
+        container.appendChild(row);
+        requestAnimationFrame(function() {
+            container.scrollTop = container.scrollHeight;
+        });
+    }
+
+    function showOfflineToast(text) {
+        if (!text) return;
+        window.showMiniToast(text, { bottom: 100, duration: 1800 });
+    }
+
+    function scheduleOfflineReply(contact, userText, sourceType, sourceMsgId) {
+        if (!contact || !contact.id) return;
+        var triggerKey = buildOfflineTriggerKey(contact, userText, sourceType, sourceMsgId);
+        var now = Date.now();
+        var dedupeMs = sourceType === 'continue' ? 450 : OFFLINE_TRIGGER_DEDUPE_MS;
+        if (triggerKey && lastOfflineTriggerKey === triggerKey && (now - lastOfflineTriggerAt) < dedupeMs) {
+            return;
+        }
+        if (offlineReplying) {
+            if (triggerKey && triggerKey === activeOfflineTriggerKey) return;
+            queuedOfflineTriggerPayload = {
+                contact: contact,
+                userText: userText || '',
+                sourceType: sourceType || 'send',
+                sourceMsgId: sourceMsgId || '',
+                triggerKey: triggerKey
+            };
+            return;
+        }
+        triggerOfflineRoleReply(contact, userText || '', {
+            sourceType: sourceType || 'send',
+            sourceMsgId: sourceMsgId || '',
+            triggerKey: triggerKey
+        });
     }
 
     function openOfflineBubbleActionMenu(msgId, bubbleEl) {
@@ -221,7 +370,7 @@
         if (!modal) return;
         var msg = await offlineDb.messages.get(msgId);
         if (!msg) return;
-        activeOfflineBubbleMsgId = msgId;
+        activeOfflineEditMsgId = msgId;
         var textarea = document.getElementById('offline-edit-textarea');
         if (textarea) {
             textarea.value = msg.content || '';
@@ -248,16 +397,17 @@
         sheet.style.transform = 'translateY(100%)';
         setTimeout(function() {
             modal.style.display = 'none';
+            activeOfflineEditMsgId = null;
         }, 260);
     }
 
     async function saveOfflineEditedMessage() {
-        if (!activeOfflineBubbleMsgId) return;
+        if (!activeOfflineEditMsgId) return;
         var textarea = document.getElementById('offline-edit-textarea');
         var nextText = textarea ? sanitizeOfflineMessageContent(textarea.value) : '';
         if (!nextText || !nextText.trim()) return;
         try {
-            await offlineDb.messages.update(activeOfflineBubbleMsgId, { content: nextText });
+            await offlineDb.messages.update(activeOfflineEditMsgId, { content: nextText });
             if (textarea) textarea.value = nextText;
             closeOfflineEditModal();
             await loadOfflineMessages();
@@ -269,7 +419,7 @@
     async function deleteOfflineMessage(msgId) {
         closeOfflineBubbleActionMenu();
         if (!msgId) return;
-        if (!confirm('确定要删除这条对话吗？')) return;
+        if (!await window.showMiniConfirm('确定要删除这条对话吗？')) return;
         try {
             await offlineDb.messages.delete(msgId);
             await loadOfflineMessages();
@@ -281,11 +431,17 @@
     async function continueOfflineMessage(msgId) {
         closeOfflineBubbleActionMenu();
         if (!activeOfflineContact) return;
+        if (offlineReplying) {
+            showOfflineToast('角色正在输入中');
+            return;
+        }
         try {
             var msg = await offlineDb.messages.get(msgId);
-            await triggerOfflineRoleReply(activeOfflineContact, msg ? (msg.content || '') : '');
+            scheduleOfflineReply(activeOfflineContact, msg ? (msg.content || '') : '', 'continue', msgId);
         } catch (e) {
             console.error('线下续写失败', e);
+            removeOfflineTypingIndicator();
+            showOfflineToast('续写失败');
         }
     }
 
@@ -373,19 +529,13 @@
                 msgCount: msgs.length
             });
             await renderOfflineSlots();
-            // 简单提示
-            var toast = document.createElement('div');
-            toast.textContent = '存档 ' + slotIndex + ' 已保存';
-            toast.style.cssText = 'position:absolute;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.65);color:#fff;padding:8px 18px;border-radius:20px;font-size:13px;z-index:9999;pointer-events:none;white-space:nowrap;';
-            var offlineApp = document.getElementById('offline-chat-app');
-            if (offlineApp) offlineApp.appendChild(toast);
-            setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 2000);
+            showOfflineToast('存档 ' + slotIndex + ' 已保存');
         } catch(e) { console.error('存档失败', e); }
     }
 
     async function loadOfflineSlot(slotIndex) {
         if (!activeOfflineContact) return;
-        if (!confirm('读取存档 ' + slotIndex + ' 将覆盖当前对话，确定吗？')) return;
+        if (!await window.showMiniConfirm('读取存档 ' + slotIndex + ' 将覆盖当前对话，确定吗？')) return;
         var contactId = activeOfflineContact.id;
         try {
             var slotKey = 'offline_slot_' + contactId + '_' + slotIndex;
@@ -406,7 +556,7 @@
 
     window.offlineNewChat = async function() {
         if (!activeOfflineContact) return;
-        if (!confirm('新建对话将清空当前所有消息，确定吗？')) return;
+        if (!await window.showMiniConfirm('新建对话将清空当前所有消息，确定吗？')) return;
         var contactId = activeOfflineContact.id;
         try {
             var allMsgs = await offlineDb.messages.where('contactId').equals(contactId).toArray();
@@ -447,12 +597,8 @@
             // CSS
             var cssEl = document.getElementById('offline-custom-css');
             if (cssEl) cssEl.value = settings.customCss || '';
-            // 背景图预览
-            var bgPreviewImg = document.getElementById('offline-bg-preview-img');
-            if (bgPreviewImg && settings.bgImage) {
-                bgPreviewImg.src = settings.bgImage;
-                bgPreviewImg.style.display = 'block';
-            }
+            syncOfflineBackgroundPreview(settings.bgImage || '');
+            _applyOfflineCss(typeof settings.customCss === 'string' ? settings.customCss : '');
         } catch(e) {}
     };
 
@@ -481,15 +627,9 @@
         var settings = Object.assign(existing, { wordMin, wordMax, perspective, writingStyle, plotBg, customCss });
         await localforage.setItem('offline_settings_' + contactId, settings);
         // 应用CSS
-        if (customCss) _applyOfflineCss(customCss);
+        _applyOfflineCss(customCss);
         closeOfflineSettings();
-        // 显示提示
-        var toast = document.createElement('div');
-        toast.textContent = '设置已保存';
-        toast.style.cssText = 'position:absolute;bottom:100px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.65);color:#fff;padding:8px 18px;border-radius:20px;font-size:13px;z-index:9999;pointer-events:none;white-space:nowrap;';
-        var offlineApp = document.getElementById('offline-chat-app');
-        if (offlineApp) offlineApp.appendChild(toast);
-        setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 2000);
+        showOfflineToast('设置已保存');
     };
 
     window.offlineChangeBg = async function(event) {
@@ -498,17 +638,12 @@
         var reader = new FileReader();
         reader.onload = async function(e) {
             var base64 = e.target.result;
-            // 更新预览
-            var previewImg = document.getElementById('offline-bg-preview-img');
-            if (previewImg) { previewImg.src = base64; previewImg.style.display = 'block'; }
-            // 应用背景
-            var msgBody = document.getElementById('offline-msg-container');
-            if (msgBody) msgBody.style.background = 'url(' + base64 + ') center/cover no-repeat';
+            syncOfflineBackgroundPreview(base64);
+            applyOfflineMessageBackground(base64);
             // 持久化
-            var contactId = activeOfflineContact.id;
-            var settings = await localforage.getItem('offline_settings_' + contactId) || {};
+            var settings = await localforage.getItem(getOfflineSettingsKey(activeOfflineContact)) || {};
             settings.bgImage = base64;
-            await localforage.setItem('offline_settings_' + contactId, settings);
+            await localforage.setItem(getOfflineSettingsKey(activeOfflineContact), settings);
         };
         reader.readAsDataURL(file);
         event.target.value = '';
@@ -516,14 +651,11 @@
 
     window.offlineResetBg = async function() {
         if (!activeOfflineContact) return;
-        var msgBody = document.getElementById('offline-msg-container');
-        if (msgBody) msgBody.style.background = '#f0ede8';
-        var previewImg = document.getElementById('offline-bg-preview-img');
-        if (previewImg) { previewImg.src = ''; previewImg.style.display = 'none'; }
-        var contactId = activeOfflineContact.id;
-        var settings = await localforage.getItem('offline_settings_' + contactId) || {};
+        applyOfflineMessageBackground('');
+        syncOfflineBackgroundPreview('');
+        var settings = await localforage.getItem(getOfflineSettingsKey(activeOfflineContact)) || {};
         delete settings.bgImage;
-        await localforage.setItem('offline_settings_' + contactId, settings);
+        await localforage.setItem(getOfflineSettingsKey(activeOfflineContact), settings);
     };
 
     window.offlineApplyCss = function() {
@@ -543,6 +675,27 @@
         }
     };
 
+    function scopeOfflineCustomCss(css) {
+        var raw = String(css || '').trim();
+        if (!raw) return '';
+        if (raw.indexOf('#offline-chat-app') !== -1) return raw;
+        return raw.replace(/(^|})\s*([^@}{][^{}]*)\{/g, function(match, prefix, selectorText) {
+            var scopedSelector = selectorText.split(',').map(function(item) {
+                var selector = String(item || '').trim();
+                if (!selector) return '';
+                if (selector.indexOf('#offline-chat-app') !== -1) return selector;
+                if (selector === ':root' || selector === 'html' || selector === 'body' || selector === '*') {
+                    return '#offline-chat-app';
+                }
+                return '#offline-chat-app ' + selector;
+            }).filter(function(item) {
+                return !!item;
+            }).join(', ');
+            if (!scopedSelector) return match;
+            return (prefix || '') + '\n' + scopedSelector + ' {';
+        });
+    }
+
     function _applyOfflineCss(css) {
         var styleId = 'offline-custom-style';
         var existing = document.getElementById(styleId);
@@ -551,7 +704,7 @@
             existing.id = styleId;
             document.head.appendChild(existing);
         }
-        existing.textContent = css || '';
+        existing.textContent = scopeOfflineCustomCss(css);
     }
 
     /* ====== 线下CSS模板提取 ====== */
@@ -705,6 +858,7 @@
         if (!container || !activeOfflineContact) return;
         container.innerHTML = '';
         closeOfflineBubbleActionMenu();
+        removeOfflineTypingIndicator();
         try {
             var msgs = await offlineDb.messages.where('contactId').equals(activeOfflineContact.id).toArray();
             msgs.forEach(function(msg) { container.appendChild(buildOfflineBubble(msg)); });
@@ -713,6 +867,7 @@
     }
 
     function buildOfflineBubble(msg) {
+        var isTyping = !!(msg && msg._typing);
         var isMe = msg.sender === 'me';
         var contact = activeOfflineContact;
         var userAvatar = contact ? (contact.userAvatar || '') : '';
@@ -739,6 +894,7 @@
         // 气泡本体（无尖角，头像+名字+时间戳都在气泡内）
         var bubble = document.createElement('div');
         bubble.className = 'offline-bubble';
+        if (isTyping) bubble.className += ' offline-bubble-typing';
 
         // 气泡头部：头像 + 名字 + 时间戳
         var header = document.createElement('div');
@@ -773,11 +929,16 @@
         // 气泡正文（旁白灰色斜体，对话黑色正体）
         var textEl = document.createElement('div');
         textEl.className = 'offline-bubble-text';
-        renderOfflineMessageContent(textEl, msg.content || '');
+        if (isTyping) {
+            textEl.className += ' offline-typing-text';
+            textEl.innerHTML = '<span class="offline-typing-label">正在输入...</span>';
+        } else {
+            renderOfflineMessageContent(textEl, msg.content || '');
+        }
 
         bubble.appendChild(header);
         bubble.appendChild(textEl);
-        if (msg && msg.id) {
+        if (!isTyping && msg && msg.id) {
             bubble.setAttribute('data-msg-id', String(msg.id));
             bubble.style.cursor = 'pointer';
             bubble.addEventListener('click', function(e) {
@@ -812,24 +973,55 @@
             var msg = { id: newId, contactId: activeOfflineContact.id, sender: 'me', content: normalizedContent, timestamp: ts };
             container.appendChild(buildOfflineBubble(msg));
             requestAnimationFrame(function() { container.scrollTop = container.scrollHeight; });
-            triggerOfflineRoleReply(activeOfflineContact, normalizedContent);
+            scheduleOfflineReply(activeOfflineContact, normalizedContent, 'send', newId);
         } catch(e) { console.error('send offline message failed', e); }
     };
 
-    async function triggerOfflineRoleReply(contact, userText) {
-        if (offlineReplying) return;
+    async function triggerOfflineRoleReply(contact, userText, meta) {
+        if (!contact || !contact.id) return;
+        var triggerMeta = meta || {};
+        var triggerKey = triggerMeta.triggerKey || buildOfflineTriggerKey(contact, userText, triggerMeta.sourceType, triggerMeta.sourceMsgId);
+        var nowTs = Date.now();
+        var triggerDedupeMs = triggerMeta.sourceType === 'continue' ? 450 : OFFLINE_TRIGGER_DEDUPE_MS;
+        if (triggerKey && lastOfflineTriggerKey === triggerKey && (nowTs - lastOfflineTriggerAt) < triggerDedupeMs) {
+            return;
+        }
+        if (offlineReplying) {
+            if (triggerKey && triggerKey === activeOfflineTriggerKey) return;
+            queuedOfflineTriggerPayload = {
+                contact: contact,
+                userText: userText || '',
+                sourceType: triggerMeta.sourceType || 'send',
+                sourceMsgId: triggerMeta.sourceMsgId || '',
+                triggerKey: triggerKey
+            };
+            return;
+        }
+
         offlineReplying = true;
+        activeOfflineTriggerKey = triggerKey || '';
+        lastOfflineTriggerKey = triggerKey || '';
+        lastOfflineTriggerAt = nowTs;
+
         var container = document.getElementById('offline-msg-container');
+        showOfflineTypingIndicator();
         try {
             var apiUrl = await localforage.getItem('miffy_api_url');
             var apiKey = await localforage.getItem('miffy_api_key');
             var model = await localforage.getItem('miffy_api_model');
             var temp = parseFloat(await localforage.getItem('miffy_api_temp')) || 0.7;
-            if (!apiUrl || !apiKey || !model) return;
-            var ctxRaw = await localforage.getItem('miffy_api_ctx');
-            var ctxLimit = (ctxRaw !== null && ctxRaw !== '') ? parseInt(ctxRaw) : 10;
+            if (!apiUrl || !apiKey || !model) {
+                showOfflineToast('请先配置聊天 API');
+                return;
+            }
+
+            var ctxLimit = (typeof window.readMiniApiContextLimit === 'function')
+                ? await window.readMiniApiContextLimit(20)
+                : 20;
+
             var allMsgs = await offlineDb.messages.where('contactId').equals(contact.id).toArray();
-            var recentMsgs = (ctxLimit === 0) ? allMsgs : allMsgs.slice(-ctxLimit);
+            var recentMsgs = allMsgs.slice(-ctxLimit);
+
             var allOnlineMsgs = [];
             try {
                 allOnlineMsgs = await chatListDb.messages.where('contactId').equals(contact.id).toArray();
@@ -839,7 +1031,8 @@
             } catch (eOnline) {
                 allOnlineMsgs = [];
             }
-            var recentOnlineMsgs = (ctxLimit === 0) ? allOnlineMsgs : allOnlineMsgs.slice(-ctxLimit);
+            var recentOnlineMsgs = allOnlineMsgs.slice(-ctxLimit);
+
             var offlineSettings = await localforage.getItem('offline_settings_' + contact.id) || {};
             var wordMin = Math.max(50, parseInt(offlineSettings.wordMin, 10) || 100);
             var wordMax = Math.max(wordMin, parseInt(offlineSettings.wordMax, 10) || 500);
@@ -847,11 +1040,13 @@
             var perspective = perspectiveMap[offlineSettings.perspective] || '第二人称';
             var writingStyle = String(offlineSettings.writingStyle || '').trim();
             var plotBg = String(offlineSettings.plotBg || '').trim();
+
             var now = new Date();
-            var weeks2 = ['\u5468\u65e5','\u5468\u4e00','\u5468\u4e8c','\u5468\u4e09','\u5468\u56db','\u5468\u4e94','\u5468\u516d'];
-            var timeStr = now.getFullYear() + '\u5e74' + (now.getMonth()+1) + '\u6708' + now.getDate() + '\u65e5 ' +
+            var weeks2 = ['\u5468\u65e5', '\u5468\u4e00', '\u5468\u4e8c', '\u5468\u4e09', '\u5468\u56db', '\u5468\u4e94', '\u5468\u516d'];
+            var timeStr = now.getFullYear() + '\u5e74' + (now.getMonth() + 1) + '\u6708' + now.getDate() + '\u65e5 ' +
                 weeks2[now.getDay()] + ' ' +
-                String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+                String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
             var onlineMemoryText = '';
             if (typeof buildOnlineCrossModeMemoryText === 'function') {
                 onlineMemoryText = await buildOnlineCrossModeMemoryText(contact, ctxLimit, allOnlineMsgs);
@@ -869,10 +1064,12 @@
                     return !!line;
                 }).join('\n');
             }
+
             var memorySummaryText = '';
             if (typeof getContactSummaryHistoryText === 'function') {
                 memorySummaryText = await getContactSummaryHistoryText(contact.id);
             }
+
             var worldbookSeedTexts = [];
             recentOnlineMsgs.forEach(function(m) {
                 var text = typeof extractMsgPureText === 'function'
@@ -889,6 +1086,7 @@
             if (typeof buildContactWorldbookContextText === 'function') {
                 worldbookText = await buildContactWorldbookContextText(contact, worldbookSeedTexts);
             }
+
             var sysPrompt = '【角色身份锚点】你现在就是「' + (contact.roleName || '角色') + '」，正在与用户进行一段真实、连续发生的线下见面。\n' +
                 '【线下模式铁律】\n' +
                 '1. 线下剧情和线上聊天属于同一段关系连续体，必须承接已经发生的事实，不要失忆，不要重新自我介绍。\n' +
@@ -911,15 +1109,17 @@
             if (onlineMemoryText) {
                 sysPrompt += '【跨模式记忆：线上聊天】以下为你们最近在线上聊过的内容。线下续写时必须视为已发生事实并自然延续：\n' + onlineMemoryText + '\n';
             }
+
             var messages = [{ role: 'system', content: sysPrompt }];
             recentMsgs.forEach(function(m) {
                 messages.push({ role: m.sender === 'me' ? 'user' : 'assistant', content: m.content });
             });
             if (recentMsgs.length === 0) {
                 messages.push({ role: 'user', content: '请承接我们已经发生过的线上关系和当前背景，开启这次线下见面的第一段互动。' });
-            } else if (recentMsgs[recentMsgs.length - 1].sender !== 'me') {
+            } else if (recentMsgs[recentMsgs.length - 1].sender !== 'me' || triggerMeta.sourceType === 'continue') {
                 messages.push({ role: 'user', content: '请紧接上一段线下剧情继续自然推进。' });
             }
+
             var cleanApiUrl = apiUrl.replace(/\/+$/, '').replace(/\/v1$/, '');
             var endpoint = cleanApiUrl + '/v1/chat/completions';
             var response = await fetch(endpoint, {
@@ -927,16 +1127,52 @@
                 headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
                 body: JSON.stringify({ model: model, messages: messages, temperature: temp })
             });
-            if (!response.ok) return;
+
+            if (!response.ok) {
+                var errorText = '';
+                try { errorText = await response.text(); } catch (eRead) {}
+                console.warn('offline reply http error', response.status, errorText);
+                showOfflineToast('线下回复失败 (' + response.status + ')');
+                return;
+            }
+
             var data = await response.json();
-            var replyText = data.choices[0].message.content.trim();
+            var rawChoice = data && data.choices && data.choices[0] ? data.choices[0] : null;
+            var replyText = '';
+            if (rawChoice && rawChoice.message) {
+                if (typeof rawChoice.message.content === 'string') {
+                    replyText = rawChoice.message.content;
+                } else if (Array.isArray(rawChoice.message.content)) {
+                    replyText = rawChoice.message.content.map(function(part) {
+                        if (!part) return '';
+                        if (typeof part === 'string') return part;
+                        if (typeof part.text === 'string') return part.text;
+                        if (part.type === 'text' && typeof part.content === 'string') return part.content;
+                        return '';
+                    }).join('\n');
+                }
+            }
+            if (!replyText && rawChoice && typeof rawChoice.text === 'string') {
+                replyText = rawChoice.text;
+            }
+            replyText = String(replyText || '').trim();
+            if (!replyText) {
+                showOfflineToast('模型未返回有效内容');
+                return;
+            }
+
             try {
                 var parsed = JSON.parse(replyText);
                 if (parsed && parsed.content) replyText = parsed.content;
                 else if (Array.isArray(parsed) && parsed[0] && parsed[0].content) replyText = parsed[0].content;
-            } catch(e2) {}
-            replyText = sanitizeOfflineMessageContent(replyText);
-            if (!replyText) return;
+            } catch (e2) {}
+
+            replyText = dedupeOfflineContentLines(sanitizeOfflineMessageContent(replyText));
+            if (!replyText) {
+                showOfflineToast('模型未返回可显示文本');
+                return;
+            }
+
             var replyTs = Date.now();
             var replyId = await offlineDb.messages.add({
                 contactId: contact.id,
@@ -947,11 +1183,24 @@
             var app = document.getElementById('offline-chat-app');
             if (app && app.style.display === 'flex' && activeOfflineContact && activeOfflineContact.id === contact.id) {
                 var replyMsg = { id: replyId, contactId: contact.id, sender: 'role', content: replyText, timestamp: replyTs };
+                removeOfflineTypingIndicator();
                 container.appendChild(buildOfflineBubble(replyMsg));
                 requestAnimationFrame(function() { container.scrollTop = container.scrollHeight; });
             }
-        } catch(e) { console.error('offline role reply failed', e); }
-        finally { offlineReplying = false; }
+        } catch (e) {
+            console.error('offline role reply failed', e);
+            showOfflineToast('线下回复失败');
+        } finally {
+            removeOfflineTypingIndicator();
+            offlineReplying = false;
+            activeOfflineTriggerKey = '';
+
+            var queuedPayload = queuedOfflineTriggerPayload;
+            queuedOfflineTriggerPayload = null;
+            if (queuedPayload && activeOfflineContact && queuedPayload.contact && activeOfflineContact.id === queuedPayload.contact.id) {
+                scheduleOfflineReply(queuedPayload.contact, queuedPayload.userText, queuedPayload.sourceType, queuedPayload.sourceMsgId);
+            }
+        }
     }
 
     document.addEventListener('DOMContentLoaded', function() {

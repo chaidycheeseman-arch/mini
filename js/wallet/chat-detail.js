@@ -4,7 +4,8 @@
 (function() {
     // 当前联系人的详情设置存储键前缀
     var CD_KEY_PREFIX = 'cd_settings_';
-    const DEFAULT_SPECIAL_MESSAGE_PROBABILITIES = Object.freeze({
+    var SPECIAL_MESSAGE_PROBABILITY_VERSION = 6;
+    const LEGACY_SPECIAL_MESSAGE_PROBABILITIES = Object.freeze({
         camera: 0.1,
         location: 0.1,
         takeaway: 0.1,
@@ -19,7 +20,62 @@
         recall: 5,
         time_aware: 20
     });
-    const EXCLUSIVE_SPECIAL_MESSAGE_KEYS = ['camera', 'location', 'takeaway', 'gift', 'call', 'video_call', 'red_packet', 'transfer'];
+    const LOW_DEFAULT_SPECIAL_MESSAGE_PROBABILITIES = Object.freeze({
+        camera: 2.5,
+        location: 2.5,
+        takeaway: 0.5,
+        gift: 0.5,
+        call: 0.8,
+        video_call: 0.5,
+        red_packet: 0.2,
+        transfer: 0.1,
+        voice_message: 10,
+        emoticon: 12,
+        reply: 16,
+        recall: 4,
+        time_aware: 18
+    });
+    const HIGH_DEFAULT_SPECIAL_MESSAGE_PROBABILITIES = Object.freeze({
+        camera: 20,
+        location: 20,
+        takeaway: 20,
+        gift: 20,
+        call: 20,
+        video_call: 20,
+        red_packet: 20,
+        transfer: 20,
+        voice_message: 18,
+        emoticon: 18,
+        reply: 18,
+        recall: 6,
+        time_aware: 25
+    });
+    const DEFAULT_SPECIAL_MESSAGE_PROBABILITIES = Object.freeze({
+        camera: 3.5,
+        location: 2.8,
+        takeaway: 0.8,
+        gift: 0.8,
+        call: 1.2,
+        video_call: 0.6,
+        red_packet: 0.5,
+        transfer: 0.3,
+        voice_message: 10,
+        emoticon: 12,
+        reply: 16,
+        recall: 4,
+        time_aware: 18
+    });
+    const ACTION_SPECIAL_MESSAGE_KEYS = ['camera', 'location', 'takeaway', 'gift', 'call', 'video_call', 'red_packet', 'transfer'];
+    const ACTION_SPECIAL_MESSAGE_LABELS = Object.freeze({
+        camera: '相片',
+        location: '定位',
+        takeaway: '外卖',
+        gift: '礼物',
+        call: '电话',
+        video_call: '视频',
+        red_packet: '红包',
+        transfer: '转账'
+    });
     const SPECIAL_MESSAGE_PROBABILITY_INPUT_IDS = {
         camera: 'cd-prob-camera',
         location: 'cd-prob-location',
@@ -59,6 +115,13 @@
         return JSON.parse(JSON.stringify(DEFAULT_SPECIAL_MESSAGE_PROBABILITIES));
     }
 
+    function _isSameProbabilityConfig(a, b) {
+        if (!a || !b) return false;
+        return Object.keys(DEFAULT_SPECIAL_MESSAGE_PROBABILITIES).every(function(key) {
+            return _normalizeProbabilityValue(a[key], 0) === _normalizeProbabilityValue(b[key], 0);
+        });
+    }
+
     function _normalizeSpecialMessageProbabilities(raw) {
         var normalized = _getDefaultSpecialMessageProbabilities();
         if (!raw || typeof raw !== 'object') return normalized;
@@ -68,18 +131,145 @@
         return normalized;
     }
 
-    function _getExclusiveSpecialProbabilityTotal(config) {
-        return EXCLUSIVE_SPECIAL_MESSAGE_KEYS.reduce(function(sum, key) {
+    function _getActionSpecialProbabilityTotal(config) {
+        return ACTION_SPECIAL_MESSAGE_KEYS.reduce(function(sum, key) {
             return sum + _normalizeProbabilityValue(config && config[key], 0);
         }, 0);
+    }
+
+    function _getSpecialProbabilityStorageKey(contact) {
+        var target = contact || activeChatContact;
+        return target ? (CD_KEY_PREFIX + target.id + '_special_message_probabilities') : '';
+    }
+
+    function _getSpecialProbabilityVersionKey(contact) {
+        var target = contact || activeChatContact;
+        return target ? (CD_KEY_PREFIX + target.id + '_special_message_probabilities_version') : '';
+    }
+
+    function _getActionSelectionProbabilityBreakdown(config) {
+        var keys = ACTION_SPECIAL_MESSAGE_KEYS.slice();
+        var weights = keys.map(function(key) {
+            return _normalizeProbabilityValue(config && config[key], 0);
+        });
+        var hitProbabilities = weights.map(function(weight) {
+            return weight / 100;
+        });
+        var selectedByKey = {};
+        var anyProbability = 0;
+
+        keys.forEach(function(key) {
+            selectedByKey[key] = 0;
+        });
+
+        for (var mask = 1; mask < (1 << keys.length); mask++) {
+            var subsetProbability = 1;
+            var totalWeight = 0;
+            for (var i = 0; i < keys.length; i++) {
+                var isHit = !!(mask & (1 << i));
+                subsetProbability *= isHit ? hitProbabilities[i] : (1 - hitProbabilities[i]);
+                if (isHit) totalWeight += weights[i];
+            }
+            if (subsetProbability <= 0 || totalWeight <= 0) continue;
+            anyProbability += subsetProbability;
+            for (var j = 0; j < keys.length; j++) {
+                if (!(mask & (1 << j))) continue;
+                selectedByKey[keys[j]] += subsetProbability * (weights[j] / totalWeight);
+            }
+        }
+
+        Object.keys(selectedByKey).forEach(function(key) {
+            selectedByKey[key] = Math.round(selectedByKey[key] * 10000) / 100;
+        });
+
+        return {
+            anyProbability: Math.round(anyProbability * 10000) / 100,
+            selectedByKey: selectedByKey
+        };
+    }
+
+    function _ensureSpecialProbabilityDetailEl() {
+        var detailEl = document.getElementById('cd-prob-actual-summary');
+        if (detailEl) return detailEl;
+        var totalEl = document.getElementById('cd-prob-exclusive-total');
+        if (!totalEl) return null;
+        var headerRow = totalEl.closest('.cd-section-item');
+        var gridWrap = headerRow ? headerRow.nextElementSibling : null;
+        if (!gridWrap) return null;
+        detailEl = document.createElement('div');
+        detailEl.id = 'cd-prob-actual-summary';
+        detailEl.style.cssText = 'margin-top:10px;font-size:11px;color:#8d8d8d;line-height:1.55;word-break:break-word;';
+        gridWrap.appendChild(detailEl);
+        return detailEl;
+    }
+
+    var _specialProbabilitySaveTimer = null;
+
+    function _scheduleSpecialProbabilitySave() {
+        if (!activeChatContact) return;
+        if (_specialProbabilitySaveTimer) clearTimeout(_specialProbabilitySaveTimer);
+        _specialProbabilitySaveTimer = setTimeout(function() {
+            window.cdSaveSpecialProbabilities().catch(function(err) {
+                console.error('保存特殊消息概率失败', err);
+            });
+        }, 120);
+    }
+
+    function _bindSpecialProbabilityInputs() {
+        Object.keys(SPECIAL_MESSAGE_PROBABILITY_INPUT_IDS).forEach(function(key) {
+            var el = document.getElementById(SPECIAL_MESSAGE_PROBABILITY_INPUT_IDS[key]);
+            if (!el || el.dataset.cdProbBound === '1') return;
+            el.dataset.cdProbBound = '1';
+            el.addEventListener('input', function() {
+                window.cdRefreshSpecialProbabilitySummary();
+                _scheduleSpecialProbabilitySave();
+            });
+            el.addEventListener('change', function() {
+                window.cdSaveSpecialProbabilities().catch(function(err) {
+                    console.error('保存特殊消息概率失败', err);
+                });
+            });
+        });
     }
 
     async function getContactSpecialMessageProbabilities(contact) {
         var target = contact || activeChatContact;
         if (!target) return _getDefaultSpecialMessageProbabilities();
         try {
-            var saved = await localforage.getItem(CD_KEY_PREFIX + target.id + '_special_message_probabilities');
-            return _normalizeSpecialMessageProbabilities(saved);
+            var key = _getSpecialProbabilityStorageKey(target);
+            var versionKey = _getSpecialProbabilityVersionKey(target);
+            var saved = await localforage.getItem(key);
+            if (!saved) {
+                var defaults = _getDefaultSpecialMessageProbabilities();
+                try {
+                    await localforage.setItem(key, defaults);
+                    await localforage.setItem(versionKey, SPECIAL_MESSAGE_PROBABILITY_VERSION);
+                } catch (_) {}
+                return defaults;
+            }
+            var normalized = _normalizeSpecialMessageProbabilities(saved);
+            var savedVersionRaw = await localforage.getItem(versionKey);
+            var savedVersion = parseInt(savedVersionRaw, 10) || 0;
+            if (
+                savedVersion < SPECIAL_MESSAGE_PROBABILITY_VERSION &&
+                (
+                    _isSameProbabilityConfig(normalized, LEGACY_SPECIAL_MESSAGE_PROBABILITIES) ||
+                    _isSameProbabilityConfig(normalized, LOW_DEFAULT_SPECIAL_MESSAGE_PROBABILITIES) ||
+                    _isSameProbabilityConfig(normalized, HIGH_DEFAULT_SPECIAL_MESSAGE_PROBABILITIES)
+                )
+            ) {
+                var defaults = _getDefaultSpecialMessageProbabilities();
+                try {
+                    await localforage.setItem(key, defaults);
+                } catch (_) {}
+                normalized = defaults;
+            }
+            if (savedVersion < SPECIAL_MESSAGE_PROBABILITY_VERSION) {
+                try {
+                    await localforage.setItem(versionKey, SPECIAL_MESSAGE_PROBABILITY_VERSION);
+                } catch (_) {}
+            }
+            return normalized;
         } catch(e) {
             console.error('读取特殊消息概率失败', e);
             return _getDefaultSpecialMessageProbabilities();
@@ -87,16 +277,23 @@
     }
 
     function _rollExclusiveSpecialMessageType(config) {
-        var total = _getExclusiveSpecialProbabilityTotal(config);
-        if (total <= 0) return '';
-        var roll = Math.random() * 100;
+        var triggeredKeys = ACTION_SPECIAL_MESSAGE_KEYS.filter(function(key) {
+            return Math.random() < (_normalizeProbabilityValue(config && config[key], 0) / 100);
+        });
+        if (!triggeredKeys.length) return '';
+        if (triggeredKeys.length === 1) return triggeredKeys[0];
+        var totalWeight = triggeredKeys.reduce(function(sum, key) {
+            return sum + _normalizeProbabilityValue(config && config[key], 0);
+        }, 0);
+        if (totalWeight <= 0) return triggeredKeys[0];
+        var roll = Math.random() * totalWeight;
         var cursor = 0;
-        for (var i = 0; i < EXCLUSIVE_SPECIAL_MESSAGE_KEYS.length; i++) {
-            var key = EXCLUSIVE_SPECIAL_MESSAGE_KEYS[i];
-            cursor += _normalizeProbabilityValue(config[key], 0);
+        for (var i = 0; i < triggeredKeys.length; i++) {
+            var key = triggeredKeys[i];
+            cursor += _normalizeProbabilityValue(config && config[key], 0);
             if (roll < cursor) return key;
         }
-        return '';
+        return triggeredKeys[triggeredKeys.length - 1];
     }
 
     function _getCurrentSpecialProbabilityInputConfig() {
@@ -109,6 +306,7 @@
     }
 
     function _renderSpecialProbabilityInputs(config) {
+        _bindSpecialProbabilityInputs();
         Object.keys(SPECIAL_MESSAGE_PROBABILITY_INPUT_IDS).forEach(function(key) {
             var el = document.getElementById(SPECIAL_MESSAGE_PROBABILITY_INPUT_IDS[key]);
             if (el) el.value = _formatProbabilityValue(config[key]);
@@ -124,28 +322,35 @@
         var totalEl = document.getElementById('cd-prob-exclusive-total');
         if (!totalEl) return;
         var config = _getCurrentSpecialProbabilityInputConfig();
-        var total = _getExclusiveSpecialProbabilityTotal(config);
-        totalEl.textContent = '独占型合计 ' + _formatProbabilityValue(total) + '%';
-        totalEl.style.color = total > 100 ? '#e05757' : '#999';
+        var total = _getActionSpecialProbabilityTotal(config);
+        var breakdown = _getActionSelectionProbabilityBreakdown(config);
+        totalEl.textContent = '动作型配置总和 ' + _formatProbabilityValue(total) + '% · 单轮实际触发率 ' + _formatProbabilityValue(breakdown.anyProbability) + '%';
+        totalEl.style.color = '#999';
+        var detailEl = _ensureSpecialProbabilityDetailEl();
+        if (!detailEl) return;
+        if (breakdown.anyProbability <= 0) {
+            detailEl.textContent = '动作型已全部关闭，当前只会走普通文本或你另外开放的语音、表情、引用、撤回逻辑。';
+            return;
+        }
+        detailEl.textContent = '实际动作分流：' + ACTION_SPECIAL_MESSAGE_KEYS.map(function(key) {
+            return ACTION_SPECIAL_MESSAGE_LABELS[key] + ' ' + _formatProbabilityValue(breakdown.selectedByKey[key]) + '%';
+        }).join(' · ');
     };
 
     window.cdSaveSpecialProbabilities = async function() {
         if (!activeChatContact) return;
         var config = _getCurrentSpecialProbabilityInputConfig();
-        var total = _getExclusiveSpecialProbabilityTotal(config);
         window.cdRefreshSpecialProbabilitySummary();
-        if (total > 100) {
-            alert('独占型特殊消息概率合计不能超过 100%，请先调整后再保存。');
-            return;
-        }
-        await localforage.setItem(CD_KEY_PREFIX + activeChatContact.id + '_special_message_probabilities', config);
+        await localforage.setItem(_getSpecialProbabilityStorageKey(activeChatContact), config);
+        await localforage.setItem(_getSpecialProbabilityVersionKey(activeChatContact), SPECIAL_MESSAGE_PROBABILITY_VERSION);
     };
 
     window.cdResetSpecialProbabilities = async function() {
         if (!activeChatContact) return;
         var defaults = _getDefaultSpecialMessageProbabilities();
         _renderSpecialProbabilityInputs(defaults);
-        await localforage.setItem(CD_KEY_PREFIX + activeChatContact.id + '_special_message_probabilities', defaults);
+        await localforage.setItem(_getSpecialProbabilityStorageKey(activeChatContact), defaults);
+        await localforage.setItem(_getSpecialProbabilityVersionKey(activeChatContact), SPECIAL_MESSAGE_PROBABILITY_VERSION);
     };
 
     // 打开聊天详情页
@@ -221,6 +426,7 @@
         var maxEl = document.getElementById('cd-reply-max');
         if (minEl && replyMin !== null) minEl.value = replyMin;
         if (maxEl && replyMax !== null) maxEl.value = replyMax;
+        _bindSpecialProbabilityInputs();
         _renderSpecialProbabilityInputs(await getContactSpecialMessageProbabilities(activeChatContact));
 
         // 恢复各开关状态
@@ -590,7 +796,7 @@
         if (historyPre.length > 0) {
             var lastSummary = historyPre[0];
             var previewText = '上次总结（' + lastSummary.time + '，共' + lastSummary.msgCount + '条消息）：\n\n' + lastSummary.content.substring(0, 300) + (lastSummary.content.length > 300 ? '...' : '');
-            var doIt = confirm(previewText + '\n\n当前共 ' + totalMsgCount + ' 条消息（含线下记录），确定要重新总结吗？');
+            var doIt = await window.showMiniConfirm(previewText + '\n\n当前共 ' + totalMsgCount + ' 条消息（含线下记录），确定要重新总结吗？');
             if (!doIt) return;
         }
         // 构造消息列表
@@ -724,7 +930,7 @@
         var historyKey = CD_KEY_PREFIX + activeChatContact.id + '_summary_history';
         var history = (await localforage.getItem(historyKey)) || [];
         if (idx < 0 || idx >= history.length) return;
-        var newContent = prompt('编辑总结内容：', history[idx].content);
+        var newContent = await window.showMiniPrompt('编辑总结内容：', history[idx].content, { multiline: true });
         if (newContent === null) return;
         history[idx].content = newContent.trim() || history[idx].content;
         await localforage.setItem(historyKey, history);
@@ -734,7 +940,7 @@
     // 删除某条总结
     async function _cdDeleteSummary(idx) {
         if (!activeChatContact) return;
-        if (!confirm('确定要删除这条总结吗？')) return;
+        if (!await window.showMiniConfirm('确定要删除这条总结吗？')) return;
         var historyKey = CD_KEY_PREFIX + activeChatContact.id + '_summary_history';
         var history = (await localforage.getItem(historyKey)) || [];
         history.splice(idx, 1);
@@ -752,7 +958,7 @@
     window.cdChangeRemark = async function() {
         if (!activeChatContact) return;
         var current = document.getElementById('cd-remark-value').textContent;
-        var newRemark = prompt('请输入备注名称：', current === '未设置' ? '' : current);
+        var newRemark = await window.showMiniPrompt('请输入备注名称：', current === '未设置' ? '' : current);
         if (newRemark === null) return;
         var displayRemark = newRemark.trim() || '未设置';
         document.getElementById('cd-remark-value').textContent = displayRemark;
@@ -890,6 +1096,7 @@
     // 注意：不覆盖原函数，而是在原函数结束后追加壁纸恢复逻辑
     // 这里通过监听DOMContentLoaded后挂载一个后处理
     document.addEventListener('DOMContentLoaded', function() {
+        _bindSpecialProbabilityInputs();
         // 当聊天窗口打开时，检查并应用该联系人的聊天壁纸
         // 通过MutationObserver监听chat-window的display变化
         var chatWin = document.getElementById('chat-window');

@@ -272,8 +272,10 @@ async function _roleHandleTransfer(lockedContact, action) {
     if (!targetMsg) return;
     // 更新消息状态
     const newStatus = (action === 'refunded') ? 'refunded' : 'received';
+    let transferAmount = 0;
     try {
         const parsed = parseMiniStructuredPayload(targetMsg.content);
+        transferAmount = parseFloat(parsed && parsed.amount) || 0;
         await chatListDb.messages.update(targetMsg.id, {
             content: createMiniStructuredMessage('transfer', {
                 amount: parsed.amount,
@@ -290,6 +292,16 @@ async function _roleHandleTransfer(lockedContact, action) {
     }
     // 显示系统小字提示
     const roleName = lockedContact.roleName || '对方';
+    if (newStatus === 'refunded' && transferAmount > 0) {
+        var walletEl = document.getElementById('text-wallet-bal');
+        if (walletEl) {
+            var curBal = parseFloat(walletEl.textContent.replace(/,/g, '')) || 0;
+            var newBal = curBal + transferAmount;
+            walletEl.textContent = newBal.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            walletDb.kv.put({ key: 'walletBalance', value: newBal }).catch(function(e) { console.error('余额持久化失败', e); });
+            _addBill('transfer', '转账退回', transferAmount, false, roleName + ' 退回的转账');
+        }
+    }
     let tipText = '';
     if (newStatus === 'received') {
         tipText = `${roleName} 接收了你的转账`;
@@ -302,27 +314,54 @@ async function _roleHandleTransfer(lockedContact, action) {
 // ====== 红包领取弹窗逻辑 ======
 var _rpClaimCardEl = null;
 var _rpClaimMsgId = null;
+function _appendWalletStatusPanel(actionsEl, heading, value, detail, toneClass) {
+    if (!actionsEl) return;
+    actionsEl.innerHTML = '';
+    var panel = document.createElement('div');
+    panel.className = 'wallet-status-panel';
+    var headingEl = document.createElement('div');
+    headingEl.className = 'wallet-status-heading';
+    headingEl.textContent = heading;
+    panel.appendChild(headingEl);
+    var valueEl = document.createElement('div');
+    valueEl.className = 'wallet-status-value' + (toneClass ? (' ' + toneClass) : '');
+    valueEl.textContent = value;
+    panel.appendChild(valueEl);
+    if (detail) {
+        var detailEl = document.createElement('div');
+        detailEl.className = 'wallet-status-detail';
+        detailEl.textContent = detail;
+        panel.appendChild(detailEl);
+    }
+    actionsEl.appendChild(panel);
+}
 function openRpClaimModal(cardEl, amount, desc, status, senderRole, roleName, msgId) {
     _rpClaimCardEl = cardEl;
     _rpClaimMsgId = msgId || null;
+    var row = cardEl ? cardEl.closest('.chat-msg-row') : null;
+    var rowSender = row ? row.getAttribute('data-sender') : '';
+    var resolvedSenderRole = rowSender === 'me' ? 'me' : (rowSender === 'role' ? 'role' : senderRole);
+    var targetRoleName = roleName || '对方';
     document.getElementById('rp-claim-amount').textContent = '¥ ' + amount;
     document.getElementById('rp-claim-desc').textContent = desc;
     var actionsEl = document.getElementById('rp-claim-actions');
     actionsEl.innerHTML = '';
     if (status === 'claimed') {
-        // 已领取：显示状态标签
-        actionsEl.innerHTML = '<div class="rp-modal-status-text" style="color:#aaa; font-size:13px; padding:16px 0; text-align:center; letter-spacing:0.3px;">已领取</div>';
+        _appendWalletStatusPanel(
+            actionsEl,
+            '红包状态',
+            resolvedSenderRole === 'me' ? '已被领取' : '已领取',
+            resolvedSenderRole === 'me' ? (targetRoleName + ' 已领取这个红包') : '这个红包已被你领取',
+            'is-success'
+        );
     } else {
-        // 未领取：根据发送方显示按钮
-        if (senderRole === 'me') {
-            // 我发的：等待对方领取 → 只显示提示
-            actionsEl.innerHTML = '<div class="rp-modal-status-text" style="color:#aaa; font-size:13px; padding:16px 0; text-align:center; letter-spacing:0.3px; line-height:1.6;">等待 ' + roleName + ' 领取</div>';
+        if (resolvedSenderRole === 'me') {
+            _appendWalletStatusPanel(actionsEl, '红包状态', '待领取', '等待 ' + targetRoleName + ' 领取', 'is-pending');
         } else {
-            // 角色发的：我可以领取
             var btn = document.createElement('div');
             btn.className = 'rp-modal-btn rp-modal-btn-claim';
             btn.textContent = '领取红包';
-            btn.onclick = function() { _doClaimRp(senderRole, roleName, parseFloat(amount)); };
+            btn.onclick = function() { _doClaimRp(resolvedSenderRole, targetRoleName, parseFloat(amount)); };
             actionsEl.appendChild(btn);
         }
     }
@@ -367,7 +406,11 @@ async function _doClaimRp(senderRole, roleName, amount) {
         statusEl.textContent = '已领取';
         statusEl.style.color = '#bbb';
     }
-    cardElRef.style.opacity = '0.75';
+    cardElRef.classList.add('rp-claimed');
+    cardElRef.style.opacity = '';
+    if (cardElRef.dataset) {
+        cardElRef.dataset.rpStatus = 'claimed';
+    }
     // 持久化：更新 IndexedDB 中的消息状态
     if (msgIdRef) {
         try {
@@ -410,34 +453,40 @@ var _tfActionAmount = 0;
 function openTfActionModal(cardEl, amount, desc, status, senderRole, roleName) {
     _tfActionCardEl = cardEl;
     _tfActionAmount = parseFloat(amount) || 0;
+    var targetRoleName = roleName || '对方';
     // 从卡片所在行获取 msg.id（通过向上查找 .chat-msg-row 的 data-id）
     var row = cardEl.closest('.chat-msg-row');
+    var rowSender = row ? row.getAttribute('data-sender') : '';
+    var resolvedSenderRole = rowSender === 'me' ? 'me' : (rowSender === 'role' ? 'role' : senderRole);
     _tfActionMsgId = row ? parseInt(row.getAttribute('data-id')) || null : null;
     document.getElementById('tf-action-amount').textContent = '¥ ' + amount;
     document.getElementById('tf-action-desc').textContent = desc;
     var actionsEl = document.getElementById('tf-action-actions');
     actionsEl.innerHTML = '';
     if (status === 'received' || status === 'refunded') {
-        // 已处理：只显示状态
-        var label = status === 'received' ? '已收款' : '已退回';
-        actionsEl.innerHTML = '<div class="tf-modal-status-text">' + label + '</div>';
+        _appendWalletStatusPanel(
+            actionsEl,
+            '转账状态',
+            status === 'received' ? '已收款' : '已退回',
+            resolvedSenderRole === 'me'
+                ? (status === 'received' ? (targetRoleName + ' 已接收这笔转账') : (targetRoleName + ' 已退回这笔转账'))
+                : (status === 'received' ? '这笔转账已存入你的余额' : '这笔转账已退回'),
+            status === 'received' ? 'is-success' : 'is-muted'
+        );
     } else {
-        // 待收款：根据发送方决定按钮
-        if (senderRole === 'me') {
-            // 我发的，等待对方操作
-            actionsEl.innerHTML = '<div class="tf-modal-status-text">等待 ' + roleName + ' 处理</div>';
+        if (resolvedSenderRole === 'me') {
+            _appendWalletStatusPanel(actionsEl, '转账状态', '待处理', '等待 ' + targetRoleName + ' 处理', 'is-pending');
         } else {
-            // 角色发的，我可以接收或退回
             var receiveBtn = document.createElement('div');
             receiveBtn.className = 'tf-modal-btn tf-modal-btn-receive';
             receiveBtn.textContent = '接收转账';
-            receiveBtn.onclick = function() { _doTfAction('received', senderRole, roleName); };
+            receiveBtn.onclick = function() { _doTfAction('received', resolvedSenderRole, targetRoleName); };
             var sepEl = document.createElement('div');
             sepEl.className = 'tf-modal-btn-sep';
             var refundBtn = document.createElement('div');
             refundBtn.className = 'tf-modal-btn tf-modal-btn-refund';
             refundBtn.textContent = '退回转账';
-            refundBtn.onclick = function() { _doTfAction('refunded', senderRole, roleName); };
+            refundBtn.onclick = function() { _doTfAction('refunded', resolvedSenderRole, targetRoleName); };
             actionsEl.appendChild(receiveBtn);
             actionsEl.appendChild(sepEl);
             actionsEl.appendChild(refundBtn);
@@ -487,8 +536,12 @@ async function _doTfAction(newStatus, senderRole, roleName) {
         } else {
             statusEl.textContent = '已退回';
             statusEl.style.color = '#bbb';
-            cardElRef.style.opacity = '0.72';
         }
+    }
+    cardElRef.classList.add('tf-received');
+    cardElRef.style.opacity = '';
+    if (cardElRef.dataset) {
+        cardElRef.dataset.tfStatus = newStatus;
     }
     // 持久化：更新 IndexedDB 中的消息状态
     if (msgIdRef) {
