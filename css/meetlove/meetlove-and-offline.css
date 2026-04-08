@@ -2811,3 +2811,76 @@
         height: min(80vw, 260px);
     }
 }
+
+/* ====== Music Header Alignment ====== */
+.music-app-header {
+    position: relative;
+    z-index: 3;
+    min-height: 82px;
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px 10px;
+    gap: 0;
+    background: transparent;
+}
+
+.music-header-brand {
+    position: absolute;
+    left: 50%;
+    top: calc(env(safe-area-inset-top, 0px) + 14px);
+    transform: translateX(-50%);
+    width: calc(100% - 128px);
+    align-items: center;
+    text-align: center;
+    pointer-events: none;
+}
+
+.music-header-title {
+    font-size: 20px;
+    font-weight: 760;
+    line-height: 1.1;
+    text-align: center;
+}
+
+.music-header-subtitle {
+    margin-top: 7px;
+    letter-spacing: 1.6px;
+    text-align: center;
+}
+
+.music-header-back,
+.music-header-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.music-header-actions {
+    position: relative;
+    z-index: 1;
+    margin-left: auto;
+}
+
+.music-scroll {
+    padding-top: 4px;
+}
+
+.music-profile-avatar {
+    border-radius: 50%;
+}
+
+.music-profile-avatar img {
+    border-radius: 50%;
+}
+
+.music-bottom-dock {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    transform: none;
+    width: auto;
+    padding: 8px 14px calc(8px + env(safe-area-inset-bottom, 0px));
+    border-radius: 28px 28px 0 0;
+    border-bottom: none;
+}

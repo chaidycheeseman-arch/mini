@@ -1070,6 +1070,11 @@
                 memorySummaryText = await getContactSummaryHistoryText(contact.id);
             }
 
+            var scheduleMemoryText = '';
+            if (typeof getMemoryCenterScheduleContextText === 'function') {
+                scheduleMemoryText = await getMemoryCenterScheduleContextText(contact.id, { limit: 5 });
+            }
+
             var worldbookSeedTexts = [];
             recentOnlineMsgs.forEach(function(m) {
                 var text = typeof extractMsgPureText === 'function'
@@ -1103,6 +1108,9 @@
             if (contact.userDetail) sysPrompt += '用户设定：' + contact.userDetail + '\n';
             if (memorySummaryText) {
                 sysPrompt += '【长期记忆摘要】以下内容是你们已经共同经历过的事实，请带着它继续线下互动，不要和它冲突：\n' + memorySummaryText + '\n';
+            }
+            if (scheduleMemoryText) {
+                sysPrompt += '【行程记忆】以下是你们已经确认过的安排与时间锚点，线下互动必须自然承接，不要与其冲突：\n' + scheduleMemoryText + '\n';
             }
             if (worldbookText) {
                 sysPrompt += '【背景与设定信息】\n' + worldbookText + '\n';
