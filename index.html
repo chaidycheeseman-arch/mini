@@ -334,15 +334,15 @@
         <div class="music-app-body">
             <div id="music-tab-library" class="music-tab-page active">
                 <div class="music-scroll music-library-scroll">
-                    <div class="music-now-card">
+                    <div class="music-now-card" onclick="musicOpenPlayer()">
                         <div class="music-now-cover" id="music-now-cover"></div>
                         <div class="music-now-info">
                             <div class="music-now-chip">最近播放</div>
                             <div class="music-now-title" id="music-now-title">还没有歌曲</div>
                             <div class="music-now-artist" id="music-now-artist">点击右上角添加第一首歌</div>
-                            <div class="music-now-meta">把喜欢的旋律都收进今天</div>
+                            <div class="music-now-meta" id="music-now-meta">把喜欢的旋律都收进今天</div>
                         </div>
-                        <button class="music-now-play" type="button" onclick="musicPlayNextSong()" aria-label="播放下一首">
+                        <button class="music-now-play" type="button" onclick="event.stopPropagation();musicPlayNextSong()" aria-label="播放下一首">
                             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg>
                         </button>
                     </div>
@@ -430,9 +430,105 @@
                 <span>个人</span>
             </button>
         </div>
+        <div id="music-player-screen" class="music-player-screen">
+            <div class="music-player-topbar">
+                <button class="music-player-back" type="button" onclick="musicClosePlayer()" aria-label="返回音乐列表">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+                </button>
+                <div class="music-player-heading">
+                    <div class="music-player-kicker">正在播放</div>
+                    <div class="music-player-sub">大封面与滚动歌词</div>
+                </div>
+                <button class="music-player-next" type="button" onclick="musicPlayNextSong()" aria-label="下一首">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l10 7-10 7z"></path><path d="M19 5v14"></path></svg>
+                </button>
+            </div>
+            <div class="music-player-cover" id="music-player-cover"></div>
+            <div class="music-player-meta">
+                <div class="music-player-title" id="music-player-title">还没有歌曲</div>
+                <div class="music-player-artist" id="music-player-artist">点击右上角添加真实音乐</div>
+            </div>
+            <div class="music-player-progress">
+                <input id="music-player-seek" class="music-player-range" type="range" min="0" max="1000" value="0" oninput="musicSeek(event)">
+                <div class="music-player-time">
+                    <span id="music-player-current-time">00:00</span>
+                    <span id="music-player-total-time">00:00</span>
+                </div>
+            </div>
+            <div class="music-player-controls">
+                <button id="music-player-toggle" class="music-player-toggle" type="button" onclick="musicTogglePlayback()" aria-label="播放或暂停"></button>
+            </div>
+            <div class="music-player-lyrics-shell">
+                <div class="music-player-lyrics-head">
+                    <span>歌词</span>
+                    <span id="music-player-lyrics-hint">支持 txt / lrc</span>
+                </div>
+                <div id="music-player-lyrics" class="music-player-lyrics"></div>
+            </div>
+        </div>
+        <div id="music-song-dialog" class="music-song-dialog-overlay" onclick="if(event.target===this)musicCloseSongDialog()">
+            <div class="music-song-dialog">
+                <div class="music-song-dialog-handle"></div>
+                <div class="music-song-dialog-head">
+                    <div>
+                        <div class="music-song-dialog-title">添加真实音乐</div>
+                        <div class="music-song-dialog-subtitle">输入封面、音源和歌词后即可播放</div>
+                    </div>
+                    <button class="music-song-dialog-close" type="button" onclick="musicCloseSongDialog()" aria-label="关闭添加歌曲弹窗">×</button>
+                </div>
+                <div class="music-song-dialog-body">
+                    <div class="music-song-field">
+                        <div class="music-song-field-label">歌曲封面</div>
+                        <div class="music-song-cover-row">
+                            <div id="music-song-cover-preview" class="music-song-cover-preview"></div>
+                            <div class="music-song-cover-form">
+                                <input id="music-song-cover-url" class="music-song-input" type="text" placeholder="封面图片 URL，可留空改用本地图片" oninput="musicSyncSongCoverPreview()">
+                                <button class="music-song-file-btn" type="button" onclick="document.getElementById('music-song-cover-file-input').click()">选择本地封面</button>
+                                <div id="music-song-cover-file-name" class="music-song-file-name">未选择本地封面</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="music-song-field">
+                        <div class="music-song-field-label">歌名</div>
+                        <input id="music-song-title-input" class="music-song-input" type="text" placeholder="输入歌曲名称">
+                    </div>
+                    <div class="music-song-field">
+                        <div class="music-song-field-label">歌手</div>
+                        <input id="music-song-artist-input" class="music-song-input" type="text" placeholder="输入歌手名称">
+                    </div>
+                    <div class="music-song-field">
+                        <div class="music-song-field-label">音源</div>
+                        <div class="music-song-source-switch">
+                            <button id="music-song-source-mode-url" class="music-song-source-switch-btn" type="button" onclick="musicSetSongSourceMode('url')">URL</button>
+                            <button id="music-song-source-mode-file" class="music-song-source-switch-btn" type="button" onclick="musicSetSongSourceMode('file')">本地</button>
+                        </div>
+                        <div id="music-song-source-url-row" class="music-song-source-row">
+                            <input id="music-song-source-url" class="music-song-input" type="text" placeholder="输入可直链播放的音频 URL">
+                        </div>
+                        <div id="music-song-source-file-row" class="music-song-source-row">
+                            <button class="music-song-file-btn" type="button" onclick="document.getElementById('music-song-audio-file-input').click()">选择本地音源</button>
+                            <div id="music-song-audio-file-name" class="music-song-file-name">未选择本地音源</div>
+                        </div>
+                    </div>
+                    <div class="music-song-field">
+                        <div class="music-song-field-label">歌词</div>
+                        <button class="music-song-file-btn" type="button" onclick="document.getElementById('music-song-lyrics-file-input').click()">导入 txt / lrc 歌词</button>
+                        <div id="music-song-lyrics-file-name" class="music-song-file-name">未导入歌词</div>
+                        <textarea id="music-song-lyrics-preview" class="music-song-textarea" readonly placeholder="导入歌词文件后，这里会显示预览，并在播放页滚动显示。"></textarea>
+                    </div>
+                </div>
+                <div class="music-song-dialog-actions">
+                    <button class="music-song-secondary-btn" type="button" onclick="musicCloseSongDialog()">取消</button>
+                    <button class="music-song-primary-btn" type="button" onclick="musicSaveSong()">保存歌曲</button>
+                </div>
+            </div>
+        </div>
         <input type="file" id="music-cover-input" accept="image/*" style="display:none" onchange="musicHandleImageChange('cover', event)">
         <input type="file" id="music-avatar-input" accept="image/*" style="display:none" onchange="musicHandleImageChange('avatar', event)">
         <input type="file" id="music-playlist-import-input" accept=".json,.txt,.csv" style="display:none" onchange="musicHandlePlaylistImport(event)">
+        <input type="file" id="music-song-cover-file-input" accept="image/*" style="display:none" onchange="musicHandleSongCoverFile(event)">
+        <input type="file" id="music-song-audio-file-input" accept="audio/*" style="display:none" onchange="musicHandleSongAudioFile(event)">
+        <input type="file" id="music-song-lyrics-file-input" accept=".txt,.lrc,text/plain" style="display:none" onchange="musicHandleSongLyricsFile(event)">
     </div>
     <!-- ====== 主题应用页面 ====== -->
     <div id="theme-app" class="full-app-page">
